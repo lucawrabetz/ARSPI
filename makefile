@@ -24,7 +24,7 @@ CXXFLAGSMAC = -Wall -g -std=c++11
 
 # FOR MAC
 all:
-	$(CXXMAC) $(CXXFLAGSMAC) -o $(BINPATH)main $(SRCPATH)main.cpp -I$(INCPATHMAC) $(CPPLIBMAC)
+	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)rspi.cpp -o $(BINPATH)main $(SRCPATH)main.cpp -I$(INCPATHMAC) $(CPPLIBMAC)
 
 clean:
 	rm -rf *.o $(BINPATH)*.dSYM $(BINPATH)main
