@@ -94,24 +94,45 @@ class TestBed:
     samples = 0
     mu = 0
     sigma = 0
-    cc = []
+    cc = {}
     d = 0
+    r_0 = 0
 
-    def __init__(self, num_layerss, num_per_layerr, arcs_per_nodee, ll, sampless, muu, sigmaa):
+    def __init__(self, num_layerss, num_per_layerr, arcs_per_nodee, ll, sampless, muu, sigmaa, r_00):
         self.G = LayerGraph(num_layerss, num_per_layerr, arcs_per_nodee)
         self.l = ll
         self.samples = sampless
         self.mu = muu
         self.sigma = sigmaa
-        self.d = int(self.sigma*0.75)
+        self.d = self.sigma*2
+        self.r_0 = r_00
 
-        for i in self.samples:
-            current_sample = []
-            for num_evaders in range(1, self.l+1):
-                current_sample.append(cost_generation(
-                    num_evaders, self.G.m, self.mu, self.sigma))
-            self.cc.append(current_sample)
+        for evaders in range(1, self.l+1):
+            current_evader_num = {}
+            for i in range(1, self.samples+1):
+                current_evader_num[i] = cost_generation(
+                    evaders, self.G.m, self.mu, self.sigma)
+            self.cc[evaders] = current_evader_num
+
+    def writeBed(self, filename):
+        with open(filename, "w") as file:
+            file.write("n: " + str(self.G.n) + "\n")
+            file.write("m: " + str(self.G.m) + "\n")
+            file.write("R0: " + str(self.r_0) + "\n")
+            file.write("max evaders: " + str(self.l) + "\n")
+            file.write("samples: " + str(self.samples) + "\n")
+            file.write("mu: " + str(self.mu) + "\n")
+            file.write("sigma: " + str(self.sigma) + "\n")
 
 
-graph = LayerGraph(2, 2, 1)
-graph.printGraph()
+# num_layers = 1
+# num_per_layer = 1
+# arcs_per_node = 1
+# ll = 2
+# samples = 2
+# mu = 100
+# sigma = 10
+
+# bed = TestBed(num_layers, num_per_layer, arcs_per_node, ll, samples, mu, sigma)
+# bed.G.printGraph()
+# print(bed.cc)
