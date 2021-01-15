@@ -58,18 +58,3 @@ for i in range(num_layers+1):
 
 m = len(arcs)
 print(n, m, [i for i in range(n)], arcs)
-
-
-class LayerGraph:
-    s = 0
-
-    def __init__(self):
-        # constructor
-        # define the number of layers (layer s -> layer 0; layer t -> layer num_layers + 1)
-        num_layers = 2
-        # define the number of nodes per layer
-        num_per_layer = 10
-        # define the number of outgoing arcs per node
-        arcs_per_node = 1
-        # define number of scenarios/evaders
-        l = 1
