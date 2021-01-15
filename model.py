@@ -27,6 +27,7 @@ def M2Model(c, d, r0, A, n):
     m = len(A)
     l = len(c)
     model = Model()
+    model.setParam(GRB.Param.TimeLimit, 300)
     # variable pi[i] shortest post-interdiction path to node i
     pi = {}
     for i in range(n):
@@ -78,4 +79,4 @@ def M2Model(c, d, r0, A, n):
     # [objective]
     # [interdiction policy vector]
     # [running time]
-    return [[pi[n-1].x], [i for i in x], [runtime]]
+    return [[pi[n-1].x], [x[a].x for a in range(m)], [runtime]]

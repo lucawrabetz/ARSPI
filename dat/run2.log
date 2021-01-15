@@ -1,0 +1,7 @@
+n: 102
+m: 456
+R0: 4
+max evaders: 10
+samples: 20
+mu: 200
+sigma: 20
