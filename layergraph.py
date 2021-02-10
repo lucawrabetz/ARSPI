@@ -1,24 +1,25 @@
 import random
+import math
+import networkx as nx
 
 
-def layer_communicates(current):
-    # add communication arcs within a layer - avoid graphs with no s-t path
-    comm_arcs = []
-    for i in current[:-1]:
-        new_arc1 = (i, i+1)
-        new_arc2 = (i+1, i)
-        comm_arcs.append(new_arc1)
-        comm_arcs.append(new_arc2)
-    return comm_arcs
+def arcs_for_current_layer(current, next1, p, last=False):
+    '''
+    add arcs for this layer - outgoing
+    random arcs to nodes in all 'future layers'
+    'next' is just all the remaining nodes in future layers
+    p is the probability that the node i is connected to any j in future layers - to simplify we use it as a proportion and convert to arcs_per_node
+    '''
 
-
-def arcs_for_current_layer(current, next, arcs_per_node):
-    # add arcs for this layer - communication + outgoing
+    # import pdb
+    # pdb.set_trace()
+    arcs_per_node = math.ceil(len(next1) * p)
     arcs = []
     # if the next layer is t
-    if len(next) == 1:
+    if last:
+        arcs_per_node = math.ceil(len(current) * p)
         sampled_nodes = random.sample(current, arcs_per_node)
-        j = next[0]
+        j = next1[0]
         for i in sampled_nodes:
             new_arc = (i, j)
             arcs.append(new_arc)
@@ -26,12 +27,11 @@ def arcs_for_current_layer(current, next, arcs_per_node):
     # for all other layers
     else:
         for i in current:
-            sampled_nodes = random.sample(next, arcs_per_node)
+            sampled_nodes = random.sample(next1, arcs_per_node)
             for j in sampled_nodes:
                 new_arc = (i, j)
                 arcs.append(new_arc)
 
-    arcs.extend(layer_communicates(current))
     return arcs
 
 
@@ -51,32 +51,47 @@ class LayerGraph:
     s = 0
     num_layers = 0
     num_per_layer = 0
-    arcs_per_node = 0
+    p = 0
     arcs = []
     n = 0
     m = 0
     t = 0
 
-    def __init__(self, num_layerss, num_per_layerr, arcs_per_nodee):
-        # only generates graph topology (no cost information in this class)
+    def __init__(self, num_layerss, num_per_layerr, pp):
+        '''
+        only generates graph topology (no cost information in this class)
+        self.p is the probability that a node is connected to any given node ahead of it
+        - we'll use it as a proportion to calculate arcs per node and sample a random set of that number
+        '''
         self.num_layers = num_layerss
         self.num_per_layer = num_per_layerr
-        self.arcs_per_node = arcs_per_nodee
+        self.p = pp
         self.n = 2 + self.num_layers*self.num_per_layer
         self.t = self.n-1
 
         current_layer = [self.s]
-        next_layer = [i for i in range(1, self.num_per_layer+1)]
+        next_layer = [i for i in range(self.n) if i not in current_layer]
 
         for i in range(self.num_layers+1):
+            print(current_layer)
+            print(next_layer)
+            if i == self.num_layers:
+                new_arcs = arcs_for_current_layer(
+                    current_layer, next_layer, self.p, True)
             new_arcs = arcs_for_current_layer(
-                current_layer, next_layer, self.arcs_per_node)
+                current_layer, next_layer, self.p)
             self.arcs.extend(new_arcs)
-            current_layer = next_layer
+
+            refnode = current_layer[-1] + 1
+            current_layer = []
+            for i in range(self.num_per_layer):
+                current_layer.append(refnode + i)
+            refnode2 = current_layer[-1]
             if i == self.num_layers-1:
+                current_layer = list(range(self.n))[:-1]
                 next_layer = [self.t]
             else:
-                next_layer = [(i + self.num_per_layer) for i in current_layer]
+                next_layer = [i for i in range(self.n-1) if i > refnode2]
 
         self.m = len(self.arcs)
 
@@ -86,6 +101,13 @@ class LayerGraph:
         print("arcs: ")
         for i in range(self.m):
             print("     " + str(self.arcs[i]))
+
+    def checksNX(self):
+        '''
+        - convert graph to a networkx object
+        - check anything you want - connectivity, parallel edges, etc
+        G = nx.DiGraph(self.arcs)
+
 
 
 class TestBed:
@@ -125,14 +147,16 @@ class TestBed:
             file.write("sigma: " + str(self.sigma) + "\n")
 
 
-# num_layers = 1
-# num_per_layer = 1
-# arcs_per_node = 1
-# ll = 2
-# samples = 2
-# mu = 100
-# sigma = 10
+num_layers = 1
+num_per_layer = 1
+p = 0.5
+ll = 2
+samples = 2
+mu = 100
+sigma = 10
+r_0 = 1
 
-# bed = TestBed(num_layers, num_per_layer, arcs_per_node, ll, samples, mu, sigma)
-# bed.G.printGraph()
-# print(bed.cc)
+
+lG = LayerGraph(num_layers, num_per_layer, p)
+lG.printGraph()
+lG.checksNX()
