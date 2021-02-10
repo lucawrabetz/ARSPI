@@ -3,34 +3,32 @@ import math
 import networkx as nx
 
 
-def arcs_for_current_layer(current, next1, p, last=False):
+def arcs_for_current_layer(current, next1, p):
     '''
     add arcs for this layer - outgoing
     random arcs to nodes in all 'future layers'
     'next' is just all the remaining nodes in future layers
     p is the probability that the node i is connected to any j in future layers - to simplify we use it as a proportion and convert to arcs_per_node
     '''
-
     # import pdb
     # pdb.set_trace()
     arcs_per_node = math.ceil(len(next1) * p)
     arcs = []
-    # if the next layer is t
-    if last:
-        arcs_per_node = math.ceil(len(current) * p)
-        sampled_nodes = random.sample(current, arcs_per_node)
-        j = next1[0]
-        for i in sampled_nodes:
-            new_arc = (i, j)
-            arcs.append(new_arc)
+    # if the next layer is t (getting rid of this)
+    # if last:
+    #     arcs_per_node = math.ceil(len(current) * p)
+    #     sampled_nodes = random.sample(current, arcs_per_node)
+    #     j = next1[0]
+    #     for i in sampled_nodes:
+    #         new_arc = (i, j)
+    #         arcs.append(new_arc)
 
     # for all other layers
-    else:
-        for i in current:
-            sampled_nodes = random.sample(next1, arcs_per_node)
-            for j in sampled_nodes:
-                new_arc = (i, j)
-                arcs.append(new_arc)
+    for i in current:
+        sampled_nodes = random.sample(next1, arcs_per_node)
+        for j in sampled_nodes:
+            new_arc = (i, j)
+            arcs.append(new_arc)
 
     return arcs
 
@@ -71,27 +69,29 @@ class LayerGraph:
 
         current_layer = [self.s]
         next_layer = [i for i in range(self.n) if i not in current_layer]
+        # import pdb
+        # pdb.set_trace()
 
         for i in range(self.num_layers+1):
-            print(current_layer)
-            print(next_layer)
-            if i == self.num_layers:
-                new_arcs = arcs_for_current_layer(
-                    current_layer, next_layer, self.p, True)
+            # print(i)
+            # print(current_layer)
+            # print(next_layer)
+            # if i == self.num_layers:
+            #     new_arcs = arcs_for_current_layer(
+            #         current_layer, next_layer, self.p)
             new_arcs = arcs_for_current_layer(
                 current_layer, next_layer, self.p)
             self.arcs.extend(new_arcs)
-
+            # print(self.arcs)
             refnode = current_layer[-1] + 1
             current_layer = []
             for i in range(self.num_per_layer):
                 current_layer.append(refnode + i)
             refnode2 = current_layer[-1]
-            if i == self.num_layers-1:
-                current_layer = list(range(self.n))[:-1]
-                next_layer = [self.t]
-            else:
-                next_layer = [i for i in range(self.n-1) if i > refnode2]
+            # if i == self.num_layers-1:
+            #     current_layer = list(range(self.n))[:-1]
+            #     next_layer = [self.t]
+            next_layer = [i for i in range(self.n) if i > refnode2]
 
         self.m = len(self.arcs)
 
@@ -102,12 +102,16 @@ class LayerGraph:
         for i in range(self.m):
             print("     " + str(self.arcs[i]))
 
-    def checksNX(self):
+    def checksNX(self, filename):
         '''
+        - check for uniqueness of edges to avoid multigraph issue
         - convert graph to a networkx object
         - check anything you want - connectivity, parallel edges, etc
+        '''
+        edge_set = set(self.arcs)
+        self.arcs = list(edge_set)
         G = nx.DiGraph(self.arcs)
-
+        nx.write_edgelist(G, filename, data=False)
 
 
 class TestBed:
@@ -147,9 +151,9 @@ class TestBed:
             file.write("sigma: " + str(self.sigma) + "\n")
 
 
-num_layers = 1
-num_per_layer = 1
-p = 0.5
+num_layers = 2
+num_per_layer = 5
+p = 0.7
 ll = 2
 samples = 2
 mu = 100
@@ -159,4 +163,4 @@ r_0 = 1
 
 lG = LayerGraph(num_layers, num_per_layer, p)
 lG.printGraph()
-lG.checksNX()
+lG.checksNX('graph.graph')
