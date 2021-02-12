@@ -10,20 +10,9 @@ def arcs_for_current_layer(current, next1, p):
     'next' is just all the remaining nodes in future layers
     p is the probability that the node i is connected to any j in future layers - to simplify we use it as a proportion and convert to arcs_per_node
     '''
-    # import pdb
-    # pdb.set_trace()
     arcs_per_node = math.ceil(len(next1) * p)
     arcs = []
-    # if the next layer is t (getting rid of this)
-    # if last:
-    #     arcs_per_node = math.ceil(len(current) * p)
-    #     sampled_nodes = random.sample(current, arcs_per_node)
-    #     j = next1[0]
-    #     for i in sampled_nodes:
-    #         new_arc = (i, j)
-    #         arcs.append(new_arc)
 
-    # for all other layers
     for i in current:
         sampled_nodes = random.sample(next1, arcs_per_node)
         for j in sampled_nodes:
@@ -131,7 +120,7 @@ class TestBed:
         self.mu = muu
         self.sigma = sigmaa
         self.d = self.sigma*2
-        self.r_0 = r_00
+        self.r_0 = r_00d
 
         for evaders in range(1, self.l+1):
             current_evader_num = {}
