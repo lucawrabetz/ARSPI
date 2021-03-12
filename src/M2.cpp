@@ -64,46 +64,93 @@ void LayerGraph::printGraph()
     }
 }
 
-M2ProblemBilinear::M2ProblemBilinear(const LayerGraph &the_G, int min, int max, int the_l, int the_r0)
+M2ProblemInstance::M2ProblemInstance()
+{
+    r_0 = 0;
+}
+
+M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_l, int the_r0)
+{
+    // ------ Assign graph and random costs ------
+    // ------ Variables and int parameters ------
+    G = the_G;
+    n = G.n;
+    m = G.m;
+    l = the_l;
+    r_0 = the_r0;
+
+    for (int a = 0; a < m; a++)
+    {
+        // interdiction_costs.push_back((max - min));
+        // for simplegraph.txt
+        interdiction_costs.push_back(100);
+    }
+
+    // std::random_device rd;                           // obtain a random number from hardware
+    // std::mt19937 gen(rd());                          // seed the generator
+    // std::uniform_int_distribution<> distr(min, max); // define the range
+
+    // for (int q = 0; q < l; q++)
+    // {
+    //     std::vector<int> new_vector = {};
+    //     arc_costs.push_back(new_vector);
+    //     for (int a = 0; a < m; a++)
+    //     {
+    //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
+    //     }
+    // }
+
+    // hardcoded example "simplegraph.txt"
+    std::vector<int> costs1 = {3, 4, 3, 4, 3, 4, 3};
+    std::vector<int> costs2 = {3, 1, 3, 1, 3, 1, 10};
+    std::vector<int> costs3 = {3, 4, 3, 4, 3, 4, 10};
+    arc_costs.push_back(costs1);
+    arc_costs.push_back(costs2);
+    arc_costs.push_back(costs3);
+}
+
+M2ModelBilinear::M2ModelBilinear(const M2ProblemInstance &the_M2Instance)
 {
     try
     {
-        // ------ Assign graph and random costs ------
-        // ------ Variables and int parameters ------
-        G = the_G;
-        n = G.n;
-        m = G.m;
-        l = the_l;
-        r_0 = the_r0;
+        // ------ Assign Instance ------
+        M2Instance = the_M2Instance;
 
-        for (int a = 0; a < m; a++)
-        {
-            // interdiction_costs.push_back((max - min));
-            // for simplegraph.txt
-            interdiction_costs.push_back(100);
-        }
+        // // ------ Assign graph and random costs ------
+        // // ------ Variables and int parameters ------
+        n = the_M2Instance.G.n;
+        m = the_M2Instance.G.m;
+        l = the_M2Instance.l;
+        r_0 = the_M2Instance.r_0;
 
-        // std::random_device rd;                           // obtain a random number from hardware
-        // std::mt19937 gen(rd());                          // seed the generator
-        // std::uniform_int_distribution<> distr(min, max); // define the range
-
-        // for (int q = 0; q < l; q++)
+        // for (int a = 0; a < m; a++)
         // {
-        //     std::vector<int> new_vector = {};
-        //     arc_costs.push_back(new_vector);
-        //     for (int a = 0; a < m; a++)
-        //     {
-        //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
-        //     }
+        //     // interdiction_costs.push_back((max - min));
+        //     // for simplegraph.txt
+        //     interdiction_costs.push_back(100);
         // }
 
-        // hardcoded example "simplegraph.txt"
-        std::vector<int> costs1 = {3, 4, 3, 4, 3, 4, 3};
-        std::vector<int> costs2 = {3, 1, 3, 1, 3, 1, 10};
-        std::vector<int> costs3 = {3, 4, 3, 4, 3, 4, 10};
-        arc_costs.push_back(costs1);
-        arc_costs.push_back(costs2);
-        arc_costs.push_back(costs3);
+        // // std::random_device rd;                           // obtain a random number from hardware
+        // // std::mt19937 gen(rd());                          // seed the generator
+        // // std::uniform_int_distribution<> distr(min, max); // define the range
+
+        // // for (int q = 0; q < l; q++)
+        // // {
+        // //     std::vector<int> new_vector = {};
+        // //     arc_costs.push_back(new_vector);
+        // //     for (int a = 0; a < m; a++)
+        // //     {
+        // //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
+        // //     }
+        // // }
+
+        // // hardcoded example "simplegraph.txt"
+        // std::vector<int> costs1 = {3, 4, 3, 4, 3, 4, 3};
+        // std::vector<int> costs2 = {3, 1, 3, 1, 3, 1, 10};
+        // std::vector<int> costs3 = {3, 4, 3, 4, 3, 4, 10};
+        // arc_costs.push_back(costs1);
+        // arc_costs.push_back(costs2);
+        // arc_costs.push_back(costs3);
 
         // ------ Initialize model and environment ------
         M2env = new GRBEnv();
@@ -156,9 +203,9 @@ M2ProblemBilinear::M2ProblemBilinear(const LayerGraph &the_G, int min, int max, 
             quadexpr = 0;
             for (int q = 0; q < l; q++)
             {
-                quadexpr += (arc_costs[q][a] + interdiction_costs[a] * x[a]) * lambda[q];
+                quadexpr += (M2Instance.arc_costs[q][a] + M2Instance.interdiction_costs[a] * x[a]) * lambda[q];
             }
-            M2model->addQConstr((pi[G.arcs[a].j] - pi[G.arcs[a].i]) <= quadexpr);
+            M2model->addQConstr((pi[M2Instance.G.arcs[a].j] - pi[M2Instance.G.arcs[a].i]) <= quadexpr);
         }
 
         // pi[0] = 0
@@ -181,7 +228,7 @@ M2ProblemBilinear::M2ProblemBilinear(const LayerGraph &the_G, int min, int max, 
     }
 }
 
-float M2ProblemBilinear::solve()
+float M2ModelBilinear::solve()
 {
     // try
     // {
@@ -276,7 +323,7 @@ float M2ProblemBilinear::solve()
         std::cout << "Running time: " << running_time << "\n";
         for (int a = 0; a < m; a++)
         {
-            std::cout << "x_" << a << "(" << G.arcs[a].i << "," << G.arcs[a].j << ")"
+            std::cout << "x_" << a << "(" << M2Instance.G.arcs[a].i << "," << M2Instance.G.arcs[a].j << ")"
                       << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
         }
 
@@ -294,46 +341,48 @@ float M2ProblemBilinear::solve()
     }
 }
 
-M2ProblemLinear::M2ProblemLinear(const LayerGraph &the_G, int min, int max, int the_l, int the_r0)
+M2ModelLinear::M2ModelLinear(const M2ProblemInstance &the_M2Instance)
 {
     try
     {
-        // ------ Assign graph and random costs ------
+        // ------ Assign Instance ------
+        M2Instance = the_M2Instance;
+
+        // // ------ Assign graph and random costs ------
         // ------ Variables and int parameters ------
-        G = the_G;
-        n = G.n;
-        m = G.m;
-        l = the_l;
-        r_0 = the_r0;
+        n = M2Instance.G.n;
+        m = M2Instance.G.m;
+        l = M2Instance.l;
+        r_0 = M2Instance.r_0;
 
-        for (int a = 0; a < m; a++)
-        {
-            // interdiction_costs.push_back((max - min));
-            // for simplegraph.txt
-            interdiction_costs.push_back(100);
-        }
-
-        // std::random_device rd;                           // obtain a random number from hardware
-        // std::mt19937 gen(rd());                          // seed the generator
-        // std::uniform_int_distribution<> distr(min, max); // define the range
-
-        // for (int q = 0; q < l; q++)
+        // for (int a = 0; a < m; a++)
         // {
-        //     std::vector<int> new_vector = {};
-        //     arc_costs.push_back(new_vector);
-        //     for (int a = 0; a < m; a++)
-        //     {
-        //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
-        //     }
+        //     // interdiction_costs.push_back((max - min));
+        //     // for simplegraph.txt
+        //     interdiction_costs.push_back(100);
         // }
 
-        // hardcoded example "simplegraph.txt"
-        std::vector<int> costs1 = {3, 4, 3, 4, 3, 4, 3};
-        std::vector<int> costs2 = {3, 1, 3, 1, 3, 1, 10};
-        std::vector<int> costs3 = {3, 4, 3, 4, 3, 4, 10};
-        arc_costs.push_back(costs1);
-        arc_costs.push_back(costs2);
-        arc_costs.push_back(costs3);
+        // // std::random_device rd;                           // obtain a random number from hardware
+        // // std::mt19937 gen(rd());                          // seed the generator
+        // // std::uniform_int_distribution<> distr(min, max); // define the range
+
+        // // for (int q = 0; q < l; q++)
+        // // {
+        // //     std::vector<int> new_vector = {};
+        // //     arc_costs.push_back(new_vector);
+        // //     for (int a = 0; a < m; a++)
+        // //     {
+        // //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
+        // //     }
+        // // }
+
+        // // hardcoded example "simplegraph.txt"
+        // std::vector<int> costs1 = {3, 4, 3, 4, 3, 4, 3};
+        // std::vector<int> costs2 = {3, 1, 3, 1, 3, 1, 10};
+        // std::vector<int> costs3 = {3, 4, 3, 4, 3, 4, 10};
+        // arc_costs.push_back(costs1);
+        // arc_costs.push_back(costs2);
+        // arc_costs.push_back(costs3);
 
         // ------ Initialize model and environment ------
         M2env = new GRBEnv();
@@ -386,7 +435,7 @@ M2ProblemLinear::M2ProblemLinear(const LayerGraph &the_G, int min, int max, int 
         {
             for (int q = 0; q < l; q++)
             {
-                M2model->addConstr((pi[q][G.arcs[a].j] - pi[q][G.arcs[a].i]) <= arc_costs[q][a] + interdiction_costs[a] * x[a]);
+                M2model->addConstr((pi[q][M2Instance.G.arcs[a].j] - pi[q][M2Instance.G.arcs[a].i]) <= M2Instance.arc_costs[q][a] + M2Instance.interdiction_costs[a] * x[a]);
             }
         }
 
@@ -409,7 +458,7 @@ M2ProblemLinear::M2ProblemLinear(const LayerGraph &the_G, int min, int max, int 
     }
 }
 
-float M2ProblemLinear::solve()
+float M2ModelLinear::solve()
 {
     try
     {
@@ -420,7 +469,7 @@ float M2ProblemLinear::solve()
         std::cout << "Running time: " << running_time << "\n";
         for (int a = 0; a < m; a++)
         {
-            std::cout << "x_" << a << "(" << G.arcs[a].i << "," << G.arcs[a].j << ")"
+            std::cout << "x_" << a << "(" << M2Instance.G.arcs[a].i << "," << M2Instance.G.arcs[a].j << ")"
                       << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
         }
 

@@ -29,7 +29,24 @@ public:
     void printGraph();
 };
 
-class M2ProblemBilinear
+class M2ProblemInstance
+{
+public:
+    int n;
+    int m;
+    int l;
+    int r_0;
+
+    std::vector<std::vector<int>> arc_costs;
+    std::vector<int> interdiction_costs;
+
+    LayerGraph G;
+
+    M2ProblemInstance();
+    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_l, int the_r0); // 'normal' constructor
+};
+
+class M2ModelBilinear
 {
 public:
     int s = 0;
@@ -38,6 +55,8 @@ public:
     int l;
     int r_0;
     float running_time;
+
+    M2ProblemInstance M2Instance;
 
     GRBEnv *M2env;
     GRBModel *M2model;
@@ -45,20 +64,20 @@ public:
     GRBLinExpr linexpr;
     GRBQuadExpr quadexpr;
 
-    std::vector<std::vector<int>> arc_costs;
-    std::vector<int> interdiction_costs;
+    // std::vector<std::vector<int>> arc_costs;
+    // std::vector<int> interdiction_costs;
 
-    LayerGraph G;
+    // LayerGraph G;
 
     std::vector<GRBVar> pi;     // decision variable; post interdiction s-i path
     std::vector<GRBVar> lambda; // decision variable; convex combination of scenario costs
     std::vector<GRBVar> x;      // decision variable; interdiction variable
 
-    M2ProblemBilinear(const LayerGraph &the_G, int min, int max, int the_l, int the_r0); // 'normal' constructor
+    M2ModelBilinear(const M2ProblemInstance &the_M2Instance); // 'normal' constructor
     float solve();
 };
 
-class M2ProblemLinear
+class M2ModelLinear
 {
 public:
     int s = 0;
@@ -68,21 +87,23 @@ public:
     int r_0;
     float running_time;
 
+    M2ProblemInstance M2Instance;
+
     GRBEnv *M2env;
     GRBModel *M2model;
 
     GRBLinExpr linexpr;
 
-    std::vector<std::vector<int>> arc_costs;
-    std::vector<int> interdiction_costs;
+    // std::vector<std::vector<int>> arc_costs;
+    // std::vector<int> interdiction_costs;
 
-    LayerGraph G;
+    // LayerGraph G;
 
     std::vector<std::vector<GRBVar>> pi; // decision variable; post interdiction s-i path for each q
     GRBVar z;                            // decision variable; objective func dummy
     std::vector<GRBVar> x;               // decision variable; interdiction variable
 
-    M2ProblemLinear(const LayerGraph &the_G, int min, int max, int the_l, int the_r0);
+    M2ModelLinear(const M2ProblemInstance &the_M2Instance);
 
     float solve();
 };
