@@ -42,9 +42,6 @@ public:
     GRBEnv *M2env;
     GRBModel *M2model;
 
-    GRBEnv *SPSubenv;
-    GRBModel *SPSubmodel;
-
     GRBLinExpr linexpr;
     GRBQuadExpr quadexpr;
 
@@ -74,20 +71,16 @@ public:
     GRBEnv *M2env;
     GRBModel *M2model;
 
-    GRBEnv *SPSubenv;
-    GRBModel *SPSubmodel;
-
     GRBLinExpr linexpr;
-    GRBQuadExpr quadexpr;
 
     std::vector<std::vector<int>> arc_costs;
     std::vector<int> interdiction_costs;
 
     LayerGraph G;
 
-    std::vector<GRBVar> pi;     // decision variable; post interdiction s-i path
-    std::vector<GRBVar> lambda; // decision variable; convex combination of scenario costs
-    std::vector<GRBVar> x;      // decision variable; interdiction variable
+    std::vector<std::vector<GRBVar>> pi; // decision variable; post interdiction s-i path for each q
+    GRBVar z;                            // decision variable; objective func dummy
+    std::vector<GRBVar> x;               // decision variable; interdiction variable
 
     M2ProblemLinear(const LayerGraph &the_G, int min, int max, int the_l, int the_r0);
 
