@@ -140,8 +140,8 @@ class TestBed:
             file.write("sigma: " + str(self.sigma) + "\n")
 
 
-num_layers = 2
-num_per_layer = 5
+num_layers = 4
+num_per_layer = 8
 p = 0.7
 ll = 2
 samples = 2
@@ -152,4 +152,4 @@ r_0 = 1
 
 lG = LayerGraph(num_layers, num_per_layer, p)
 lG.printGraph()
-lG.checksNX('graph.graph')
+lG.checksNX('graph1.graph')
