@@ -109,7 +109,7 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     arc_costs.push_back(costs3);
 }
 
-M2ModelBilinear::M2ModelBilinear(const M2ProblemInstance &the_M2Instance)
+M2ModelBilinear::M2ModelBilinear(M2ProblemInstance *the_M2Instance)
 {
     try
     {
@@ -118,10 +118,10 @@ M2ModelBilinear::M2ModelBilinear(const M2ProblemInstance &the_M2Instance)
 
         // // ------ Assign graph and random costs ------
         // // ------ Variables and int parameters ------
-        n = the_M2Instance.G.n;
-        m = the_M2Instance.G.m;
-        l = the_M2Instance.l;
-        r_0 = the_M2Instance.r_0;
+        n = M2Instance->G.n;
+        m = M2Instance->G.m;
+        l = M2Instance->l;
+        r_0 = M2Instance->r_0;
 
         // for (int a = 0; a < m; a++)
         // {
@@ -203,9 +203,9 @@ M2ModelBilinear::M2ModelBilinear(const M2ProblemInstance &the_M2Instance)
             quadexpr = 0;
             for (int q = 0; q < l; q++)
             {
-                quadexpr += (M2Instance.arc_costs[q][a] + M2Instance.interdiction_costs[a] * x[a]) * lambda[q];
+                quadexpr += (M2Instance->arc_costs[q][a] + M2Instance->interdiction_costs[a] * x[a]) * lambda[q];
             }
-            M2model->addQConstr((pi[M2Instance.G.arcs[a].j] - pi[M2Instance.G.arcs[a].i]) <= quadexpr);
+            M2model->addQConstr((pi[M2Instance->G.arcs[a].j] - pi[M2Instance->G.arcs[a].i]) <= quadexpr);
         }
 
         // pi[0] = 0
@@ -323,7 +323,7 @@ float M2ModelBilinear::solve()
         std::cout << "Running time: " << running_time << "\n";
         for (int a = 0; a < m; a++)
         {
-            std::cout << "x_" << a << "(" << M2Instance.G.arcs[a].i << "," << M2Instance.G.arcs[a].j << ")"
+            std::cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
                       << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
         }
 
@@ -341,7 +341,7 @@ float M2ModelBilinear::solve()
     }
 }
 
-M2ModelLinear::M2ModelLinear(const M2ProblemInstance &the_M2Instance)
+M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
 {
     try
     {
@@ -350,10 +350,10 @@ M2ModelLinear::M2ModelLinear(const M2ProblemInstance &the_M2Instance)
 
         // // ------ Assign graph and random costs ------
         // ------ Variables and int parameters ------
-        n = M2Instance.G.n;
-        m = M2Instance.G.m;
-        l = M2Instance.l;
-        r_0 = M2Instance.r_0;
+        n = M2Instance->G.n;
+        m = M2Instance->G.m;
+        l = M2Instance->l;
+        r_0 = M2Instance->r_0;
 
         // for (int a = 0; a < m; a++)
         // {
@@ -435,7 +435,7 @@ M2ModelLinear::M2ModelLinear(const M2ProblemInstance &the_M2Instance)
         {
             for (int q = 0; q < l; q++)
             {
-                M2model->addConstr((pi[q][M2Instance.G.arcs[a].j] - pi[q][M2Instance.G.arcs[a].i]) <= M2Instance.arc_costs[q][a] + M2Instance.interdiction_costs[a] * x[a]);
+                M2model->addConstr((pi[q][M2Instance->G.arcs[a].j] - pi[q][M2Instance->G.arcs[a].i]) <= M2Instance->arc_costs[q][a] + M2Instance->interdiction_costs[a] * x[a]);
             }
         }
 
@@ -469,7 +469,7 @@ float M2ModelLinear::solve()
         std::cout << "Running time: " << running_time << "\n";
         for (int a = 0; a < m; a++)
         {
-            std::cout << "x_" << a << "(" << M2Instance.G.arcs[a].i << "," << M2Instance.G.arcs[a].j << ")"
+            std::cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
                       << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
         }
 
@@ -485,4 +485,73 @@ float M2ModelLinear::solve()
         std::cout << "Non-gurobi error during optimization [M2Model]"
                   << "\n";
     }
+}
+
+BendersSPSub::BendersSPSub(M2ProblemInstance *the_M2Instance)
+{
+    try
+    {
+        // ------ Assign Instance ------
+        M2Instance = the_M2Instance;
+
+        // ------ Initialize model and environment ------
+        SPSubenv = new GRBEnv();
+        SPSubmodel = new GRBModel(*SPSubenv);
+
+        // ------ Variables and int parameters ------
+        n = M2Instance->G.n;
+        m = M2Instance->G.m;
+        l = M2Instance->l;
+        r_0 = M2Instance->r_0;
+
+        // ------ Decision variables ------
+        std::string varname;
+
+        // arc variable - flow on arc/include in path
+        for (int a = 0; a < m; a++)
+        {
+            varname = "y_" + std::to_string(a);
+            y.push_back(SPSubmodel->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
+        }
+
+        // // ------ Constraints ------
+        // for (int i = 0; i < n; i++)
+        // {
+        //     linexpr = 0;
+
+        //     if (i == s)
+        //     {
+
+        //     }
+        //     elif (i == n-1) {
+
+        //     }
+        //     else
+        //     {
+        //         SPSubmodel->addConstr((pi[q][M2Instance->G.arcs[a].j] - pi[q][M2Instance->G.arcs[a].i]) <= M2Instance->arc_costs[q][a] + M2Instance->interdiction_costs[a] * x[a]);
+        //     }
+        // }
+    }
+    catch (GRBException e)
+    {
+        std::cout << "Gurobi error number [BendersSPSub, constructor]: " << e.getErrorCode() << "\n";
+        std::cout << e.getMessage() << "\n";
+    }
+    catch (...)
+    {
+        std::cout << "Non-gurobi error during optimization [BendersSPSub]"
+                  << "\n";
+    }
+}
+
+void BendersSPSub::update(std::vector<int> the_xhat)
+{
+    for (int a = 0; a < m; a++)
+    {
+        xhat[a] = the_xhat[a];
+    }
+}
+
+floar BendersSPSub::solve()
+{
 }

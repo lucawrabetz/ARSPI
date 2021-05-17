@@ -56,7 +56,7 @@ public:
     int r_0;
     float running_time;
 
-    M2ProblemInstance M2Instance;
+    M2ProblemInstance *M2Instance;
 
     GRBEnv *M2env;
     GRBModel *M2model;
@@ -73,7 +73,7 @@ public:
     std::vector<GRBVar> lambda; // decision variable; convex combination of scenario costs
     std::vector<GRBVar> x;      // decision variable; interdiction variable
 
-    M2ModelBilinear(const M2ProblemInstance &the_M2Instance); // 'normal' constructor
+    M2ModelBilinear(M2ProblemInstance *the_M2Instance); // 'normal' constructor
     float solve();
 };
 
@@ -87,7 +87,7 @@ public:
     int r_0;
     float running_time;
 
-    M2ProblemInstance M2Instance;
+    M2ProblemInstance *M2Instance;
 
     GRBEnv *M2env;
     GRBModel *M2model;
@@ -103,18 +103,59 @@ public:
     GRBVar z;                            // decision variable; objective func dummy
     std::vector<GRBVar> x;               // decision variable; interdiction variable
 
-    M2ModelLinear(const M2ProblemInstance &the_M2Instance);
+    M2ModelLinear(M2ProblemInstance *the_M2Instance);
 
     float solve();
 };
 
-// class MasterProb
-// {
-// };
+class BendersSPSub
+{
+public:
+    int s = 0;
+    int n;
+    int m;
+    int l;
+    int r_0;
+    float running_time;
 
-// class SPSub
-// {
-// };
+    std::vector<int> xhat; // current xhat to solve with, i.e. interdiction policy we are subject to
+    
+    M2ProblemInstance *M2Instance;
+
+    GRBEnv *SPSubenv;
+    GRBModel *SPSubmodel;
+
+    std::vector<GRBVar> y; // decision variable - shortest path solution
+    GRBLinExpr linexpr;
+
+    BendersSPSub(M2ProblemInstance *the_M2Instance);
+    void update(std::vector<int> the_xhat);
+    float solve();
+};
+
+class BendersMasterProblem
+{
+public:
+    int s = 0;
+    int n;
+    int m;
+    int l;
+    int r_0;
+    float running_time;
+
+    BendersSPSub SPSubModel;
+
+    std::vector<std::vector<int>> YHat; // vector of separated paths, a path is a binary vector of arcs
+
+    M2ProblemInstance *M2Instance;
+
+    GRBEnv *Masterenv;
+    GRBModel *Mastermodel;
+
+    GRBLinExpr linexpr;
+
+    BendersMasterProblem(M2ProblemInstance *the_M2Instance);
+};
 
 // class BendersCut1 : public M2Problem
 // {
