@@ -87,6 +87,12 @@ public:
     int r_0;
     float running_time;
 
+    // indicator of which benders scheme, if any, we use
+    // 0 - regular MIP, no benders
+    // 1 - simple benders scheme from israeli wood
+    // 2 -
+    int benders;
+
     M2ProblemInstance *M2Instance;
 
     GRBEnv *M2env;
@@ -103,7 +109,7 @@ public:
     GRBVar z;                            // decision variable; objective func dummy
     std::vector<GRBVar> x;               // decision variable; interdiction variable
 
-    M2ModelLinear(M2ProblemInstance *the_M2Instance);
+    M2ModelLinear(M2ProblemInstance *the_M2Instance, int the_benders);
 
     float solve();
 };
@@ -119,7 +125,7 @@ public:
     float running_time;
 
     std::vector<int> xhat; // current xhat to solve with, i.e. interdiction policy we are subject to
-    
+
     M2ProblemInstance *M2Instance;
 
     GRBEnv *SPSubenv;

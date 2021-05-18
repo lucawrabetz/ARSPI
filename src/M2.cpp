@@ -109,6 +109,8 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     arc_costs.push_back(costs3);
 }
 
+// ------ 'Straightup' MIP Formulations for M2 ------
+
 M2ModelBilinear::M2ModelBilinear(M2ProblemInstance *the_M2Instance)
 {
     try
@@ -402,7 +404,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         varname = "z";
         z = M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
 
-        // post interdiction shortest path (s-i)
+        // post interdiction shortest path (s-i) 'pi'
         for (int q = 0; q < l; q++)
         {
             std::vector<GRBVar> new_vector = {};
@@ -487,7 +489,9 @@ float M2ModelLinear::solve()
     }
 }
 
-BendersSPSub::BendersSPSub(M2ProblemInstance *the_M2Instance)
+// ------ Bender's Schemes for M2 ------
+
+M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
 {
     try
     {
@@ -544,14 +548,18 @@ BendersSPSub::BendersSPSub(M2ProblemInstance *the_M2Instance)
     }
 }
 
-void BendersSPSub::update(std::vector<int> the_xhat)
+BendersSeparation::BendersSeparation()
 {
-    for (int a = 0; a < m; a++)
-    {
-        xhat[a] = the_xhat[a];
-    }
 }
 
-floar BendersSPSub::solve()
+BendersSub::BendersSub()
 {
 }
+
+float M2Benders::solve()
+{
+}
+
+// floar BendersSPSub::solve()
+// {
+// }
