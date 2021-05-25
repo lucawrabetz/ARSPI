@@ -622,6 +622,8 @@ std::vector<float> M2Benders::solve()
         M2Bendersmodel->optimize();
     }
 
+    delete sep.subproblem.Subenv;
+    delete sep.subproblem.Submodel;
     return sep.xprime;
 }
 
