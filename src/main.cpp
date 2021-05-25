@@ -5,11 +5,11 @@ using std::cout;
 int main()
 {
     float running_time;
-    const std::string filename = "./dat/simplegraph.txt";
-    const LayerGraph G = LayerGraph(filename, 6);
+    const std::string filename = "./dat/simplegraph1.txt";
+    const LayerGraph G = LayerGraph(filename, 2);
     M2ProblemInstance *M2 = new M2ProblemInstance(G, 150, 160, 3, 2);
     M2ModelLinear M2_L = M2ModelLinear(M2);
-    M2_L.M2model->write("simplegraph.lp");
+    M2_L.M2model->write("simplegraph1.lp");
 
     // M2ModelLinear (above) is the equivalent to (17)-(21) in Overleaf
     // There is no bilenear term in this model

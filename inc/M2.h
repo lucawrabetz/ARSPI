@@ -87,12 +87,6 @@ public:
     int r_0;
     float running_time;
 
-    // indicator of which benders scheme, if any, we use
-    // 0 - regular MIP, no benders
-    // 1 - simple benders scheme from israeli wood
-    // 2 -
-    int benders;
-
     M2ProblemInstance *M2Instance;
 
     GRBEnv *M2env;
@@ -109,12 +103,54 @@ public:
     GRBVar z;                            // decision variable; objective func dummy
     std::vector<GRBVar> x;               // decision variable; interdiction variable
 
-    M2ModelLinear(M2ProblemInstance *the_M2Instance, int the_benders);
+    M2ModelLinear(M2ProblemInstance *the_M2Instance);
 
     float solve();
 };
 
-class BendersSPSub
+class BendersSub
+{
+public:
+    int n;
+    int m;
+    int l;
+    GRBEnv *Subenv;
+    GRBModel *Submodel;
+
+    GRBLinExpr linexpr;
+
+    BendersSub();
+    BendersSub(M2ProblemInstance *the_M2Instance);
+};
+
+class BendersSeparation : public GRBCallback
+{
+public:
+    int n;
+    int m;
+    int l;
+    GRBLinExpr new_cut;        // linexpr object for new cut to add to master formulation
+    std::vector<int> xhat;     // current xhat to solve with, i.e. interdiction policy we are subject to
+    std::vector<float> xprime; // current best interdiction policy (includes extra x[0] for obj)
+    std::vector<float> yhat;   // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[0] for objective)
+
+    BendersSub subproblem;
+
+    // upper and lower bounds and epsilon
+    float zeta_u = 1000000;
+    float zeta_l = -1000000;
+    float zeta_temp;
+    float epsilon = 0.001;
+
+    BendersSeparation();
+    BendersSeparation(M2ProblemInstance *the_M2Instance);
+
+protected:
+    void callback();
+    void printSep();
+};
+
+class M2Benders
 {
 public:
     int s = 0;
@@ -124,53 +160,16 @@ public:
     int r_0;
     float running_time;
 
-    std::vector<int> xhat; // current xhat to solve with, i.e. interdiction policy we are subject to
-
     M2ProblemInstance *M2Instance;
+    BendersSeparation sep;
 
-    GRBEnv *SPSubenv;
-    GRBModel *SPSubmodel;
+    GRBEnv *M2Bendersenv;
+    GRBModel *M2Bendersmodel;
 
-    std::vector<GRBVar> y; // decision variable - shortest path solution
+    std::vector<GRBVar> x; // decision variable - shortest path solution
+    GRBVar zeta;           // objective function
     GRBLinExpr linexpr;
 
-    BendersSPSub(M2ProblemInstance *the_M2Instance);
-    void update(std::vector<int> the_xhat);
-    float solve();
+    M2Benders(M2ProblemInstance *the_M2Instance);
+    std::vector<float> solve();
 };
-
-class BendersMasterProblem
-{
-public:
-    int s = 0;
-    int n;
-    int m;
-    int l;
-    int r_0;
-    float running_time;
-
-    BendersSPSub SPSubModel;
-
-    std::vector<std::vector<int>> YHat; // vector of separated paths, a path is a binary vector of arcs
-
-    M2ProblemInstance *M2Instance;
-
-    GRBEnv *Masterenv;
-    GRBModel *Mastermodel;
-
-    GRBLinExpr linexpr;
-
-    BendersMasterProblem(M2ProblemInstance *the_M2Instance);
-};
-
-// class BendersCut1 : public M2Problem
-// {
-
-//     GRBLinExpr linexpr;
-
-//     std::vector<int> SPSub(){};
-// };
-
-// class BendersCut2
-// {
-// };

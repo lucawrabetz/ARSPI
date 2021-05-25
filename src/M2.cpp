@@ -101,9 +101,9 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     // }
 
     // hardcoded example "simplegraph.txt"
-    std::vector<int> costs1 = {3, 4, 3, 4, 3, 4, 3};
-    std::vector<int> costs2 = {3, 1, 3, 1, 3, 1, 10};
-    std::vector<int> costs3 = {3, 4, 3, 4, 3, 4, 10};
+    std::vector<int> costs1 = {9, 12, 3};
+    std::vector<int> costs2 = {9, 1, 10};
+    std::vector<int> costs3 = {9, 12, 10};
     arc_costs.push_back(costs1);
     arc_costs.push_back(costs2);
     arc_costs.push_back(costs3);
@@ -335,11 +335,13 @@ float M2ModelBilinear::solve()
     {
         std::cout << "Gurobi error number [M2Model, solveMIP]: " << e.getErrorCode() << "\n";
         std::cout << e.getMessage() << "\n";
+        return 0;
     }
     catch (...)
     {
         std::cout << "Non-gurobi error during optimization [M2Model]"
                   << "\n";
+        return 0;
     }
 }
 
@@ -490,6 +492,76 @@ float M2ModelLinear::solve()
 }
 
 // ------ Bender's Schemes for M2 ------
+BendersSub::BendersSub()
+{
+    n = 0;
+    m = 0;
+    l = 0;
+}
+
+BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
+{
+    // ------ Initialize Basic Parameters ------
+    n = the_M2Instance->n;
+    m = the_M2Instance->m;
+    l = the_M2Instance->l;
+}
+
+BendersSeparation::BendersSeparation()
+{
+    n = 0;
+    m = 0;
+    l = 0;
+}
+
+BendersSeparation::BendersSeparation(M2ProblemInstance *the_M2Instance)
+{
+    try
+    {
+        // ------ Initialize Basic Parameters ------
+        n = the_M2Instance->n;
+        m = the_M2Instance->m;
+        l = the_M2Instance->l;
+
+        // ------ Initialize Submodel ------
+        subproblem = BendersSub(the_M2Instance);
+
+        for (int i = 0; i < m; ++i)
+        {
+            xhat.push_back(0);
+            yhat.push_back(0);
+            xhat.push_back(0);
+        }
+    }
+    catch (GRBException e)
+    {
+        std::cout << "Gurobi error number [BendersSeparation, constructor]: " << e.getErrorCode() << "\n";
+        std::cout << e.getMessage() << "\n";
+    }
+    catch (...)
+    {
+        std::cout << "Non-gurobi error during optimization [BendersSeparation]"
+                  << "\n";
+    }
+}
+
+void BendersSeparation::callback()
+{
+    if (where == GRB_CB_MIPSOL)
+    {
+        // xhat = current solution from master problem
+        // zeta_u = current objective from master problem
+        // BendersSub.update(xhat);
+        // yhat = BendersSub.Solve;
+        // zeta_temp = yhat[0]; // first element of the yhat vector is the objective
+        // use yhat[1-m] to create new cut from LinExpr
+        // add lazy cut to main model
+        if (zeta_l < zeta_temp)
+        {
+            // xprime = xhat;
+        }
+    }
+}
 
 M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
 {
@@ -499,8 +571,11 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         M2Instance = the_M2Instance;
 
         // ------ Initialize model and environment ------
-        SPSubenv = new GRBEnv();
-        SPSubmodel = new GRBModel(*SPSubenv);
+        M2Bendersenv = new GRBEnv();
+        M2Bendersmodel = new GRBModel(*M2Bendersenv);
+
+        // ------ Initialize separation/callback object ------
+        sep = BendersSeparation(M2Instance);
 
         // ------ Variables and int parameters ------
         n = M2Instance->G.n;
@@ -511,34 +586,22 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         // ------ Decision variables ------
         std::string varname;
 
-        // arc variable - flow on arc/include in path
+        // interdiction variable 'x'
         for (int a = 0; a < m; a++)
         {
-            varname = "y_" + std::to_string(a);
-            y.push_back(SPSubmodel->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
+            varname = "x_" + std::to_string(a);
+            x.push_back(M2Bendersmodel->addVar(0, 1, 0, GRB_BINARY, varname));
         }
 
-        // // ------ Constraints ------
-        // for (int i = 0; i < n; i++)
-        // {
-        //     linexpr = 0;
+        // objective function variable 'zeta'
+        varname = "zeta";
+        zeta = M2Bendersmodel->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
 
-        //     if (i == s)
-        //     {
-
-        //     }
-        //     elif (i == n-1) {
-
-        //     }
-        //     else
-        //     {
-        //         SPSubmodel->addConstr((pi[q][M2Instance->G.arcs[a].j] - pi[q][M2Instance->G.arcs[a].i]) <= M2Instance->arc_costs[q][a] + M2Instance->interdiction_costs[a] * x[a]);
-        //     }
-        // }
+        // ------ No Constraints Initially! ------
     }
     catch (GRBException e)
     {
-        std::cout << "Gurobi error number [BendersSPSub, constructor]: " << e.getErrorCode() << "\n";
+        std::cout << "Gurobi error number [M2Benders, constructor]: " << e.getErrorCode() << "\n";
         std::cout << e.getMessage() << "\n";
     }
     catch (...)
@@ -548,16 +611,18 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
     }
 }
 
-BendersSeparation::BendersSeparation()
+std::vector<float> M2Benders::solve()
 {
-}
+    // ------ Set Callback on Master Model
+    M2Bendersmodel->setCallback(&sep);
 
-BendersSub::BendersSub()
-{
-}
+    // ------ Optimize Inside Benders Scheme -------
+    while (sep.zeta_u - sep.zeta_l >= sep.epsilon)
+    {
+        M2Bendersmodel->optimize();
+    }
 
-float M2Benders::solve()
-{
+    return sep.xprime;
 }
 
 // floar BendersSPSub::solve()
