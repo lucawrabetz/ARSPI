@@ -505,6 +505,98 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     n = the_M2Instance->n;
     m = the_M2Instance->m;
     l = the_M2Instance->l;
+
+    // ------ Initialize d and c costs ------
+    for (int a = 0; a < m; a++)
+    {
+        d[a] = the_M2Instance->interdiction_costs[a];
+    }
+
+    for (int q = 0; q < l; q++)
+    {
+        c.push_back(the_M2Instance->arc_costs[q]);
+        c_bar.push_back(the_M2Instance->arc_costs[q]);
+    }
+
+    // ------ Initialize Environment and Model ------
+    Subenv = new GRBEnv();
+    Submodel = new GRBModel(*Subenv);
+
+    // ------ Decision Variables ------
+    varname = "zeta_sub";
+    zeta_sub = Submodel->addVar(0, GRB_INFINITY, 1, GRB_CONTINUOUS, varname);
+    for (int a = 0; a < m; ++a)
+    {
+        varname = "y_" + to_string(a);
+        y.push_back(Submodel->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+    }
+
+    // ------ Constraints ------
+    // constraints to bound objective value over q
+    for (int q = 0; q < l; ++q)
+    {
+        linexpr = 0;
+        for (int a = 0; a < m; ++a)
+        {
+            linexpr += c_bar[q][a] * y[a];
+        }
+        Submodel->addConstr(zeta_sub <= linexpr);
+    }
+
+    // flow constraints
+    for (int i = 0; i < n; ++i)
+    {
+        linexpr = 0;
+        if (i == 0)
+        {
+            rhs = 1;
+        }
+        else if (i == n - 1)
+        {
+            rhs = -1;
+        }
+        else
+        {
+            rhs = 0;
+        }
+        for (int a = 0; a < m; a++)
+        {
+            if (the_M2Instance->G.arcs[a].i == i)
+            {
+                // this arc is an outgoing arc for i
+                linexpr += (1) * y[a];
+            }
+            else if (the_M2Instance->G.arcs[a].j == i)
+            {
+                // this arc is an outgoing arc for i
+                linexpr += (-1) * y[a];
+            }
+            else
+            {
+                // this arc does not include i as an endpoint
+                continue;
+            }
+        }
+        Submodel->addConstr(linexpr == rhs);
+    }
+
+    Submodel->update();
+}
+
+void BendersSub::update(std::vector<int> &xhat)
+{
+    for (int a = 0; a < m; ++a)
+    {
+        if (xhat[a] > 0.5)
+        {
+            c_bar[a] = c[a] + d[a];
+        }
+        else
+        {
+            c_bar[a] = c[a];
+        }
+    }
+    Submodel->update;
 }
 
 BendersSeparation::BendersSeparation()
@@ -514,7 +606,7 @@ BendersSeparation::BendersSeparation()
     l = 0;
 }
 
-BendersSeparation::BendersSeparation(M2ProblemInstance *the_M2Instance)
+BendersSeparation::BendersSeparation(std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance)
 {
     try
     {
@@ -526,11 +618,14 @@ BendersSeparation::BendersSeparation(M2ProblemInstance *the_M2Instance)
         // ------ Initialize Submodel ------
         subproblem = BendersSub(the_M2Instance);
 
+        // ------ Initialize Variable containers ------
+        xbar = the_xbar;
+
         for (int i = 0; i < m; ++i)
         {
             xhat.push_back(0);
             yhat.push_back(0);
-            xhat.push_back(0);
+            xprime.push_back(0);
         }
     }
     catch (GRBException e)
@@ -549,9 +644,13 @@ void BendersSeparation::callback()
 {
     if (where == GRB_CB_MIPSOL)
     {
-        // xhat = current solution from master problem
-        // zeta_u = current objective from master problem
-        // BendersSub.update(xhat);
+        // xhat = current solution from master problem, then update subproblem
+        for (int a = 0; a < m; ++a)
+        {
+            xhat[a] = getSolution(xbar[a]);
+        }
+        subproblem.update(xhat);
+
         // yhat = BendersSub.Solve;
         // zeta_temp = yhat[0]; // first element of the yhat vector is the objective
         // use yhat[1-m] to create new cut from LinExpr
@@ -574,12 +673,9 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         M2Bendersenv = new GRBEnv();
         M2Bendersmodel = new GRBModel(*M2Bendersenv);
 
-        // ------ Initialize separation/callback object ------
-        sep = BendersSeparation(M2Instance);
-
         // ------ Variables and int parameters ------
-        n = M2Instance->G.n;
-        m = M2Instance->G.m;
+        n = M2Instance->n;
+        m = M2Instance->m;
         l = M2Instance->l;
         r_0 = M2Instance->r_0;
 
@@ -592,6 +688,9 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
             varname = "x_" + std::to_string(a);
             x.push_back(M2Bendersmodel->addVar(0, 1, 0, GRB_BINARY, varname));
         }
+
+        // ------ Initialize separation/callback object ------
+        sep = BendersSeparation(x, M2Instance);
 
         // objective function variable 'zeta'
         varname = "zeta";
@@ -615,11 +714,18 @@ std::vector<float> M2Benders::solve()
 {
     // ------ Set Callback on Master Model
     M2Bendersmodel->setCallback(&sep);
+    int i = 1;
 
     // ------ Optimize Inside Benders Scheme -------
     while (sep.zeta_u - sep.zeta_l >= sep.epsilon)
     {
+        cout << "\n Iteration: " << i << "\n";
+        cout << "\n Upper: " << sep.zeta_u << "\n";
+        cout << "\n Lower: " << sep.zeta_l << "\n";
+
         M2Bendersmodel->optimize();
+
+        ++i;
     }
 
     delete sep.subproblem.Subenv;

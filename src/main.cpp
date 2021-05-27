@@ -1,7 +1,5 @@
 #include "../inc/M2.h"
 
-using std::cout;
-
 int main()
 {
     int n = 2;

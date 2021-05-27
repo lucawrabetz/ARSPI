@@ -6,6 +6,10 @@
 #include <random>
 #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
+using std::cout;
+using std::string;
+using std::to_string;
+
 struct Arc
 {
     // little Arc struct for the layer graph (directed Arc)
@@ -24,6 +28,7 @@ public:
     std::vector<Arc> arcs;
     std::vector<std::vector<int>> adjacency_list;
     std::vector<std::vector<int>> reverse_list;
+
     LayerGraph();
     LayerGraph(const std::string &filename, int the_n);
     void printGraph();
@@ -117,10 +122,25 @@ public:
     GRBEnv *Subenv;
     GRBModel *Submodel;
 
-    GRBLinExpr linexpr;
+    std::vector<std::vector<int>> c_bar; // this is the current objective function cost vector
+    // i.e. - the objective function is c_bar \cdot y
+    // computed during solution tree based on graph costs (c^q and d) and the current
+    // x_bar from the master problem
+
+    std::vector<std::vector<int>> c; // base costs
+    std::vector<int> d;              // interdiction costs
+
+    GRBVar zeta_sub;       // dummy objective function variable because we have to argmin over q
+    std::vector<GRBVar> y; // main decision variable - arc path selection/flow
+
+    GRBLinExpr linexpr;  // when adding the flow constraints, we use this one for outgoing arcs
+    GRBLinExpr linexpr2; // when adding the flow constraints, we use this one for incoming arcs
+    int rhs;             // use this also for generating flow constraints
+    string varname;
 
     BendersSub();
     BendersSub(M2ProblemInstance *the_M2Instance);
+    void update(std::vector<int> &xhat);
 };
 
 class BendersSeparation : public GRBCallback
@@ -130,6 +150,7 @@ public:
     int m;
     int l;
     GRBLinExpr new_cut;        // linexpr object for new cut to add to master formulation
+    std::vector<GRBVar> xbar;  // current xhat to solve with, i.e. interdiction policy we are subject to
     std::vector<int> xhat;     // current xhat to solve with, i.e. interdiction policy we are subject to
     std::vector<float> xprime; // current best interdiction policy (includes extra x[0] for obj)
     std::vector<float> yhat;   // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[0] for objective)
@@ -137,13 +158,13 @@ public:
     BendersSub subproblem;
 
     // upper and lower bounds and epsilon
-    float zeta_u = 1000000;
-    float zeta_l = -1000000;
+    float zeta_u = GRB_INFINITY;
+    float zeta_l = -GRB_INFINITY;
     float zeta_temp;
-    float epsilon = 0.001;
+    float epsilon = 0.0001;
 
     BendersSeparation();
-    BendersSeparation(M2ProblemInstance *the_M2Instance);
+    BendersSeparation(std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance);
 
 protected:
     void callback();
