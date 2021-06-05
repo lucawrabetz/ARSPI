@@ -130,6 +130,8 @@ public:
     std::vector<std::vector<int>> c; // base costs
     std::vector<int> d;              // interdiction costs
 
+    GRBConstr *obj_constr; // array of constraints for the objective lower bounding constraints over the qs
+                           // need this as an array to update it
     GRBVar zeta_sub;       // dummy objective function variable because we have to argmin over q
     std::vector<GRBVar> y; // main decision variable - arc path selection/flow
 
@@ -140,6 +142,7 @@ public:
 
     BendersSub();
     BendersSub(M2ProblemInstance *the_M2Instance);
+    std::vector<float> solve();
     void update(std::vector<int> &xhat);
 };
 
@@ -149,8 +152,14 @@ public:
     int n;
     int m;
     int l;
+
+    std::vector<std::vector<int>> c; // base costs
+    std::vector<int> d;              // interdiction costs
+
+    // a hat vector is numbers, a bar vector is GRBVars
     GRBLinExpr new_cut;        // linexpr object for new cut to add to master formulation
-    std::vector<GRBVar> xbar;  // current xhat to solve with, i.e. interdiction policy we are subject to
+    GRBVar zetabar;            // 'connecting' GRBVar for zeta
+    std::vector<GRBVar> xbar;  // 'connecting' GRBVars for x
     std::vector<int> xhat;     // current xhat to solve with, i.e. interdiction policy we are subject to
     std::vector<float> xprime; // current best interdiction policy (includes extra x[0] for obj)
     std::vector<float> yhat;   // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[0] for objective)
@@ -164,7 +173,7 @@ public:
     float epsilon = 0.0001;
 
     BendersSeparation();
-    BendersSeparation(std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance);
+    BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance);
 
 protected:
     void callback();

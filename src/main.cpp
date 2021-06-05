@@ -4,13 +4,14 @@ int main()
 {
     int n = 2;
     float running_time;
-    std::vector<float> x_final;
+    std::vector<float> y_final;
     const std::string filename = "./dat/simplegraph1.txt";
     const LayerGraph G = LayerGraph(filename, n);
     M2ProblemInstance *M2 = new M2ProblemInstance(G, 150, 160, 3, 2);
 
     // M2ModelLinear M2_L = M2ModelLinear(M2);
     // M2_L.M2model->write("simplegraph1.lp");
+
     M2Benders M2_Bend = M2Benders(M2);
 
     // M2ModelLinear (above) is the equivalent to (17)-(21) in Overleaf
@@ -22,15 +23,27 @@ int main()
 
     // M2ModelBilinear M2_BL = M2ModelBilinear(M2);
     // M2_BL.M2model->write("bilinear.lp");
+    // cout << "\n\n";
+    // cout << "\nSolving Using LINEAR MODEL\n";
+    // running_time = M2_L.solve();
 
     cout << "\n\n";
-    cout << "\nSolving Using BENDERS MODEL\n";
-    // running_time = M2_L.solve();
-    x_final = M2_Bend.solve();
-    cout << "\nObjective: " << x_final[0] << "\n";
-    for (int i = 1; i < n + 1; ++i)
+    cout << "\nSolving Using BENDERS MODEL (debugging sub)\n";
+
+    y_final = M2_Bend.solve();
+
+    // printout for the linear model
+    // cout << "\nObjective: " << x_final[0] << "\n";
+    // for (int i = 1; i < n + 1; ++i)
+    // {
+    //     cout << "\nx_" << i - 1 << ": " << x_final[i] << "\n";
+    // }
+
+    // printout for the benders model
+    cout << "\nObjective: " << y_final[0] << "\n";
+    for (int a = 1; a < G.m + 1; ++a)
     {
-        cout << "\nx_" << i - 1 << ": " << x_final[i] << "\n";
+        cout << "\ny_" << a - 1 << ": " << y_final[a] << "\n";
     }
 
     // cout << "\n\n\n\n\n";

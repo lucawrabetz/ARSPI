@@ -509,7 +509,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     // ------ Initialize d and c costs ------
     for (int a = 0; a < m; a++)
     {
-        d[a] = the_M2Instance->interdiction_costs[a];
+        d.push_back(the_M2Instance->interdiction_costs[a]);
     }
 
     for (int q = 0; q < l; q++)
@@ -533,6 +533,8 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
 
     // ------ Constraints ------
     // constraints to bound objective value over q
+    // obj_constr = new GRBConstr[l]
+    obj_constr = new GRBConstr[l];
     for (int q = 0; q < l; ++q)
     {
         linexpr = 0;
@@ -540,7 +542,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
         {
             linexpr += c_bar[q][a] * y[a];
         }
-        Submodel->addConstr(zeta_sub <= linexpr);
+        obj_constr[q] = Submodel->addConstr(zeta_sub >= linexpr);
     }
 
     // flow constraints
@@ -585,18 +587,52 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
 
 void BendersSub::update(std::vector<int> &xhat)
 {
-    for (int a = 0; a < m; ++a)
+    // update array of constraints instead of only the parameter vector
+    for (int q = 0; q < l; ++q)
     {
-        if (xhat[a] > 0.5)
+        for (int a = 0; a < m; ++a)
         {
-            c_bar[a] = c[a] + d[a];
-        }
-        else
-        {
-            c_bar[a] = c[a];
+            // model.chgCoeff(obj_constr[q], variable, new cost)
+            if (xhat[a] > 0.5)
+            {
+                Submodel->chgCoeff(obj_constr[q], y[a], (c[q][a] + d[a]));
+                // c_bar[q][a] = c[q][a] + d[a];
+            }
+            else
+            {
+                Submodel->chgCoeff(obj_constr[q], y[a], (c[q][a]));
+                // c_bar[q][a] = c[q][a];
+            }
+            // constraint[q].set...
         }
     }
-    Submodel->update;
+    Submodel->update();
+}
+
+std::vector<float> BendersSub::solve()
+{
+    try
+    {
+        std::vector<float> yhat;
+        Submodel->optimize();
+
+        yhat.push_back(Submodel->get(GRB_DoubleAttr_ObjVal));
+        for (int a = 0; a < m; ++a)
+        {
+            yhat.push_back(y[a].get(GRB_DoubleAttr_X));
+        }
+        return yhat;
+    }
+    catch (GRBException e)
+    {
+        std::cout << "Gurobi error number [BendersSub::solve]: " << e.getErrorCode() << "\n";
+        std::cout << e.getMessage() << "\n";
+    }
+    catch (...)
+    {
+        std::cout << "Non-gurobi error during optimization [BendersSub::Solve]"
+                  << "\n";
+    }
 }
 
 BendersSeparation::BendersSeparation()
@@ -606,7 +642,7 @@ BendersSeparation::BendersSeparation()
     l = 0;
 }
 
-BendersSeparation::BendersSeparation(std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance)
+BendersSeparation::BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance)
 {
     try
     {
@@ -618,10 +654,23 @@ BendersSeparation::BendersSeparation(std::vector<GRBVar> &the_xbar, M2ProblemIns
         // ------ Initialize Submodel ------
         subproblem = BendersSub(the_M2Instance);
 
+        // ------ Initialize d and c costs ------
+        for (int a = 0; a < m; a++)
+        {
+            d.push_back(the_M2Instance->interdiction_costs[a]);
+        }
+
+        for (int q = 0; q < l; q++)
+        {
+            c.push_back(the_M2Instance->arc_costs[q]);
+        }
+
         // ------ Initialize Variable containers ------
         xbar = the_xbar;
+        zetabar = the_zetabar;
+        xprime.push_back(0);
 
-        for (int i = 0; i < m; ++i)
+        for (int a = 0; a < m; ++a)
         {
             xhat.push_back(0);
             yhat.push_back(0);
@@ -644,20 +693,46 @@ void BendersSeparation::callback()
 {
     if (where == GRB_CB_MIPSOL)
     {
-        // xhat = current solution from master problem, then update subproblem
-        for (int a = 0; a < m; ++a)
+        if (zeta_u - zeta_l >= epsilon)
         {
-            xhat[a] = getSolution(xbar[a]);
-        }
-        subproblem.update(xhat);
+            // xhat = current solution from master problem, then update subproblem
+            for (int a = 0; a < m; ++a)
+            {
+                xhat[a] = getSolution(xbar[a]);
+            }
+            subproblem.update(xhat);
+            zeta_u = GRB_CB_MIPSOL_OBJBST; // best obj found so far (entire tree)
 
-        // yhat = BendersSub.Solve;
-        // zeta_temp = yhat[0]; // first element of the yhat vector is the objective
-        // use yhat[1-m] to create new cut from LinExpr
-        // add lazy cut to main model
-        if (zeta_l < zeta_temp)
-        {
-            // xprime = xhat;
+            yhat = subproblem.solve();
+            for (int a = 0; a < m; ++a)
+            {
+                cout << "\nyhat[" << a << "]: " << yhat[a] << "\n";
+            }
+            zeta_temp = yhat[0]; // first element of the yhat vector is the objective
+            // use yhat[1-m] to create new cut from LinExpr
+            for (int q = 0; q < l; ++q)
+            {
+                new_cut = 0;
+                for (int a = 0; a < m; ++a)
+                {
+                    new_cut += (c[q][a] + d[a] * xbar[a]) * yhat[a];
+                }
+                // add lazy cut to main model
+                try
+                {
+                    addLazy(zetabar <= new_cut);
+                }
+                catch (GRBException e)
+                {
+                    std::cout << "Gurobi error number [BendersSeparation, addLazy]: " << e.getErrorCode() << "\n";
+                    std::cout << e.getMessage() << "\n";
+                }
+            }
+
+            if (zeta_l < zeta_temp)
+            {
+                zeta_l = zeta_temp;
+            }
         }
     }
 }
@@ -672,6 +747,9 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         // ------ Initialize model and environment ------
         M2Bendersenv = new GRBEnv();
         M2Bendersmodel = new GRBModel(*M2Bendersenv);
+
+        M2Bendersmodel->getEnv().set(GRB_IntParam_LazyConstraints, 1);
+        M2Bendersmodel->getEnv().set(GRB_IntParam_InfUnbdInfo, 1);
 
         // ------ Variables and int parameters ------
         n = M2Instance->n;
@@ -689,14 +767,20 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
             x.push_back(M2Bendersmodel->addVar(0, 1, 0, GRB_BINARY, varname));
         }
 
-        // ------ Initialize separation/callback object ------
-        sep = BendersSeparation(x, M2Instance);
-
         // objective function variable 'zeta'
         varname = "zeta";
         zeta = M2Bendersmodel->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
 
-        // ------ No Constraints Initially! ------
+        // ------ Initialize separation/callback object ------
+        sep = BendersSeparation(zeta, x, M2Instance);
+
+        // ------ Only Budget Constraints Initially! ------
+        linexpr = 0;
+        for (int a = 0; a < m; a++)
+        {
+            linexpr += x[a];
+        }
+        M2Bendersmodel->addConstr(linexpr <= r_0);
     }
     catch (GRBException e)
     {
@@ -712,27 +796,73 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
 
 std::vector<float> M2Benders::solve()
 {
-    // ------ Set Callback on Master Model
-    M2Bendersmodel->setCallback(&sep);
-    int i = 1;
+    // // ------ Set Callback on Master Model
+    // M2Bendersmodel->setCallback(&sep);
 
-    // ------ Optimize Inside Benders Scheme -------
-    while (sep.zeta_u - sep.zeta_l >= sep.epsilon)
-    {
-        cout << "\n Iteration: " << i << "\n";
-        cout << "\n Upper: " << sep.zeta_u << "\n";
-        cout << "\n Lower: " << sep.zeta_l << "\n";
+    // // ------ Optimize Inside Benders Scheme -------
+    // M2Bendersmodel->write("simplegraph1_benders_before.lp");
 
-        M2Bendersmodel->optimize();
+    // try
+    // {
+    //     M2Bendersmodel->optimize();
+    // }
+    // catch (GRBException e)
+    // {
+    //     std::cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
+    //     std::cout << e.getMessage() << "\n";
+    // }
+    // catch (...)
+    // {
+    //     std::cout << "Non-gurobi error during optimization [M2Benders.optimize()]"
+    //               << "\n";
+    // }
+    // M2Bendersmodel->write("simplegraph1_benders_after.lp");
+    // // while (sep.zeta_u - sep.zeta_l >= sep.epsilon)
+    // // {
+    // //     cout << "\n Iteration: " << i << "\n";
+    // //     cout << "\n Upper: " << sep.zeta_u << "\n";
+    // //     cout << "\n Lower: " << sep.zeta_l << "\n";
 
-        ++i;
-    }
+    // //     M2Bendersmodel->optimize();
 
+    // //     ++i;
+    // // }
+
+    // sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
+    // for (int a = 0; a < m; ++a)
+    // {
+    //     try
+    //     {
+    //         sep.xprime[a + 1] = x[a].get(GRB_DoubleAttr_X);
+    //     }
+    //     catch (GRBException e)
+    //     {
+    //         std::cout << "Gurobi error number [M2Benders - retrieve values for xprime]: " << e.getErrorCode() << "\n";
+    //         std::cout << e.getMessage() << "\n";
+    //     }
+    //     catch (...)
+    //     {
+    //         std::cout << "Non-gurobi error during optimization [M2Benders - retrieve values for xprime]"
+    //                   << "\n";
+    //     }
+    //     // sep.xprime[a] = 0;
+    // }
+
+    // for submodel testing and shit
+    // std::vector<int> test_xhat = {1, 1, 0};
+
+    // sep.subproblem.Submodel->write("spmodel.lp");
+    // sep.yhat = sep.subproblem.solve();
+    // sep.subproblem.update(test_xhat);
+    // sep.subproblem.Submodel->write("spmodelupdated.lp");
+
+    delete sep.subproblem.obj_constr;
     delete sep.subproblem.Subenv;
     delete sep.subproblem.Submodel;
-    return sep.xprime;
+
+    return sep.yhat;
 }
 
-// floar BendersSPSub::solve()
+// float BendersSPSub::solve()
 // {
 // }
