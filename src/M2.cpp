@@ -525,10 +525,15 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     // ------ Decision Variables ------
     varname = "zeta_sub";
     zeta_sub = Submodel->addVar(0, GRB_INFINITY, 1, GRB_CONTINUOUS, varname);
-    for (int a = 0; a < m; ++a)
+    for (int q = 0; q < l; ++q)
     {
-        varname = "y_" + to_string(a);
-        y.push_back(Submodel->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+        y_dummy = {};
+        y.push_back(y_dummy);
+        for (int a = 0; a < m; ++a)
+        {
+            varname = "y_" + to_string(q) + "_" + to_string(a);
+            y[q].push_back(Submodel->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+        }
     }
 
     // ------ Constraints ------
@@ -540,48 +545,50 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
         linexpr = 0;
         for (int a = 0; a < m; ++a)
         {
-            linexpr += c_bar[q][a] * y[a];
+            linexpr += c_bar[q][a] * y[q][a];
         }
         obj_constr[q] = Submodel->addConstr(zeta_sub >= linexpr);
     }
 
     // flow constraints
-    for (int i = 0; i < n; ++i)
+    for (int q = 0; q < l; ++q)
     {
-        linexpr = 0;
-        if (i == 0)
+        for (int i = 0; i < n; ++i)
         {
-            rhs = 1;
-        }
-        else if (i == n - 1)
-        {
-            rhs = -1;
-        }
-        else
-        {
-            rhs = 0;
-        }
-        for (int a = 0; a < m; a++)
-        {
-            if (the_M2Instance->G.arcs[a].i == i)
+            linexpr = 0;
+            if (i == 0)
             {
-                // this arc is an outgoing arc for i
-                linexpr += (1) * y[a];
+                rhs = 1;
             }
-            else if (the_M2Instance->G.arcs[a].j == i)
+            else if (i == n - 1)
             {
-                // this arc is an outgoing arc for i
-                linexpr += (-1) * y[a];
+                rhs = -1;
             }
             else
             {
-                // this arc does not include i as an endpoint
-                continue;
+                rhs = 0;
             }
+            for (int a = 0; a < m; a++)
+            {
+                if (the_M2Instance->G.arcs[a].i == i)
+                {
+                    // this arc is an outgoing arc for i
+                    linexpr += (1) * y[q][a];
+                }
+                else if (the_M2Instance->G.arcs[a].j == i)
+                {
+                    // this arc is an outgoing arc for i
+                    linexpr += (-1) * y[q][a];
+                }
+                else
+                {
+                    // this arc does not include i as an endpoint
+                    continue;
+                }
+            }
+            Submodel->addConstr(linexpr == rhs);
         }
-        Submodel->addConstr(linexpr == rhs);
     }
-
     Submodel->update();
 }
 
@@ -595,12 +602,12 @@ void BendersSub::update(std::vector<int> &xhat)
             // model.chgCoeff(obj_constr[q], variable, new cost)
             if (xhat[a] > 0.5)
             {
-                Submodel->chgCoeff(obj_constr[q], y[a], (c[q][a] + d[a]));
+                Submodel->chgCoeff(obj_constr[q], y[q][a], -(c[q][a] + d[a]));
                 // c_bar[q][a] = c[q][a] + d[a];
             }
             else
             {
-                Submodel->chgCoeff(obj_constr[q], y[a], (c[q][a]));
+                Submodel->chgCoeff(obj_constr[q], y[q][a], -(c[q][a]));
                 // c_bar[q][a] = c[q][a];
             }
             // constraint[q].set...
@@ -609,17 +616,29 @@ void BendersSub::update(std::vector<int> &xhat)
     Submodel->update();
 }
 
-std::vector<float> BendersSub::solve()
+std::vector<std::vector<float>> BendersSub::solve(int counter)
 {
     try
     {
-        std::vector<float> yhat;
+        std::vector<std::vector<float>> yhat;
+        string modelname = "submodel_" + to_string(counter) + ".lp";
+        Submodel->write(modelname);
         Submodel->optimize();
 
-        yhat.push_back(Submodel->get(GRB_DoubleAttr_ObjVal));
-        for (int a = 0; a < m; ++a)
+        y_dummy2 = {};
+        yhat.push_back(y_dummy2);
+        yhat[0].push_back(Submodel->get(GRB_DoubleAttr_ObjVal));
+        cout << "submodel_obj: " << Submodel->get(GRB_DoubleAttr_ObjVal);
+
+        for (int q = 0; q < l; ++q)
         {
-            yhat.push_back(y[a].get(GRB_DoubleAttr_X));
+            y_dummy2 = {};
+            yhat.push_back(y_dummy2);
+
+            for (int a = 0; a < m; ++a)
+            {
+                yhat[q + 1].push_back(y[q][a].get(GRB_DoubleAttr_X));
+            }
         }
         return yhat;
     }
@@ -670,11 +689,31 @@ BendersSeparation::BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &t
         zetabar = the_zetabar;
         xprime.push_back(0);
 
-        for (int a = 0; a < m; ++a)
+        std::vector<float> y_dummy = {0};
+        yhat.push_back(y_dummy);
+
+        for (int q = 0; q < l; ++q)
         {
-            xhat.push_back(0);
-            yhat.push_back(0);
-            xprime.push_back(0);
+            if (q == 0)
+            {
+                y_dummy = {};
+                yhat.push_back(y_dummy);
+                for (int a = 0; a < m; ++a)
+                {
+                    xhat.push_back(0);
+                    xprime.push_back(0);
+                    yhat[q + 1].push_back(0);
+                }
+            }
+            else
+            {
+                y_dummy = {};
+                yhat.push_back(y_dummy);
+                for (int a = 0; a < m; ++a)
+                {
+                    yhat[q + 1].push_back(0);
+                }
+            }
         }
     }
     catch (GRBException e)
@@ -695,6 +734,7 @@ void BendersSeparation::callback()
     {
         if (zeta_u - zeta_l >= epsilon)
         {
+            counter++;
             // xhat = current solution from master problem, then update subproblem
             for (int a = 0; a < m; ++a)
             {
@@ -703,24 +743,32 @@ void BendersSeparation::callback()
             subproblem.update(xhat);
             zeta_u = GRB_CB_MIPSOL_OBJBST; // best obj found so far (entire tree)
 
-            yhat = subproblem.solve();
-            for (int a = 0; a < m; ++a)
+            yhat = subproblem.solve(counter);
+            cout << "\nsubobjective: " << yhat[0][0] << "\n";
+
+            for (int q = 1; q < l + 1; ++q)
             {
-                cout << "\nyhat[" << a << "]: " << yhat[a] << "\n";
+                for (int a = 0; a < m; ++a)
+                {
+                    cout << "\nyhat[" << q - 1 << "][" << a << "]: " << yhat[q][a] << "\n";
+                }
             }
-            zeta_temp = yhat[0]; // first element of the yhat vector is the objective
+            zeta_temp = yhat[0][0]; // first element of the yhat vector is the objective
             // use yhat[1-m] to create new cut from LinExpr
             for (int q = 0; q < l; ++q)
             {
                 new_cut = 0;
                 for (int a = 0; a < m; ++a)
                 {
-                    new_cut += (c[q][a] + d[a] * xbar[a]) * yhat[a];
+                    new_cut += (c[q][a] + d[a] * xbar[a]) * yhat[q + 1][a];
                 }
                 // add lazy cut to main model
                 try
                 {
                     addLazy(zetabar <= new_cut);
+                    cout << "\nallegedly added cut: "
+                         << "zetabar"
+                         << "<=" << new_cut << "\n";
                 }
                 catch (GRBException e)
                 {
@@ -796,57 +844,58 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
 
 std::vector<float> M2Benders::solve()
 {
-    // // ------ Set Callback on Master Model
-    // M2Bendersmodel->setCallback(&sep);
+    // ------ Set Callback on Master Model
+    M2Bendersmodel->setCallback(&sep);
 
-    // // ------ Optimize Inside Benders Scheme -------
-    // M2Bendersmodel->write("simplegraph1_benders_before.lp");
+    // ------ Optimize Inside Benders Scheme -------
+    M2Bendersmodel->write("simplegraph1_benders_before.lp");
 
-    // try
+    try
+    {
+        M2Bendersmodel->optimize();
+    }
+    catch (GRBException e)
+    {
+        std::cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
+        std::cout << e.getMessage() << "\n";
+    }
+    catch (...)
+    {
+        std::cout << "Non-gurobi error during optimization [M2Benders.optimize()]"
+                  << "\n";
+    }
+    M2Bendersmodel->write("simplegraph1_benders_after.lp");
+    // while (sep.zeta_u - sep.zeta_l >= sep.epsilon)
     // {
+    //     cout << "\n Iteration: " << i << "\n";
+    //     cout << "\n Upper: " << sep.zeta_u << "\n";
+    //     cout << "\n Lower: " << sep.zeta_l << "\n";
+
     //     M2Bendersmodel->optimize();
-    // }
-    // catch (GRBException e)
-    // {
-    //     std::cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
-    //     std::cout << e.getMessage() << "\n";
-    // }
-    // catch (...)
-    // {
-    //     std::cout << "Non-gurobi error during optimization [M2Benders.optimize()]"
-    //               << "\n";
-    // }
-    // M2Bendersmodel->write("simplegraph1_benders_after.lp");
-    // // while (sep.zeta_u - sep.zeta_l >= sep.epsilon)
-    // // {
-    // //     cout << "\n Iteration: " << i << "\n";
-    // //     cout << "\n Upper: " << sep.zeta_u << "\n";
-    // //     cout << "\n Lower: " << sep.zeta_l << "\n";
 
-    // //     M2Bendersmodel->optimize();
-
-    // //     ++i;
-    // // }
-
-    // sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
-    // for (int a = 0; a < m; ++a)
-    // {
-    //     try
-    //     {
-    //         sep.xprime[a + 1] = x[a].get(GRB_DoubleAttr_X);
-    //     }
-    //     catch (GRBException e)
-    //     {
-    //         std::cout << "Gurobi error number [M2Benders - retrieve values for xprime]: " << e.getErrorCode() << "\n";
-    //         std::cout << e.getMessage() << "\n";
-    //     }
-    //     catch (...)
-    //     {
-    //         std::cout << "Non-gurobi error during optimization [M2Benders - retrieve values for xprime]"
-    //                   << "\n";
-    //     }
-    //     // sep.xprime[a] = 0;
+    //     ++i;
     // }
+
+    sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
+    for (int a = 0; a < m; ++a)
+    {
+        try
+        {
+            sep.xprime[a + 1] = x[a].get(GRB_DoubleAttr_X);
+        }
+        catch (GRBException e)
+        {
+            std::cout << "x_" << a << "\n";
+            std::cout << "Gurobi error number [M2Benders - retrieve values for xprime]: " << e.getErrorCode() << "\n";
+            std::cout << e.getMessage() << "\n";
+        }
+        catch (...)
+        {
+            std::cout << "Non-gurobi error during optimization [M2Benders - retrieve values for xprime]"
+                      << "\n";
+        }
+        // sep.xprime[a] = 0;
+    }
 
     // for submodel testing and shit
     // std::vector<int> test_xhat = {1, 1, 0};
@@ -860,7 +909,7 @@ std::vector<float> M2Benders::solve()
     delete sep.subproblem.Subenv;
     delete sep.subproblem.Submodel;
 
-    return sep.yhat;
+    return sep.xprime;
 }
 
 // float BendersSPSub::solve()

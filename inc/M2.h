@@ -130,19 +130,20 @@ public:
     std::vector<std::vector<int>> c; // base costs
     std::vector<int> d;              // interdiction costs
 
-    GRBConstr *obj_constr; // array of constraints for the objective lower bounding constraints over the qs
-                           // need this as an array to update it
-    GRBVar zeta_sub;       // dummy objective function variable because we have to argmin over q
-    std::vector<GRBVar> y; // main decision variable - arc path selection/flow
-
-    GRBLinExpr linexpr;  // when adding the flow constraints, we use this one for outgoing arcs
-    GRBLinExpr linexpr2; // when adding the flow constraints, we use this one for incoming arcs
-    int rhs;             // use this also for generating flow constraints
+    GRBConstr *obj_constr;              // array of constraints for the objective lower bounding constraints over the qs
+                                        // need this as an array to update it
+    GRBVar zeta_sub;                    // dummy objective function variable because we have to argmin over q
+    std::vector<std::vector<GRBVar>> y; // main decision variable - arc path selection/flow (one y vector for every q)
+    std::vector<GRBVar> y_dummy;        // just to construct and push_back y
+    std::vector<float> y_dummy2;        // just to construct and push_back yhat
+    GRBLinExpr linexpr;                 // when adding the flow constraints, we use this one for outgoing arcs
+    GRBLinExpr linexpr2;                // when adding the flow constraints, we use this one for incoming arcs
+    int rhs;                            // use this also for generating flow constraints
     string varname;
 
     BendersSub();
     BendersSub(M2ProblemInstance *the_M2Instance);
-    std::vector<float> solve();
+    std::vector<std::vector<float>> solve(int counter); // now returns a vector of vectors of size l+1, where the first is a singleton with the obj value
     void update(std::vector<int> &xhat);
 };
 
@@ -152,17 +153,18 @@ public:
     int n;
     int m;
     int l;
+    int counter = 0;
 
     std::vector<std::vector<int>> c; // base costs
     std::vector<int> d;              // interdiction costs
 
     // a hat vector is numbers, a bar vector is GRBVars
-    GRBLinExpr new_cut;        // linexpr object for new cut to add to master formulation
-    GRBVar zetabar;            // 'connecting' GRBVar for zeta
-    std::vector<GRBVar> xbar;  // 'connecting' GRBVars for x
-    std::vector<int> xhat;     // current xhat to solve with, i.e. interdiction policy we are subject to
-    std::vector<float> xprime; // current best interdiction policy (includes extra x[0] for obj)
-    std::vector<float> yhat;   // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[0] for objective)
+    GRBLinExpr new_cut;                   // linexpr object for new cut to add to master formulation
+    GRBVar zetabar;                       // 'connecting' GRBVar for zeta
+    std::vector<GRBVar> xbar;             // 'connecting' GRBVars for x
+    std::vector<int> xhat;                // current xhat to solve with, i.e. interdiction policy we are subject to
+    std::vector<float> xprime;            // current best interdiction policy (includes extra x[0] for obj)
+    std::vector<std::vector<float>> yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[0][0] for objective), it is of size l+1, first is singleton obj, next l are the y vectors for every q
 
     BendersSub subproblem;
 
