@@ -629,15 +629,17 @@ std::vector<std::vector<float>> BendersSub::solve(int counter)
         yhat.push_back(y_dummy2);
         yhat[0].push_back(Submodel->get(GRB_DoubleAttr_ObjVal));
         cout << "submodel_obj: " << Submodel->get(GRB_DoubleAttr_ObjVal);
+        cout << "\narc values: \n";
 
         for (int q = 0; q < l; ++q)
         {
             y_dummy2 = {};
             yhat.push_back(y_dummy2);
-
+            cout << "q = " << q << "\n";
             for (int a = 0; a < m; ++a)
             {
                 yhat[q + 1].push_back(y[q][a].get(GRB_DoubleAttr_X));
+                cout << "y_" << q << "_" << a << ": " << y[q][a].get(GRB_DoubleAttr_X) << "\n";
             }
         }
         return yhat;
@@ -754,7 +756,7 @@ void BendersSeparation::callback()
                 }
             }
             zeta_temp = yhat[0][0]; // first element of the yhat vector is the objective
-            // use yhat[1-m] to create new cut from LinExpr
+            // use yhat[(q-l)+1][1-m] to create new cut from LinExpr
             for (int q = 0; q < l; ++q)
             {
                 new_cut = 0;
@@ -797,7 +799,6 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         M2Bendersmodel = new GRBModel(*M2Bendersenv);
 
         M2Bendersmodel->getEnv().set(GRB_IntParam_LazyConstraints, 1);
-        M2Bendersmodel->getEnv().set(GRB_IntParam_InfUnbdInfo, 1);
 
         // ------ Variables and int parameters ------
         n = M2Instance->n;
@@ -829,6 +830,18 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
             linexpr += x[a];
         }
         M2Bendersmodel->addConstr(linexpr <= r_0);
+
+        // // ------ Trying to add the first lazy contraint ------
+        // sep.yhat = sep.subproblem.solve(0);
+        // for (int q = 0; q < l; ++q)
+        // {
+        //     linexpr = 0;
+        //     for (int a = 0; a < m; ++a)
+        //     {
+        //         linexpr += (sep.c[q][a] + (sep.d[a] * x[a])) * sep.yhat[q + 1][a];
+        //     }
+        //     M2Bendersmodel->addConstr(zeta <= linexpr);
+        // }
     }
     catch (GRBException e)
     {
@@ -898,10 +911,10 @@ std::vector<float> M2Benders::solve()
     }
 
     // for submodel testing and shit
-    // std::vector<int> test_xhat = {1, 1, 0};
+    std::vector<int> test_xhat = {1, 1, 0};
 
     // sep.subproblem.Submodel->write("spmodel.lp");
-    // sep.yhat = sep.subproblem.solve();
+    // sep.yhat = sep.subproblem.solve(0);
     // sep.subproblem.update(test_xhat);
     // sep.subproblem.Submodel->write("spmodelupdated.lp");
 
