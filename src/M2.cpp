@@ -532,7 +532,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
         for (int a = 0; a < m; ++a)
         {
             varname = "y_" + to_string(q) + "_" + to_string(a);
-            y[q].push_back(Submodel->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+            y[q].push_back(Submodel->addVar(0, GRB_INFINITY, 0, GRB_BINARY, varname));
         }
     }
 
@@ -628,7 +628,7 @@ std::vector<std::vector<float>> BendersSub::solve(int counter)
         y_dummy2 = {};
         yhat.push_back(y_dummy2);
         yhat[0].push_back(Submodel->get(GRB_DoubleAttr_ObjVal));
-        cout << "submodel_obj: " << Submodel->get(GRB_DoubleAttr_ObjVal);
+        cout << "submodel_obj: " << yhat[0][0];
         cout << "\narc values: \n";
 
         for (int q = 0; q < l; ++q)
@@ -745,14 +745,15 @@ void BendersSeparation::callback()
             subproblem.update(xhat);
             zeta_u = GRB_CB_MIPSOL_OBJBST; // best obj found so far (entire tree)
 
+            cout << "\n\n\n\nsolving sub from callback: \n\n\n\n";
             yhat = subproblem.solve(counter);
-            cout << "\nsubobjective: " << yhat[0][0] << "\n";
+            // cout << "\nsubobjective: " << yhat[0][0] << "\n";
 
             for (int q = 1; q < l + 1; ++q)
             {
                 for (int a = 0; a < m; ++a)
                 {
-                    cout << "\nyhat[" << q - 1 << "][" << a << "]: " << yhat[q][a] << "\n";
+                    // cout << "\nyhat[" << q - 1 << "][" << a << "]: " << yhat[q][a] << "\n";
                 }
             }
             zeta_temp = yhat[0][0]; // first element of the yhat vector is the objective
@@ -831,17 +832,19 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         }
         M2Bendersmodel->addConstr(linexpr <= r_0);
 
-        // // ------ Trying to add the first lazy contraint ------
-        // sep.yhat = sep.subproblem.solve(0);
-        // for (int q = 0; q < l; ++q)
-        // {
-        //     linexpr = 0;
-        //     for (int a = 0; a < m; ++a)
-        //     {
-        //         linexpr += (sep.c[q][a] + (sep.d[a] * x[a])) * sep.yhat[q + 1][a];
-        //     }
-        //     M2Bendersmodel->addConstr(zeta <= linexpr);
-        // }
+        // ------ Trying to add the first lazy contraint ------
+        cout << "\n\n\n\nsolving sub from constructor: \n\n\n\n";
+        sep.yhat = sep.subproblem.solve(0);
+        for (int q = 0; q < l; ++q)
+        {
+            linexpr = 0;
+            for (int a = 0; a < m; ++a)
+            {
+                linexpr += (sep.c[q][a] + (sep.d[a] * x[a])) * sep.yhat[q + 1][a];
+                // cout << "\nyhat[" << q << "][" << a << "]: " << sep.yhat[q + 1][a] << "\n";
+            }
+            M2Bendersmodel->addConstr(zeta <= linexpr);
+        }
     }
     catch (GRBException e)
     {

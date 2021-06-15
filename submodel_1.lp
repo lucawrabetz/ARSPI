@@ -12,4 +12,6 @@ Subject To
  R7: y_2_0 + y_2_1 + y_2_2 = 1
  R8: - y_2_0 - y_2_1 - y_2_2 = -1
 Bounds
+Binaries
+ y_0_0 y_0_1 y_0_2 y_1_0 y_1_1 y_1_2 y_2_0 y_2_1 y_2_2
 End
