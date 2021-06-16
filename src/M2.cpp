@@ -532,7 +532,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
         for (int a = 0; a < m; ++a)
         {
             varname = "y_" + to_string(q) + "_" + to_string(a);
-            y[q].push_back(Submodel->addVar(0, GRB_INFINITY, 0, GRB_BINARY, varname));
+            y[q].push_back(Submodel->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
         }
     }
 
@@ -594,6 +594,12 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
 
 void BendersSub::update(std::vector<int> &xhat)
 {
+    cout << "\nsubmodel: updating based on xbar, new interdiction policy: \n";
+    for (int a = 0; a < m; ++a)
+    {
+        cout << "xbar_" << a << ": " << xhat[a] << "\n";
+    }
+
     // update array of constraints instead of only the parameter vector
     for (int q = 0; q < l; ++q)
     {
