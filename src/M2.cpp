@@ -473,6 +473,9 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
             linexpr = 0;
             for (int a = 0; a < m; ++a)
             {
+                i = M2Instance->G.arcs[a].i;
+                j = M2Instance->G.arcs[a].j;
+                M2model->addConstr((pi[q][i] - pi[q][j] - lambda[q][a] + gamma[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
             }
         }
 
