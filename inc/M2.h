@@ -39,7 +39,7 @@ class M2ProblemInstance
 public:
     int n;
     int m;
-    int l;
+    int p;
     int r_0;
 
     std::vector<std::vector<int>> arc_costs;
@@ -48,7 +48,7 @@ public:
     LayerGraph G;
 
     M2ProblemInstance();
-    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_l, int the_r0); // 'normal' constructor
+    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0); // 'normal' constructor
 };
 
 class M2ModelBilinear
@@ -57,7 +57,7 @@ public:
     int s = 0;
     int n;
     int m;
-    int l;
+    int p;
     int r_0;
     float running_time;
 
@@ -88,7 +88,7 @@ public:
     int s = 0;
     int n;
     int m;
-    int l;
+    int p;
     int r_0;
     float running_time;
 
@@ -104,9 +104,11 @@ public:
 
     // LayerGraph G;
 
-    std::vector<std::vector<GRBVar>> pi; // decision variable; post interdiction s-i path for each q
-    GRBVar z;                            // decision variable; objective func dummy
-    std::vector<GRBVar> x;               // decision variable; interdiction variable
+    std::vector<std::vector<GRBVar>> pi;     // decision variable;
+    std::vector<std::vector<GRBVar>> lambda; // decision variable;
+    std::vector<std::vector<GRBVar>> gamma;  // decision variable;
+    GRBVar z;                                // decision variable; objective func dummy
+    std::vector<GRBVar> x;                   // decision variable; interdiction variable
 
     M2ModelLinear(M2ProblemInstance *the_M2Instance);
 
@@ -118,7 +120,7 @@ class BendersSub
 public:
     int n;
     int m;
-    int l;
+    int p;
     GRBEnv *Subenv;
     GRBModel *Submodel;
 
@@ -143,7 +145,7 @@ public:
 
     BendersSub();
     BendersSub(M2ProblemInstance *the_M2Instance);
-    std::vector<std::vector<float>> solve(int counter); // now returns a vector of vectors of size l+1, where the first is a singleton with the obj value
+    std::vector<std::vector<float>> solve(int counter); // now returns a vector of vectors of size p+1, where the first is a singleton with the obj value
     void update(std::vector<int> &xhat);
 };
 
@@ -152,7 +154,7 @@ class BendersSeparation : public GRBCallback
 public:
     int n;
     int m;
-    int l;
+    int p;
     int counter = 0;
 
     std::vector<std::vector<int>> c; // base costs
@@ -188,7 +190,7 @@ public:
     int s = 0;
     int n;
     int m;
-    int l;
+    int p;
     int r_0;
     float running_time;
 

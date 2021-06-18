@@ -69,14 +69,14 @@ M2ProblemInstance::M2ProblemInstance()
     r_0 = 0;
 }
 
-M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_l, int the_r0)
+M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0)
 {
     // ------ Assign graph and random costs ------
     // ------ Variables and int parameters ------
     G = the_G;
     n = G.n;
     m = G.m;
-    l = the_l;
+    p = the_p;
     r_0 = the_r0;
 
     for (int a = 0; a < m; a++)
@@ -90,7 +90,7 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     // std::mt19937 gen(rd());                          // seed the generator
     // std::uniform_int_distribution<> distr(min, max); // define the range
 
-    // for (int q = 0; q < l; q++)
+    // for (int q = 0; q < p; q++)
     // {
     //     std::vector<int> new_vector = {};
     //     arc_costs.push_back(new_vector);
@@ -109,7 +109,7 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     arc_costs.push_back(costs3);
 }
 
-// ------ 'Straightup' MIP Formulations for M2 ------
+// ------ MIP Formulations for M2 ------
 
 M2ModelBilinear::M2ModelBilinear(M2ProblemInstance *the_M2Instance)
 {
@@ -122,7 +122,7 @@ M2ModelBilinear::M2ModelBilinear(M2ProblemInstance *the_M2Instance)
         // // ------ Variables and int parameters ------
         n = M2Instance->G.n;
         m = M2Instance->G.m;
-        l = M2Instance->l;
+        p = M2Instance->p;
         r_0 = M2Instance->r_0;
 
         // for (int a = 0; a < m; a++)
@@ -136,7 +136,7 @@ M2ModelBilinear::M2ModelBilinear(M2ProblemInstance *the_M2Instance)
         // // std::mt19937 gen(rd());                          // seed the generator
         // // std::uniform_int_distribution<> distr(min, max); // define the range
 
-        // // for (int q = 0; q < l; q++)
+        // // for (int q = 0; q < p; q++)
         // // {
         // //     std::vector<int> new_vector = {};
         // //     arc_costs.push_back(new_vector);
@@ -169,7 +169,7 @@ M2ModelBilinear::M2ModelBilinear(M2ProblemInstance *the_M2Instance)
         }
 
         // convex combination lambda on scenarios
-        for (int q = 0; q < l; q++)
+        for (int q = 0; q < p; q++)
         {
             varname = "lambda_" + std::to_string(q);
             lambda.push_back(M2model->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
@@ -185,7 +185,7 @@ M2ModelBilinear::M2ModelBilinear(M2ProblemInstance *the_M2Instance)
         // ------ Constraints ------
         // convex combination (sum of lambdas = 1)
         linexpr = 0;
-        for (int q = 0; q < l; q++)
+        for (int q = 0; q < p; q++)
         {
             linexpr += lambda[q];
         }
@@ -203,7 +203,7 @@ M2ModelBilinear::M2ModelBilinear(M2ProblemInstance *the_M2Instance)
         for (int a = 0; a < m; a++)
         {
             quadexpr = 0;
-            for (int q = 0; q < l; q++)
+            for (int q = 0; q < p; q++)
             {
                 quadexpr += (M2Instance->arc_costs[q][a] + M2Instance->interdiction_costs[a] * x[a]) * lambda[q];
             }
@@ -356,7 +356,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         // ------ Variables and int parameters ------
         n = M2Instance->G.n;
         m = M2Instance->G.m;
-        l = M2Instance->l;
+        p = M2Instance->p;
         r_0 = M2Instance->r_0;
 
         // for (int a = 0; a < m; a++)
@@ -406,15 +406,40 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         varname = "z";
         z = M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
 
-        // post interdiction shortest path (s-i) 'pi'
-        for (int q = 0; q < l; q++)
+        std::vector<GRBVar> new_vector;
+        // post interdiction flow 'pi'
+        for (int q = 0; q < p; q++)
         {
-            std::vector<GRBVar> new_vector = {};
+            new_vector = {};
             pi.push_back(new_vector);
             for (int i = 0; i < n; i++)
             {
                 varname = "pi_" + std::to_string(q) + "_" + std::to_string(i);
                 pi[q].push_back(M2model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+            }
+        }
+
+        // arc variable 'lambda'
+        for (int q = 0; q < p; q++)
+        {
+            new_vector = {};
+            lambda.push_back(new_vector);
+            for (int a = 0; a < m; a++)
+            {
+                varname = "gamma_" + std::to_string(q) + "_" + std::to_string(a);
+                pi[q].push_back(M2model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+            }
+        }
+
+        // post interdiction flow 'gamma'
+        for (int q = 0; q < p; q++)
+        {
+            new_vector = {};
+            gamma.push_back(new_vector);
+            for (int a = 0; a < m; a++)
+            {
+                varname = "gamma_" + std::to_string(q) + "_" + std::to_string(a);
+                pi[q].push_back(M2model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
             }
         }
 
@@ -428,26 +453,34 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         M2model->addConstr(linexpr <= r_0);
 
         // z constraints
-        linexpr = 0;
-        for (int q = 0; q < l; q++)
+        for (int q = 0; q < p; q++)
         {
-            M2model->addConstr(z <= pi[q][n - 1] - pi[q][s]);
+            linexpr = 0;
+            linexpr += (pi[q][s] - pi[q][n - 1]); // b^\top pi (our b is simply a source-sink single unit of flow)
+            for (int a = 0; a < m; ++a)
+            {
+                linexpr += lambda[q][a]; // u^\top \cdot lambda (our u is 1)
+                // nothing for l^\top \cdot gamma (our l is 0)
+            }
+            M2model->addConstr(z <= linexpr);
         }
 
         // main constraint for each arc
-        for (int a = 0; a < m; a++)
+        int i;
+        int j;
+        for (int q = 0; q < p; ++q)
         {
-            for (int q = 0; q < l; q++)
+            linexpr = 0;
+            for (int a = 0; a < m; ++a)
             {
-                M2model->addConstr((pi[q][M2Instance->G.arcs[a].j] - pi[q][M2Instance->G.arcs[a].i]) <= M2Instance->arc_costs[q][a] + M2Instance->interdiction_costs[a] * x[a]);
             }
         }
 
         // pi[0] = 0
-        for (int q = 0; q < l; q++)
-        {
-            M2model->addConstr(pi[q][0] == 0);
-        }
+        // for (int q = 0; q < l; q++)
+        // {
+        //     M2model->addConstr(pi[q][0] == 0);
+        // }
         M2model->update();
     }
     catch (GRBException e)
@@ -496,7 +529,7 @@ BendersSub::BendersSub()
 {
     n = 0;
     m = 0;
-    l = 0;
+    p = 0;
 }
 
 BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
@@ -504,7 +537,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     // ------ Initialize Basic Parameters ------
     n = the_M2Instance->n;
     m = the_M2Instance->m;
-    l = the_M2Instance->l;
+    p = the_M2Instance->p;
 
     // ------ Initialize d and c costs ------
     for (int a = 0; a < m; a++)
@@ -512,7 +545,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
         d.push_back(the_M2Instance->interdiction_costs[a]);
     }
 
-    for (int q = 0; q < l; q++)
+    for (int q = 0; q < p; q++)
     {
         c.push_back(the_M2Instance->arc_costs[q]);
         c_bar.push_back(the_M2Instance->arc_costs[q]);
@@ -525,7 +558,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     // ------ Decision Variables ------
     varname = "zeta_sub";
     zeta_sub = Submodel->addVar(0, GRB_INFINITY, 1, GRB_CONTINUOUS, varname);
-    for (int q = 0; q < l; ++q)
+    for (int q = 0; q < p; ++q)
     {
         y_dummy = {};
         y.push_back(y_dummy);
@@ -539,8 +572,8 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     // ------ Constraints ------
     // constraints to bound objective value over q
     // obj_constr = new GRBConstr[l]
-    obj_constr = new GRBConstr[l];
-    for (int q = 0; q < l; ++q)
+    obj_constr = new GRBConstr[p];
+    for (int q = 0; q < p; ++q)
     {
         linexpr = 0;
         for (int a = 0; a < m; ++a)
@@ -551,7 +584,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     }
 
     // flow constraints
-    for (int q = 0; q < l; ++q)
+    for (int q = 0; q < p; ++q)
     {
         for (int i = 0; i < n; ++i)
         {
@@ -601,7 +634,7 @@ void BendersSub::update(std::vector<int> &xhat)
     }
 
     // update array of constraints instead of only the parameter vector
-    for (int q = 0; q < l; ++q)
+    for (int q = 0; q < p; ++q)
     {
         for (int a = 0; a < m; ++a)
         {
@@ -637,7 +670,7 @@ std::vector<std::vector<float>> BendersSub::solve(int counter)
         cout << "submodel_obj: " << yhat[0][0];
         cout << "\narc values: \n";
 
-        for (int q = 0; q < l; ++q)
+        for (int q = 0; q < p; ++q)
         {
             y_dummy2 = {};
             yhat.push_back(y_dummy2);
@@ -666,7 +699,7 @@ BendersSeparation::BendersSeparation()
 {
     n = 0;
     m = 0;
-    l = 0;
+    p = 0;
 }
 
 BendersSeparation::BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance)
@@ -676,7 +709,7 @@ BendersSeparation::BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &t
         // ------ Initialize Basic Parameters ------
         n = the_M2Instance->n;
         m = the_M2Instance->m;
-        l = the_M2Instance->l;
+        p = the_M2Instance->p;
 
         // ------ Initialize Submodel ------
         subproblem = BendersSub(the_M2Instance);
@@ -687,7 +720,7 @@ BendersSeparation::BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &t
             d.push_back(the_M2Instance->interdiction_costs[a]);
         }
 
-        for (int q = 0; q < l; q++)
+        for (int q = 0; q < p; q++)
         {
             c.push_back(the_M2Instance->arc_costs[q]);
         }
@@ -700,7 +733,7 @@ BendersSeparation::BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &t
         std::vector<float> y_dummy = {0};
         yhat.push_back(y_dummy);
 
-        for (int q = 0; q < l; ++q)
+        for (int q = 0; q < p; ++q)
         {
             if (q == 0)
             {
@@ -755,7 +788,7 @@ void BendersSeparation::callback()
             yhat = subproblem.solve(counter);
             // cout << "\nsubobjective: " << yhat[0][0] << "\n";
 
-            for (int q = 1; q < l + 1; ++q)
+            for (int q = 1; q < p + 1; ++q)
             {
                 for (int a = 0; a < m; ++a)
                 {
@@ -764,7 +797,7 @@ void BendersSeparation::callback()
             }
             zeta_temp = yhat[0][0]; // first element of the yhat vector is the objective
             // use yhat[(q-l)+1][1-m] to create new cut from LinExpr
-            for (int q = 0; q < l; ++q)
+            for (int q = 0; q < p; ++q)
             {
                 new_cut = 0;
                 for (int a = 0; a < m; ++a)
@@ -810,7 +843,7 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         // ------ Variables and int parameters ------
         n = M2Instance->n;
         m = M2Instance->m;
-        l = M2Instance->l;
+        p = M2Instance->p;
         r_0 = M2Instance->r_0;
 
         // ------ Decision variables ------
@@ -841,7 +874,7 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         // ------ Trying to add the first lazy contraint ------
         cout << "\n\n\n\nsolving sub from constructor: \n\n\n\n";
         sep.yhat = sep.subproblem.solve(0);
-        for (int q = 0; q < l; ++q)
+        for (int q = 0; q < p; ++q)
         {
             linexpr = 0;
             for (int a = 0; a < m; ++a)
