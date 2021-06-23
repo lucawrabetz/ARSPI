@@ -83,7 +83,7 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     {
         // interdiction_costs.push_back((max - min));
         // for simplegraph.txt
-        interdiction_costs.push_back(100);
+        interdiction_costs.push_back(100000);
     }
 
     // std::random_device rd;                           // obtain a random number from hardware
@@ -426,20 +426,8 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
             lambda.push_back(new_vector);
             for (int a = 0; a < m; a++)
             {
-                varname = "gamma_" + std::to_string(q) + "_" + std::to_string(a);
-                pi[q].push_back(M2model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
-            }
-        }
-
-        // post interdiction flow 'gamma'
-        for (int q = 0; q < p; q++)
-        {
-            new_vector = {};
-            gamma.push_back(new_vector);
-            for (int a = 0; a < m; a++)
-            {
-                varname = "gamma_" + std::to_string(q) + "_" + std::to_string(a);
-                pi[q].push_back(M2model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+                varname = "lambda_" + std::to_string(q) + "_" + std::to_string(a);
+                lambda[q].push_back(M2model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
             }
         }
 
@@ -456,11 +444,10 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         for (int q = 0; q < p; q++)
         {
             linexpr = 0;
-            linexpr += (pi[q][s] - pi[q][n - 1]); // b^\top pi (our b is simply a source-sink single unit of flow)
+            linexpr += (pi[q][n - 1] - pi[q][s]); // b^\top pi (our b is simply a source-sink single unit of flow)
             for (int a = 0; a < m; ++a)
             {
-                linexpr += lambda[q][a]; // u^\top \cdot lambda (our u is 1)
-                // nothing for l^\top \cdot gamma (our l is 0)
+                linexpr += -lambda[q][a]; // u^\top \cdot lambda (our u is 1)
             }
             M2model->addConstr(z <= linexpr);
         }
@@ -475,15 +462,15 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
             {
                 i = M2Instance->G.arcs[a].i;
                 j = M2Instance->G.arcs[a].j;
-                M2model->addConstr((pi[q][i] - pi[q][j] - lambda[q][a] + gamma[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
+                M2model->addConstr((pi[q][j] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
             }
         }
 
         // pi[0] = 0
-        // for (int q = 0; q < l; q++)
-        // {
-        //     M2model->addConstr(pi[q][0] == 0);
-        // }
+        for (int q = 0; q < p; q++)
+        {
+            M2model->addConstr(pi[q][0] == 0);
+        }
         M2model->update();
     }
     catch (GRBException e)
@@ -555,12 +542,18 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     }
 
     // ------ Initialize Environment and Model ------
-    Subenv = new GRBEnv();
-    Submodel = new GRBModel(*Subenv);
+    for (int q = 0; q < p; ++q)
+    {
+        Subenvs.push_back(new GRBEnv());
+        Submodels.push_back(new GRBModel(*Subenvs[q]));
+    }
 
     // ------ Decision Variables ------
-    varname = "zeta_sub";
-    zeta_sub = Submodel->addVar(0, GRB_INFINITY, 1, GRB_CONTINUOUS, varname);
+    for (int q = 0; q < p; ++q)
+    {
+        varname = "zeta_sub_" + to_string(q);
+        zeta_subs.push_back(Submodels[q]->addVar(0, GRB_INFINITY, 1, GRB_CONTINUOUS, varname));
+    }
     for (int q = 0; q < p; ++q)
     {
         y_dummy = {};
@@ -568,7 +561,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
         for (int a = 0; a < m; ++a)
         {
             varname = "y_" + to_string(q) + "_" + to_string(a);
-            y[q].push_back(Submodel->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
+            y[q].push_back(Submodels[q]->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
         }
     }
 
@@ -583,7 +576,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
         {
             linexpr += c_bar[q][a] * y[q][a];
         }
-        obj_constr[q] = Submodel->addConstr(zeta_sub >= linexpr);
+        obj_constr[q] = Submodels[q]->addConstr(zeta_subs[q] >= linexpr);
     }
 
     // flow constraints
@@ -622,10 +615,10 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
                     continue;
                 }
             }
-            Submodel->addConstr(linexpr == rhs);
+            Submodels[q]->addConstr(linexpr == rhs);
         }
+        Submodels[q]->update();
     }
-    Submodel->update();
 }
 
 void BendersSub::update(std::vector<int> &xhat)
@@ -644,43 +637,51 @@ void BendersSub::update(std::vector<int> &xhat)
             // model.chgCoeff(obj_constr[q], variable, new cost)
             if (xhat[a] > 0.5)
             {
-                Submodel->chgCoeff(obj_constr[q], y[q][a], -(c[q][a] + d[a]));
+                Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a] + d[a]));
                 // c_bar[q][a] = c[q][a] + d[a];
             }
             else
             {
-                Submodel->chgCoeff(obj_constr[q], y[q][a], -(c[q][a]));
+                Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a]));
                 // c_bar[q][a] = c[q][a];
             }
             // constraint[q].set...
         }
+        Submodels[q]->update();
     }
-    Submodel->update();
 }
 
 std::vector<std::vector<float>> BendersSub::solve(int counter)
 {
     try
     {
+        // yhat has q elements - each one has m+1 elements (first is the objective, rest is the flow)
         std::vector<std::vector<float>> yhat;
-        string modelname = "submodel_" + to_string(counter) + ".lp";
-        Submodel->write(modelname);
-        Submodel->optimize();
+        // string modelname = "submodel_" + to_string(counter) + ".lp";
+        // Submodel->write(modelname);
+        // Submodel->optimize();
 
-        y_dummy2 = {};
-        yhat.push_back(y_dummy2);
-        yhat[0].push_back(Submodel->get(GRB_DoubleAttr_ObjVal));
-        cout << "submodel_obj: " << yhat[0][0];
-        cout << "\narc values: \n";
+        // y_dummy2 = {};
+        // yhat.push_back(y_dummy2);
+        // yhat[0].push_back(Submodel->get(GRB_DoubleAttr_ObjVal));
+        // cout << "submodel_obj: " << yhat[0][0];
+        // cout << "\narc values: \n";
 
         for (int q = 0; q < p; ++q)
         {
             y_dummy2 = {};
             yhat.push_back(y_dummy2);
-            cout << "q = " << q << "\n";
+            string modelname = "submodel_" + to_string(counter) + "q=" + to_string(q) + ".lp";
+            Submodels[q]->write(modelname);
+            Submodels[q]->optimize();
+
+            yhat[q].push_back(Submodels[q]->get(GRB_DoubleAttr_ObjVal));
+            cout << "\nq = " + to_string(q);
+            cout << "\nsubmodel obj: " << yhat[q][0];
+            cout << "\narc values: \n";
             for (int a = 0; a < m; ++a)
             {
-                yhat[q + 1].push_back(y[q][a].get(GRB_DoubleAttr_X));
+                yhat[q].push_back(y[q][a].get(GRB_DoubleAttr_X));
                 cout << "y_" << q << "_" << a << ": " << y[q][a].get(GRB_DoubleAttr_X) << "\n";
             }
         }
@@ -733,31 +734,30 @@ BendersSeparation::BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &t
         zetabar = the_zetabar;
         xprime.push_back(0);
 
-        std::vector<float> y_dummy = {0};
-        yhat.push_back(y_dummy);
+        // std::vector<float> y_dummy = {};
 
         for (int q = 0; q < p; ++q)
         {
             if (q == 0)
             {
-                y_dummy = {};
-                yhat.push_back(y_dummy);
+                // y_dummy = {};
+                // yhat.push_back(y_dummy);
                 for (int a = 0; a < m; ++a)
                 {
                     xhat.push_back(0);
                     xprime.push_back(0);
-                    yhat[q + 1].push_back(0);
+                    // yhat[q].push_back(0);
                 }
             }
-            else
-            {
-                y_dummy = {};
-                yhat.push_back(y_dummy);
-                for (int a = 0; a < m; ++a)
-                {
-                    yhat[q + 1].push_back(0);
-                }
-            }
+            // else
+            // {
+            //     // y_dummy = {};
+            //     // yhat.push_back(y_dummy);
+            //     for (int a = 0; a < m; ++a)
+            //     {
+            //         // yhat[q + 1].push_back(0);
+            //     }
+            // }
         }
     }
     catch (GRBException e)
@@ -789,29 +789,27 @@ void BendersSeparation::callback()
 
             cout << "\n\n\n\nsolving sub from callback: \n\n\n\n";
             yhat = subproblem.solve(counter);
-            // cout << "\nsubobjective: " << yhat[0][0] << "\n";
-
-            for (int q = 1; q < p + 1; ++q)
+            zeta_temp = GRB_INFINITY;
+            for (int q = 0; q < p; ++q)
             {
-                for (int a = 0; a < m; ++a)
+                if (zeta_temp > yhat[q][0])
                 {
-                    // cout << "\nyhat[" << q - 1 << "][" << a << "]: " << yhat[q][a] << "\n";
+                    zeta_temp = yhat[q][0]; // first element of yhat[q] is the objective
                 }
             }
-            zeta_temp = yhat[0][0]; // first element of the yhat vector is the objective
             // use yhat[(q-l)+1][1-m] to create new cut from LinExpr
             for (int q = 0; q < p; ++q)
             {
                 new_cut = 0;
                 for (int a = 0; a < m; ++a)
                 {
-                    new_cut += (c[q][a] + d[a] * xbar[a]) * yhat[q + 1][a];
+                    new_cut += (c[q][a] + d[a] * xbar[a]) * yhat[q][a + 1];
                 }
                 // add lazy cut to main model
                 try
                 {
                     addLazy(zetabar <= new_cut);
-                    cout << "\nallegedly added cut: "
+                    cout << "\nadded cut: "
                          << "zetabar"
                          << "<=" << new_cut << "\n";
                 }
@@ -882,8 +880,7 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
             linexpr = 0;
             for (int a = 0; a < m; ++a)
             {
-                linexpr += (sep.c[q][a] + (sep.d[a] * x[a])) * sep.yhat[q + 1][a];
-                // cout << "\nyhat[" << q << "][" << a << "]: " << sep.yhat[q + 1][a] << "\n";
+                linexpr += (sep.c[q][a] + (sep.d[a] * x[a])) * sep.yhat[q][a + 1];
             }
             M2Bendersmodel->addConstr(zeta <= linexpr);
         }
@@ -923,16 +920,6 @@ std::vector<float> M2Benders::solve()
                   << "\n";
     }
     M2Bendersmodel->write("simplegraph1_benders_after.lp");
-    // while (sep.zeta_u - sep.zeta_l >= sep.epsilon)
-    // {
-    //     cout << "\n Iteration: " << i << "\n";
-    //     cout << "\n Upper: " << sep.zeta_u << "\n";
-    //     cout << "\n Lower: " << sep.zeta_l << "\n";
-
-    //     M2Bendersmodel->optimize();
-
-    //     ++i;
-    // }
 
     sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
     for (int a = 0; a < m; ++a)
@@ -955,8 +942,8 @@ std::vector<float> M2Benders::solve()
         // sep.xprime[a] = 0;
     }
 
-    // for submodel testing and shit
-    std::vector<int> test_xhat = {1, 1, 0};
+    // for submodel testing and stuff
+    // std::vector<int> test_xhat = {1, 1, 0};
 
     // sep.subproblem.Submodel->write("spmodel.lp");
     // sep.yhat = sep.subproblem.solve(0);
@@ -964,9 +951,11 @@ std::vector<float> M2Benders::solve()
     // sep.subproblem.Submodel->write("spmodelupdated.lp");
 
     delete sep.subproblem.obj_constr;
-    delete sep.subproblem.Subenv;
-    delete sep.subproblem.Submodel;
-
+    for (int q = 0; q < p; ++q)
+    {
+        delete sep.subproblem.Subenvs[q];
+        delete sep.subproblem.Submodels[q];
+    }
     return sep.xprime;
 }
 

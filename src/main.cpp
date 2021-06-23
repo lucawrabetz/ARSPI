@@ -4,13 +4,14 @@ int main()
 {
     int n = 2;
     float running_time;
-    std::vector<float> x_final;
+    std::vector<float> x_final_benders;
+    float x_final_linear;
     const std::string filename = "./dat/simplegraph1.txt";
     const LayerGraph G = LayerGraph(filename, n);
     M2ProblemInstance *M2 = new M2ProblemInstance(G, 150, 160, 3, 2);
 
-    // M2ModelLinear M2_L = M2ModelLinear(M2);
-    // M2_L.M2model->write("simplegraph1.lp");
+    M2ModelLinear M2_L = M2ModelLinear(M2);
+    M2_L.M2model->write("simplegraph1mip.lp");
 
     M2Benders M2_Bend = M2Benders(M2);
 
@@ -28,9 +29,9 @@ int main()
     // running_time = M2_L.solve();
 
     cout << "\n\n";
-    cout << "\nSolving Using BENDERS MODEL\n";
+    cout << "\nSolving Using LINEAR MODEL\n";
 
-    x_final = M2_Bend.solve();
+    x_final_linear = M2_L.solve();
 
     // printout for the linear model
     // cout << "\nObjective: " << x_final[0] << "\n";
@@ -39,18 +40,19 @@ int main()
     //     cout << "\nx_" << i - 1 << ": " << x_final[i] << "\n";
     // }
 
+    x_final_benders = M2_Bend.solve();
     // printout for the benders model
-    cout << "\nObjective: " << x_final[0] << "\n";
+    cout << "\nObjective: " << x_final_benders[0] << "\n";
     for (int a = 1; a < G.m + 1; ++a)
     {
-        cout << "\nx_" << a - 1 << ": " << x_final[a] << "\n";
+        cout << "\nx_" << a - 1 << ": " << x_final_benders[a] << "\n";
     }
 
     // cout << "\n\n\n\n\n";
     // cout << "\nSolving Using BiLINEAR MODEL\n";
     // running_time = M2_BL.solve();
-    // delete M2_L.M2env;
-    // delete M2_L.M2model;
+    delete M2_L.M2env;
+    delete M2_L.M2model;
     // delete M2_BL.M2env;
     // delete M2_BL.M2model;
     delete M2_Bend.M2Bendersenv;

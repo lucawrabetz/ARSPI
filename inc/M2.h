@@ -106,7 +106,6 @@ public:
 
     std::vector<std::vector<GRBVar>> pi;     // decision variable;
     std::vector<std::vector<GRBVar>> lambda; // decision variable;
-    std::vector<std::vector<GRBVar>> gamma;  // decision variable;
     GRBVar z;                                // decision variable; objective func dummy
     std::vector<GRBVar> x;                   // decision variable; interdiction variable
 
@@ -121,8 +120,8 @@ public:
     int n;
     int m;
     int p;
-    GRBEnv *Subenv;
-    GRBModel *Submodel;
+    std::vector<GRBEnv *> Subenvs;
+    std::vector<GRBModel *> Submodels;
 
     std::vector<std::vector<int>> c_bar; // this is the current objective function cost vector
     // i.e. - the objective function is c_bar \cdot y
@@ -134,7 +133,7 @@ public:
 
     GRBConstr *obj_constr;              // array of constraints for the objective lower bounding constraints over the qs
                                         // need this as an array to update it
-    GRBVar zeta_sub;                    // dummy objective function variable because we have to argmin over q
+    std::vector<GRBVar> zeta_subs;      // dummy objective function variable because we have to argmin over q
     std::vector<std::vector<GRBVar>> y; // main decision variable - arc path selection/flow (one y vector for every q)
     std::vector<GRBVar> y_dummy;        // just to construct and push_back y
     std::vector<float> y_dummy2;        // just to construct and push_back yhat
@@ -166,7 +165,7 @@ public:
     std::vector<GRBVar> xbar;             // 'connecting' GRBVars for x
     std::vector<int> xhat;                // current xhat to solve with, i.e. interdiction policy we are subject to
     std::vector<float> xprime;            // current best interdiction policy (includes extra x[0] for obj)
-    std::vector<std::vector<float>> yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[0][0] for objective), it is of size l+1, first is singleton obj, next l are the y vectors for every q
+    std::vector<std::vector<float>> yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[q][0] for objective for each q), it is of size p (vectors), first element of each flow is the objective
 
     BendersSub subproblem;
 
@@ -174,7 +173,7 @@ public:
     float zeta_u = GRB_INFINITY;
     float zeta_l = -GRB_INFINITY;
     float zeta_temp;
-    float epsilon = 0.0001;
+    float epsilon = 0.000001;
 
     BendersSeparation();
     BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance);
