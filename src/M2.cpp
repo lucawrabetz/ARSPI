@@ -18,10 +18,10 @@ LayerGraph::LayerGraph()
     m = 0;
 }
 
-LayerGraph::LayerGraph(const std::string &filename, int the_n)
+LayerGraph::LayerGraph(const string &filename, int the_n)
 {
-    std::string line;
-    std::ifstream myfile(filename);
+    string line;
+    ifstream myfile(filename);
 
     if (myfile.is_open())
     {
@@ -30,7 +30,7 @@ LayerGraph::LayerGraph(const std::string &filename, int the_n)
         const char *cline;
         int i;
         int j;
-        std::vector<int> new_vector;
+        vector<int> new_vector;
 
         for (int i = 0; i < n; i++)
         {
@@ -57,15 +57,16 @@ LayerGraph::LayerGraph(const std::string &filename, int the_n)
 
 void LayerGraph::printGraph()
 {
-    std::cout << "n: " << n << ", m: " << m << "\n";
+    cout << "n: " << n << ", m: " << m << "\n";
     for (int a = 0; a < m; a++)
     {
-        std::cout << "(" << arcs[a].i << "," << arcs[a].j << ")\n";
+        cout << "(" << arcs[a].i << "," << arcs[a].j << ")\n";
     }
 }
 
 M2ProblemInstance::M2ProblemInstance()
 {
+    // Default constructor
     r_0 = 0;
 }
 
@@ -92,7 +93,7 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
 
     // for (int q = 0; q < p; q++)
     // {
-    //     std::vector<int> new_vector = {};
+    //     vector<int> new_vector = {};
     //     arc_costs.push_back(new_vector);
     //     for (int a = 0; a < m; a++)
     //     {
@@ -101,249 +102,15 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     // }
 
     // hardcoded example "simplegraph.txt"
-    std::vector<int> costs1 = {9, 12, 3};
-    std::vector<int> costs2 = {9, 1, 10};
-    std::vector<int> costs3 = {9, 12, 10};
+    vector<int> costs1 = {9, 12, 3};
+    vector<int> costs2 = {9, 1, 10};
+    vector<int> costs3 = {9, 12, 10};
     arc_costs.push_back(costs1);
     arc_costs.push_back(costs2);
     arc_costs.push_back(costs3);
 }
 
 // ------ MIP Formulations for M2 ------
-
-M2ModelBilinear::M2ModelBilinear(M2ProblemInstance *the_M2Instance)
-{
-    try
-    {
-        // ------ Assign Instance ------
-        M2Instance = the_M2Instance;
-
-        // // ------ Assign graph and random costs ------
-        // // ------ Variables and int parameters ------
-        n = M2Instance->G.n;
-        m = M2Instance->G.m;
-        p = M2Instance->p;
-        r_0 = M2Instance->r_0;
-
-        // for (int a = 0; a < m; a++)
-        // {
-        //     // interdiction_costs.push_back((max - min));
-        //     // for simplegraph.txt
-        //     interdiction_costs.push_back(100);
-        // }
-
-        // // std::random_device rd;                           // obtain a random number from hardware
-        // // std::mt19937 gen(rd());                          // seed the generator
-        // // std::uniform_int_distribution<> distr(min, max); // define the range
-
-        // // for (int q = 0; q < p; q++)
-        // // {
-        // //     std::vector<int> new_vector = {};
-        // //     arc_costs.push_back(new_vector);
-        // //     for (int a = 0; a < m; a++)
-        // //     {
-        // //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
-        // //     }
-        // // }
-
-        // // hardcoded example "simplegraph.txt"
-        // std::vector<int> costs1 = {3, 4, 3, 4, 3, 4, 3};
-        // std::vector<int> costs2 = {3, 1, 3, 1, 3, 1, 10};
-        // std::vector<int> costs3 = {3, 4, 3, 4, 3, 4, 10};
-        // arc_costs.push_back(costs1);
-        // arc_costs.push_back(costs2);
-        // arc_costs.push_back(costs3);
-
-        // ------ Initialize model and environment ------
-        M2env = new GRBEnv();
-        M2model = new GRBModel(*M2env);
-
-        // ------ Decision variables ------
-        std::string varname;
-
-        // interdiction policy on arcs 'x'
-        for (int a = 0; a < m; a++)
-        {
-            varname = "x_" + std::to_string(a);
-            x.push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
-        }
-
-        // convex combination lambda on scenarios
-        for (int q = 0; q < p; q++)
-        {
-            varname = "lambda_" + std::to_string(q);
-            lambda.push_back(M2model->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
-        }
-
-        // post interdiction shortest path (s-i) 'pi'
-        for (int i = 0; i < n; i++)
-        {
-            varname = "pi_" + std::to_string(i);
-            pi.push_back(M2model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
-        }
-
-        // ------ Constraints ------
-        // convex combination (sum of lambdas = 1)
-        linexpr = 0;
-        for (int q = 0; q < p; q++)
-        {
-            linexpr += lambda[q];
-        }
-        M2model->addConstr(linexpr == 1);
-
-        // budget constraint
-        linexpr = 0;
-        for (int a = 0; a < m; a++)
-        {
-            linexpr += x[a];
-        }
-        M2model->addConstr(linexpr <= r_0);
-
-        // main constraint for each arc
-        for (int a = 0; a < m; a++)
-        {
-            quadexpr = 0;
-            for (int q = 0; q < p; q++)
-            {
-                quadexpr += (M2Instance->arc_costs[q][a] + M2Instance->interdiction_costs[a] * x[a]) * lambda[q];
-            }
-            M2model->addQConstr((pi[M2Instance->G.arcs[a].j] - pi[M2Instance->G.arcs[a].i]) <= quadexpr);
-        }
-
-        // pi[0] = 0
-        M2model->addConstr(pi[0] == 0);
-        linexpr = 0;
-        linexpr += pi[n - 1];
-
-        M2model->setObjective(linexpr, GRB_MAXIMIZE);
-        M2model->update();
-    }
-    catch (GRBException e)
-    {
-        std::cout << "Gurobi error number [M2Model, constructor]: " << e.getErrorCode() << "\n";
-        std::cout << e.getMessage() << "\n";
-    }
-    catch (...)
-    {
-        std::cout << "Non-gurobi error during optimization [M2Model]"
-                  << "\n";
-    }
-}
-
-float M2ModelBilinear::solve()
-{
-    // try
-    // {
-    //     // ------ Initialize model and environment ------
-    //     M2env = new GRBEnv();
-    //     M2model = new GRBModel(*M2env);
-
-    //     // ------ Decision variables ------
-    //     std::string varname;
-
-    //     // interdiction policy on arcs
-    //     for (int a = 0; a < m; a++)
-    //     {
-    //         varname = "x_" + std::to_string(a);
-    //         x.push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
-    //     }
-
-    //     // convex combination lambda on scenarios
-    //     for (int q = 0; q < l; q++)
-    //     {
-    //         varname = "lambda_" + std::to_string(q);
-    //         lambda.push_back(M2model->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
-    //     }
-
-    //     // post interdiction shortest path (s-i)
-    //     for (int i = 0; i < n; i++)
-    //     {
-    //         varname = "pi_" + std::to_string(i);
-    //         pi.push_back(M2model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
-    //     }
-
-    //     // ------ Constraints ------
-    //     // convex combination (sum of lambdas = 1)
-    //     linexpr = 0;
-    //     for (int q = 0; q < l; q++)
-    //     {
-    //         linexpr += lambda[q];
-    //     }
-    //     M2model->addConstr(linexpr == 1);
-
-    //     // budget constraint
-    //     linexpr = 0;
-    //     for (int a = 0; a < m; a++)
-    //     {
-    //         linexpr += x[a];
-    //     }
-    //     M2model->addConstr(linexpr <= r_0);
-
-    //     // convex combination (sum of lambdas = 1)
-    //     linexpr = 0;
-    //     for (int q = 0; q < l; q++)
-    //     {
-    //         linexpr += lambda[q];
-    //     }
-    //     M2model->addConstr(linexpr <= r_0);
-
-    //     // main constraint for each arc
-    //     for (int a = 0; a < m; a++)
-    //     {
-    //         quadexpr = 0;
-    //         for (int q = 0; q < l; q++)
-    //         {
-    //             quadexpr += (arc_costs[q][a] + interdiction_costs[a] * x[a]) * lambda[q];
-    //         }
-    //         M2model->addQConstr((pi[G.arcs[a].j] - pi[G.arcs[a].i]) <= quadexpr);
-    //     }
-
-    //     // pi[0] = 0
-    //     M2model->addConstr(pi[0] == 0);
-    //     linexpr = 0;
-    //     linexpr += pi[n - 1];
-
-    //     M2model->setObjective(linexpr, GRB_MAXIMIZE);
-    //     M2model->update();
-    // }
-    // catch (GRBException e)
-    // {
-    //     std::cout << "Gurobi error number [M2Model, constructor]: " << e.getErrorCode() << "\n";
-    //     std::cout << e.getMessage() << "\n";
-    // }
-    // catch (...)
-    // {
-    //     std::cout << "Non-gurobi error during optimization [M2Model]"
-    //               << "\n";
-    // }
-    try
-    {
-        clock_t model_begin = clock();
-        M2model->optimize();
-        running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
-        std::cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
-        std::cout << "Running time: " << running_time << "\n";
-        for (int a = 0; a < m; a++)
-        {
-            std::cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
-                      << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
-        }
-
-        return running_time;
-    }
-    catch (GRBException e)
-    {
-        std::cout << "Gurobi error number [M2Model, solveMIP]: " << e.getErrorCode() << "\n";
-        std::cout << e.getMessage() << "\n";
-        return 0;
-    }
-    catch (...)
-    {
-        std::cout << "Non-gurobi error during optimization [M2Model]"
-                  << "\n";
-        return 0;
-    }
-}
 
 M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
 {
@@ -359,46 +126,17 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         p = M2Instance->p;
         r_0 = M2Instance->r_0;
 
-        // for (int a = 0; a < m; a++)
-        // {
-        //     // interdiction_costs.push_back((max - min));
-        //     // for simplegraph.txt
-        //     interdiction_costs.push_back(100);
-        // }
-
-        // // std::random_device rd;                           // obtain a random number from hardware
-        // // std::mt19937 gen(rd());                          // seed the generator
-        // // std::uniform_int_distribution<> distr(min, max); // define the range
-
-        // // for (int q = 0; q < l; q++)
-        // // {
-        // //     std::vector<int> new_vector = {};
-        // //     arc_costs.push_back(new_vector);
-        // //     for (int a = 0; a < m; a++)
-        // //     {
-        // //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
-        // //     }
-        // // }
-
-        // // hardcoded example "simplegraph.txt"
-        // std::vector<int> costs1 = {3, 4, 3, 4, 3, 4, 3};
-        // std::vector<int> costs2 = {3, 1, 3, 1, 3, 1, 10};
-        // std::vector<int> costs3 = {3, 4, 3, 4, 3, 4, 10};
-        // arc_costs.push_back(costs1);
-        // arc_costs.push_back(costs2);
-        // arc_costs.push_back(costs3);
-
         // ------ Initialize model and environment ------
         M2env = new GRBEnv();
         M2model = new GRBModel(*M2env);
 
         // ------ Decision variables ------
-        std::string varname;
+        string varname;
 
         // interdiction policy on arcs 'x'
         for (int a = 0; a < m; a++)
         {
-            varname = "x_" + std::to_string(a);
+            varname = "x_" + to_string(a);
             x.push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
         }
 
@@ -406,7 +144,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         varname = "z";
         z = M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
 
-        std::vector<GRBVar> new_vector;
+        vector<GRBVar> new_vector;
         // post interdiction flow 'pi'
         for (int q = 0; q < p; q++)
         {
@@ -414,7 +152,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
             pi.push_back(new_vector);
             for (int i = 0; i < n; i++)
             {
-                varname = "pi_" + std::to_string(q) + "_" + std::to_string(i);
+                varname = "pi_" + to_string(q) + "_" + to_string(i);
                 pi[q].push_back(M2model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
             }
         }
@@ -426,7 +164,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
             lambda.push_back(new_vector);
             for (int a = 0; a < m; a++)
             {
-                varname = "lambda_" + std::to_string(q) + "_" + std::to_string(a);
+                varname = "lambda_" + to_string(q) + "_" + to_string(a);
                 lambda[q].push_back(M2model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
             }
         }
@@ -475,12 +213,12 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
     }
     catch (GRBException e)
     {
-        std::cout << "Gurobi error number [M2Model, constructor]: " << e.getErrorCode() << "\n";
-        std::cout << e.getMessage() << "\n";
+        cout << "Gurobi error number [M2Model, constructor]: " << e.getErrorCode() << "\n";
+        cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        std::cout << "Non-gurobi error during optimization [M2Model]"
+        cout << "Non-gurobi error during optimization [M2Model]"
                   << "\n";
     }
 }
@@ -492,11 +230,11 @@ float M2ModelLinear::solve()
         clock_t model_begin = clock();
         M2model->optimize();
         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
-        std::cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
-        std::cout << "Running time: " << running_time << "\n";
+        cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
+        cout << "Running time: " << running_time << "\n";
         for (int a = 0; a < m; a++)
         {
-            std::cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
+            cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
                       << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
         }
 
@@ -504,12 +242,12 @@ float M2ModelLinear::solve()
     }
     catch (GRBException e)
     {
-        std::cout << "Gurobi error number [M2Model, solveMIP]: " << e.getErrorCode() << "\n";
-        std::cout << e.getMessage() << "\n";
+        cout << "Gurobi error number [M2Model, solveMIP]: " << e.getErrorCode() << "\n";
+        cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        std::cout << "Non-gurobi error during optimization [M2Model]"
+        cout << "Non-gurobi error during optimization [M2Model]"
                   << "\n";
     }
 }
@@ -567,7 +305,6 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
 
     // ------ Constraints ------
     // constraints to bound objective value over q
-    // obj_constr = new GRBConstr[l]
     obj_constr = new GRBConstr[p];
     for (int q = 0; q < p; ++q)
     {
@@ -621,7 +358,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     }
 }
 
-void BendersSub::update(std::vector<int> &xhat)
+void BendersSub::update(vector<int> &xhat)
 {
     cout << "\nsubmodel: updating based on xbar, new interdiction policy: \n";
     for (int a = 0; a < m; ++a)
@@ -638,34 +375,22 @@ void BendersSub::update(std::vector<int> &xhat)
             if (xhat[a] > 0.5)
             {
                 Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a] + d[a]));
-                // c_bar[q][a] = c[q][a] + d[a];
             }
             else
             {
                 Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a]));
-                // c_bar[q][a] = c[q][a];
             }
-            // constraint[q].set...
         }
         Submodels[q]->update();
     }
 }
 
-std::vector<std::vector<float>> BendersSub::solve(int counter)
+vector<vector<float>> BendersSub::solve(int counter)
 {
     try
     {
         // yhat has q elements - each one has m+1 elements (first is the objective, rest is the flow)
-        std::vector<std::vector<float>> yhat;
-        // string modelname = "submodel_" + to_string(counter) + ".lp";
-        // Submodel->write(modelname);
-        // Submodel->optimize();
-
-        // y_dummy2 = {};
-        // yhat.push_back(y_dummy2);
-        // yhat[0].push_back(Submodel->get(GRB_DoubleAttr_ObjVal));
-        // cout << "submodel_obj: " << yhat[0][0];
-        // cout << "\narc values: \n";
+        vector<vector<float>> yhat;
 
         for (int q = 0; q < p; ++q)
         {
@@ -689,12 +414,12 @@ std::vector<std::vector<float>> BendersSub::solve(int counter)
     }
     catch (GRBException e)
     {
-        std::cout << "Gurobi error number [BendersSub::solve]: " << e.getErrorCode() << "\n";
-        std::cout << e.getMessage() << "\n";
+        cout << "Gurobi error number [BendersSub::solve]: " << e.getErrorCode() << "\n";
+        cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        std::cout << "Non-gurobi error during optimization [BendersSub::Solve]"
+        cout << "Non-gurobi error during optimization [BendersSub::Solve]"
                   << "\n";
     }
 }
@@ -706,7 +431,7 @@ BendersSeparation::BendersSeparation()
     p = 0;
 }
 
-BendersSeparation::BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance)
+BendersSeparation::BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance)
 {
     try
     {
@@ -734,40 +459,26 @@ BendersSeparation::BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &t
         zetabar = the_zetabar;
         xprime.push_back(0);
 
-        // std::vector<float> y_dummy = {};
-
         for (int q = 0; q < p; ++q)
         {
             if (q == 0)
             {
-                // y_dummy = {};
-                // yhat.push_back(y_dummy);
                 for (int a = 0; a < m; ++a)
                 {
                     xhat.push_back(0);
                     xprime.push_back(0);
-                    // yhat[q].push_back(0);
                 }
             }
-            // else
-            // {
-            //     // y_dummy = {};
-            //     // yhat.push_back(y_dummy);
-            //     for (int a = 0; a < m; ++a)
-            //     {
-            //         // yhat[q + 1].push_back(0);
-            //     }
-            // }
         }
     }
     catch (GRBException e)
     {
-        std::cout << "Gurobi error number [BendersSeparation, constructor]: " << e.getErrorCode() << "\n";
-        std::cout << e.getMessage() << "\n";
+        cout << "Gurobi error number [BendersSeparation, constructor]: " << e.getErrorCode() << "\n";
+        cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        std::cout << "Non-gurobi error during optimization [BendersSeparation]"
+        cout << "Non-gurobi error during optimization [BendersSeparation]"
                   << "\n";
     }
 }
@@ -815,8 +526,8 @@ void BendersSeparation::callback()
                 }
                 catch (GRBException e)
                 {
-                    std::cout << "Gurobi error number [BendersSeparation, addLazy]: " << e.getErrorCode() << "\n";
-                    std::cout << e.getMessage() << "\n";
+                    cout << "Gurobi error number [BendersSeparation, addLazy]: " << e.getErrorCode() << "\n";
+                    cout << e.getMessage() << "\n";
                 }
             }
 
@@ -848,12 +559,12 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         r_0 = M2Instance->r_0;
 
         // ------ Decision variables ------
-        std::string varname;
+        string varname;
 
         // interdiction variable 'x'
         for (int a = 0; a < m; a++)
         {
-            varname = "x_" + std::to_string(a);
+            varname = "x_" + to_string(a);
             x.push_back(M2Bendersmodel->addVar(0, 1, 0, GRB_BINARY, varname));
         }
 
@@ -887,17 +598,17 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
     }
     catch (GRBException e)
     {
-        std::cout << "Gurobi error number [M2Benders, constructor]: " << e.getErrorCode() << "\n";
-        std::cout << e.getMessage() << "\n";
+        cout << "Gurobi error number [M2Benders, constructor]: " << e.getErrorCode() << "\n";
+        cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        std::cout << "Non-gurobi error during optimization [BendersSPSub]"
+        cout << "Non-gurobi error during optimization [BendersSPSub]"
                   << "\n";
     }
 }
 
-std::vector<float> M2Benders::solve()
+vector<float> M2Benders::solve()
 {
     // ------ Set Callback on Master Model
     M2Bendersmodel->setCallback(&sep);
@@ -911,12 +622,12 @@ std::vector<float> M2Benders::solve()
     }
     catch (GRBException e)
     {
-        std::cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
-        std::cout << e.getMessage() << "\n";
+        cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
+        cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        std::cout << "Non-gurobi error during optimization [M2Benders.optimize()]"
+        cout << "Non-gurobi error during optimization [M2Benders.optimize()]"
                   << "\n";
     }
     M2Bendersmodel->write("simplegraph1_benders_after.lp");
@@ -943,7 +654,7 @@ std::vector<float> M2Benders::solve()
     }
 
     // for submodel testing and stuff
-    // std::vector<int> test_xhat = {1, 1, 0};
+    // vector<int> test_xhat = {1, 1, 0};
 
     // sep.subproblem.Submodel->write("spmodel.lp");
     // sep.yhat = sep.subproblem.solve(0);
@@ -959,6 +670,3 @@ std::vector<float> M2Benders::solve()
     return sep.xprime;
 }
 
-// float BendersSPSub::solve()
-// {
-// }
