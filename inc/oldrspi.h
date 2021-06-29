@@ -6,6 +6,37 @@
     - x and v are stored once and updated as the subsets are enumerated in main
 */
 
+class M2ModelBilinear
+{
+public:
+    int s = 0;
+    int n;
+    int m;
+    int p;
+    int r_0;
+    float running_time;
+
+    M2ProblemInstance *M2Instance;
+
+    GRBEnv *M2env;
+    GRBModel *M2model;
+
+    GRBLinExpr linexpr;
+    GRBQuadExpr quadexpr;
+
+    // std::vector<std::vector<int>> arc_costs;
+    // std::vector<int> interdiction_costs;
+
+    // LayerGraph G;
+
+    std::vector<GRBVar> pi;     // decision variable; post interdiction s-i path
+    std::vector<GRBVar> lambda; // decision variable; convex combination of scenario costs
+    std::vector<GRBVar> x;      // decision variable; interdiction variable
+
+    M2ModelBilinear(M2ProblemInstance *the_M2Instance); // 'normal' constructor
+    float solve();
+};
+
 class rspiModel
 {
 private:

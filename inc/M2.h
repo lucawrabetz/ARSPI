@@ -8,11 +8,13 @@
 
 using std::cout;
 using std::string;
+using std::vector;
 using std::to_string;
+using std::ifstream;
 
 struct Arc
 {
-    // little Arc struct for the layer graph (directed Arc)
+    // Arc struct for the layer graph (directed Arc)
 public:
     int i;
     int j;
@@ -22,68 +24,41 @@ public:
 
 class LayerGraph
 {
-    //layerGraph class (to be read from Arc list)
+    // Layer Graph class (to be read from Arc list)
 public:
     int n, m;
-    std::vector<Arc> arcs;
-    std::vector<std::vector<int>> adjacency_list;
-    std::vector<std::vector<int>> reverse_list;
+    vector<Arc> arcs;
+    vector<vector<int>> adjacency_list;
+    vector<vector<int>> reverse_list;
 
     LayerGraph();
-    LayerGraph(const std::string &filename, int the_n);
+    LayerGraph(const string &filename, int the_n);
     void printGraph();
 };
 
 class M2ProblemInstance
 {
+    // Full Instance of an M2 problem (a Layer Graph + arc costs and interdiction costs)
+    // TODO: randomized cost generation in this class
 public:
     int n;
     int m;
     int p;
     int r_0;
 
-    std::vector<std::vector<int>> arc_costs;
-    std::vector<int> interdiction_costs;
+    vector<vector<int>> arc_costs;
+    vector<int> interdiction_costs;
 
     LayerGraph G;
 
     M2ProblemInstance();
-    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0); // 'normal' constructor
+    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0);
 };
 
-class M2ModelBilinear
-{
-public:
-    int s = 0;
-    int n;
-    int m;
-    int p;
-    int r_0;
-    float running_time;
-
-    M2ProblemInstance *M2Instance;
-
-    GRBEnv *M2env;
-    GRBModel *M2model;
-
-    GRBLinExpr linexpr;
-    GRBQuadExpr quadexpr;
-
-    // std::vector<std::vector<int>> arc_costs;
-    // std::vector<int> interdiction_costs;
-
-    // LayerGraph G;
-
-    std::vector<GRBVar> pi;     // decision variable; post interdiction s-i path
-    std::vector<GRBVar> lambda; // decision variable; convex combination of scenario costs
-    std::vector<GRBVar> x;      // decision variable; interdiction variable
-
-    M2ModelBilinear(M2ProblemInstance *the_M2Instance); // 'normal' constructor
-    float solve();
-};
 
 class M2ModelLinear
 {
+    // Linear MIP for solving an M2ProblemInstance
 public:
     int s = 0;
     int n;
@@ -99,15 +74,10 @@ public:
 
     GRBLinExpr linexpr;
 
-    // std::vector<std::vector<int>> arc_costs;
-    // std::vector<int> interdiction_costs;
-
-    // LayerGraph G;
-
-    std::vector<std::vector<GRBVar>> pi;     // decision variable;
-    std::vector<std::vector<GRBVar>> lambda; // decision variable;
+    vector<vector<GRBVar>> pi;     // decision variable;
+    vector<vector<GRBVar>> lambda; // decision variable;
     GRBVar z;                                // decision variable; objective func dummy
-    std::vector<GRBVar> x;                   // decision variable; interdiction variable
+    vector<GRBVar> x;                   // decision variable; interdiction variable
 
     M2ModelLinear(M2ProblemInstance *the_M2Instance);
 
@@ -120,23 +90,23 @@ public:
     int n;
     int m;
     int p;
-    std::vector<GRBEnv *> Subenvs;
-    std::vector<GRBModel *> Submodels;
+    vector<GRBEnv *> Subenvs;
+    vector<GRBModel *> Submodels;
 
-    std::vector<std::vector<int>> c_bar; // this is the current objective function cost vector
+    vector<vector<int>> c_bar; // this is the current objective function cost vector
     // i.e. - the objective function is c_bar \cdot y
     // computed during solution tree based on graph costs (c^q and d) and the current
     // x_bar from the master problem
 
-    std::vector<std::vector<int>> c; // base costs
-    std::vector<int> d;              // interdiction costs
+    vector<vector<int>> c; // base costs
+    vector<int> d;              // interdiction costs
 
     GRBConstr *obj_constr;              // array of constraints for the objective lower bounding constraints over the qs
                                         // need this as an array to update it
-    std::vector<GRBVar> zeta_subs;      // dummy objective function variable because we have to argmin over q
-    std::vector<std::vector<GRBVar>> y; // main decision variable - arc path selection/flow (one y vector for every q)
-    std::vector<GRBVar> y_dummy;        // just to construct and push_back y
-    std::vector<float> y_dummy2;        // just to construct and push_back yhat
+    vector<GRBVar> zeta_subs;      // dummy objective function variable because we have to argmin over q
+    vector<vector<GRBVar>> y; // main decision variable - arc path selection/flow (one y vector for every q)
+    vector<GRBVar> y_dummy;        // just to construct and push_back y
+    vector<float> y_dummy2;        // just to construct and push_back yhat
     GRBLinExpr linexpr;                 // when adding the flow constraints, we use this one for outgoing arcs
     GRBLinExpr linexpr2;                // when adding the flow constraints, we use this one for incoming arcs
     int rhs;                            // use this also for generating flow constraints
@@ -144,8 +114,8 @@ public:
 
     BendersSub();
     BendersSub(M2ProblemInstance *the_M2Instance);
-    std::vector<std::vector<float>> solve(int counter); // now returns a vector of vectors of size p+1, where the first is a singleton with the obj value
-    void update(std::vector<int> &xhat);
+    vector<vector<float>> solve(int counter); // now returns a vector of vectors of size p+1, where the first is a singleton with the obj value
+    void update(vector<int> &xhat);
 };
 
 class BendersSeparation : public GRBCallback
@@ -156,16 +126,16 @@ public:
     int p;
     int counter = 0;
 
-    std::vector<std::vector<int>> c; // base costs
-    std::vector<int> d;              // interdiction costs
+    vector<vector<int>> c; // base costs
+    vector<int> d;              // interdiction costs
 
     // a hat vector is numbers, a bar vector is GRBVars
     GRBLinExpr new_cut;                   // linexpr object for new cut to add to master formulation
     GRBVar zetabar;                       // 'connecting' GRBVar for zeta
-    std::vector<GRBVar> xbar;             // 'connecting' GRBVars for x
-    std::vector<int> xhat;                // current xhat to solve with, i.e. interdiction policy we are subject to
-    std::vector<float> xprime;            // current best interdiction policy (includes extra x[0] for obj)
-    std::vector<std::vector<float>> yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[q][0] for objective for each q), it is of size p (vectors), first element of each flow is the objective
+    vector<GRBVar> xbar;             // 'connecting' GRBVars for x
+    vector<int> xhat;                // current xhat to solve with, i.e. interdiction policy we are subject to
+    vector<float> xprime;            // current best interdiction policy (includes extra x[0] for obj)
+    vector<vector<float>> yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[q][0] for objective for each q), it is of size p (vectors), first element of each flow is the objective
 
     BendersSub subproblem;
 
@@ -176,7 +146,7 @@ public:
     float epsilon = 0.000001;
 
     BendersSeparation();
-    BendersSeparation(GRBVar &the_zetabar, std::vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance);
+    BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance);
 
 protected:
     void callback();
@@ -199,10 +169,10 @@ public:
     GRBEnv *M2Bendersenv;
     GRBModel *M2Bendersmodel;
 
-    std::vector<GRBVar> x; // decision variable - shortest path solution
+    vector<GRBVar> x; // decision variable - shortest path solution
     GRBVar zeta;           // objective function
     GRBLinExpr linexpr;
 
     M2Benders(M2ProblemInstance *the_M2Instance);
-    std::vector<float> solve();
+    vector<float> solve();
 };
