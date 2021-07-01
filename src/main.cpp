@@ -1,19 +1,32 @@
-#include "../inc/M2.h"
+#include "../inc/M3.h"
 
 int main()
 {
-    int n = 2;
-    float running_time;
-    std::vector<float> x_final_benders;
-    float x_final_linear;
-    const std::string filename = "./dat/simplegraph1.txt";
-    const LayerGraph G = LayerGraph(filename, n);
-    M2ProblemInstance *M2 = new M2ProblemInstance(G, 150, 160, 3, 2);
+    vector<int> nums;
+    vector<vector<int>> result;
+    nums.push_back(0);
+    nums.push_back(1);
+    nums.push_back(2);
+    
+    result = enum_combs(3, nums);
+    for (int i=0; i<result.size(); ++i){
+        for (int j=0; j < result[i].size(); ++j){
+            cout << "\n" << result[i][j] << "\n";
+        }
+    }
 
-    M2ModelLinear M2_L = M2ModelLinear(M2);
-    M2_L.M2model->write("simplegraph1mip.lp");
+    //int n = 2;
+    //float running_time;
+    //std::vector<float> x_final_benders;
+    //float x_final_linear;
+    //const std::string filename = "./dat/simplegraph1.txt";
+    //const LayerGraph G = LayerGraph(filename, n);
+    //M2ProblemInstance *M2 = new M2ProblemInstance(G, 150, 160, 3, 2);
 
-    M2Benders M2_Bend = M2Benders(M2);
+    //M2ModelLinear M2_L = M2ModelLinear(M2);
+    //M2_L.M2model->write("simplegraph1mip.lp");
+
+    //M2Benders M2_Bend = M2Benders(M2);
 
     // M2ModelLinear (above) is the equivalent to (17)-(21) in Overleaf
     // There is no bilenear term in this model
@@ -28,10 +41,10 @@ int main()
     // cout << "\nSolving Using LINEAR MODEL\n";
     // running_time = M2_L.solve();
 
-    cout << "\n\n";
-    cout << "\nSolving Using LINEAR MODEL\n";
+    //cout << "\n\n";
+    //cout << "\nSolving Using LINEAR MODEL\n";
 
-    x_final_linear = M2_L.solve();
+    //x_final_linear = M2_L.solve();
 
     // printout for the linear model
     // cout << "\nObjective: " << x_final[0] << "\n";
@@ -40,23 +53,23 @@ int main()
     //     cout << "\nx_" << i - 1 << ": " << x_final[i] << "\n";
     // }
 
-    x_final_benders = M2_Bend.solve();
-    // printout for the benders model
-    cout << "\nObjective: " << x_final_benders[0] << "\n";
-    for (int a = 1; a < G.m + 1; ++a)
-    {
-        cout << "\nx_" << a - 1 << ": " << x_final_benders[a] << "\n";
-    }
+    //x_final_benders = M2_Bend.solve();
+    //// printout for the benders model
+    //cout << "\nObjective: " << x_final_benders[0] << "\n";
+    //for (int a = 1; a < G.m + 1; ++a)
+    //{
+    //    cout << "\nx_" << a - 1 << ": " << x_final_benders[a] << "\n";
+    //}
 
-    // cout << "\n\n\n\n\n";
-    // cout << "\nSolving Using BiLINEAR MODEL\n";
-    // running_time = M2_BL.solve();
-    delete M2_L.M2env;
-    delete M2_L.M2model;
-    // delete M2_BL.M2env;
-    // delete M2_BL.M2model;
-    delete M2_Bend.M2Bendersenv;
-    delete M2_Bend.M2Bendersmodel;
+    //// cout << "\n\n\n\n\n";
+    //// cout << "\nSolving Using BiLINEAR MODEL\n";
+    //// running_time = M2_BL.solve();
+    //delete M2_L.M2env;
+    //delete M2_L.M2model;
+    //// delete M2_BL.M2env;
+    //// delete M2_BL.M2model;
+    //delete M2_Bend.M2Bendersenv;
+    //delete M2_Bend.M2Bendersmodel;
 
-    delete M2;
+    //delete M2;
 }
