@@ -10,6 +10,7 @@ int main()
     
     result = enum_combs(3, nums);
     for (int i=0; i<result.size(); ++i){
+        cout << "\ncombination " << i << "\n";
         for (int j=0; j < result[i].size(); ++j){
             cout << "\n" << result[i][j] << "\n";
         }

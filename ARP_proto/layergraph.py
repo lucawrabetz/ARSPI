@@ -2,7 +2,6 @@ import random
 import math
 import networkx as nx
 
-
 def arcs_for_current_layer(current, next1, p):
     '''
     add arcs for this layer - outgoing
@@ -120,7 +119,7 @@ class TestBed:
         self.mu = muu
         self.sigma = sigmaa
         self.d = self.sigma*2
-        self.r_0 = r_00d
+        self.r_0 = r_00
 
         for evaders in range(1, self.l+1):
             current_evader_num = {}

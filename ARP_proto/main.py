@@ -34,6 +34,5 @@ with open(FILEPATH, "w") as file:
             current_results.append(sample_results)
             line = line + str(sample_results[2][0]) + ","
         file.write(line + "\n")
-        results[evaders] = current_results
-
+        results[evaders] = current_result
 print(results)
