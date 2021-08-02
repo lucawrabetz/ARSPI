@@ -13,7 +13,7 @@ MU = 200
 SIGMA = 20
 R_0 = 8
 DATA_DIR = "dat"
-RUNNAME = "run4"
+RUNNAME = "run1_08-1-21"
 FILENAME = RUNNAME + ".csv"
 LOGNAME = RUNNAME + ".log"
 FILEPATH = os.path.join(DATA_DIR, FILENAME)
@@ -34,5 +34,5 @@ with open(FILEPATH, "w") as file:
             current_results.append(sample_results)
             line = line + str(sample_results[2][0]) + ","
         file.write(line + "\n")
-        results[evaders] = current_result
+        results[evaders] = current_results
 print(results)

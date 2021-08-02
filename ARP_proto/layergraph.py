@@ -2,23 +2,32 @@ import random
 import math
 import networkx as nx
 
-def arcs_for_current_layer(current, next1, p):
+def arcs_for_current_layer(current_layer, next_layer, p):
     '''
-    add arcs for this layer - outgoing
-    random arcs to nodes in all 'future layers'
-    'next' is just all the remaining nodes in future layers
-    p is the probability that the node i is connected to any j in future layers - to simplify we use it as a proportion and convert to arcs_per_node
+    - add arcs for this layer - outgoing
+    - random arcs to nodes in all 'future layers'
+    - 'next' is just all the remaining nodes in future layers
+    - p is the probability that the node i is connected to any j in future layers - to simplify we use it as a proportion and convert to arcs_per_node
     '''
-    arcs_per_node = math.ceil(len(next1) * p)
-    arcs = []
 
-    for i in current:
-        sampled_nodes = random.sample(next1, arcs_per_node)
+    new_arcs = []
+    arcs_per_node = math.floor(len(next_layer) * p)
+
+    if arcs_per_node < 1:
+        arcs_per_node = 1
+
+    for i in current_layer:
+        try:
+            sampled_nodes = random.sample(next_layer, arcs_per_node)
+        except ValueError:
+            print("SAMPLE EXCEPTION OCCURRED")
+            print("len next_layer: " + str(len(next_layer)))
+            print("arcs_per_node: " + str(arcs_per_node))
         for j in sampled_nodes:
             new_arc = (i, j)
-            arcs.append(new_arc)
+            new_arcs.append(new_arc)
 
-    return arcs
+    return new_arcs
 
 
 def cost_generation(num_evaders, m, mu, sigma):
@@ -61,40 +70,39 @@ class LayerGraph:
         # pdb.set_trace()
 
         for i in range(self.num_layers+1):
-            # print(i)
-            # print(current_layer)
-            # print(next_layer)
-            # if i == self.num_layers:
-            #     new_arcs = arcs_for_current_layer(
-            #         current_layer, next_layer, self.p)
+
             new_arcs = arcs_for_current_layer(
                 current_layer, next_layer, self.p)
+
             self.arcs.extend(new_arcs)
-            # print(self.arcs)
-            refnode = current_layer[-1] + 1
+            node1_next_layer = current_layer[-1] + 1
             current_layer = []
+
             for i in range(self.num_per_layer):
-                current_layer.append(refnode + i)
-            refnode2 = current_layer[-1]
-            # if i == self.num_layers-1:
-            #     current_layer = list(range(self.n))[:-1]
-            #     next_layer = [self.t]
-            next_layer = [i for i in range(self.n) if i > refnode2]
+                current_layer.append(node1_next_layer + i)
+
+            node1_rest = current_layer[-1]
+            next_layer = [i for i in range(self.n) if i > node1_rest]
 
         self.m = len(self.arcs)
 
-    def printGraph(self):
+    def printGraph(self, edge_list=True):
+        '''
+        - print out the graph
+        '''
         print("n: " + str(self.n) + " - " + str([i for i in range(self.n)]))
         print("m: " + str(self.m))
-        print("arcs: ")
-        for i in range(self.m):
-            print("     " + str(self.arcs[i]))
+        if edge_list:
+            print("arcs: ")
+            for i in range(self.m):
+                print("     " + str(self.arcs[i]))
 
     def checksNX(self, filename):
         '''
         - check for uniqueness of edges to avoid multigraph issue
         - convert graph to a networkx object
         - check anything you want - connectivity, parallel edges, etc
+        - also writes graph to a file in standard edge list style for ya
         '''
         edge_set = set(self.arcs)
         self.arcs = list(edge_set)
@@ -103,6 +111,10 @@ class LayerGraph:
 
 
 class TestBed:
+    '''
+    - adding costs to a layerGraph to create a full testbed
+    - as of right now, not being used as I do this directly in the cpp code
+    '''
     G = None
     l = 0
     samples = 0
@@ -139,16 +151,17 @@ class TestBed:
             file.write("sigma: " + str(self.sigma) + "\n")
 
 
-num_layers = 4
-num_per_layer = 8
-p = 0.7
-ll = 2
-samples = 2
-mu = 100
-sigma = 10
-r_0 = 1
+if __name__ == "__main__":
 
+    num_layers = 4
+    num_per_layer = 8
+    p = 0.7
+    ll = 2
+    samples = 2
+    mu = 100
+    sigma = 10
+    r_0 = 1
 
-lG = LayerGraph(num_layers, num_per_layer, p)
-lG.printGraph()
-lG.checksNX('graph1.graph')
+    lG = LayerGraph(num_layers, num_per_layer, p)
+    lG.printGraph()
+    lG.checksNX('graph1.graph')
