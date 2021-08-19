@@ -10,7 +10,9 @@ using std::cout;
 using std::string;
 using std::vector;
 using std::to_string;
+using std::stoi;
 using std::ifstream;
+
 
 struct Arc
 {
@@ -79,6 +81,7 @@ public:
     GRBVar z;                                // decision variable; objective func dummy
     vector<GRBVar> x;                   // decision variable; interdiction variable
 
+    M2ModelLinear();
     M2ModelLinear(M2ProblemInstance *the_M2Instance);
 
     float solve();
@@ -173,6 +176,7 @@ public:
     GRBVar zeta;           // objective function
     GRBLinExpr linexpr;
 
+    M2Benders();
     M2Benders(M2ProblemInstance *the_M2Instance);
     vector<float> solve();
 };

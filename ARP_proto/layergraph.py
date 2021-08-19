@@ -41,7 +41,6 @@ def cost_generation(num_evaders, m, mu, sigma):
         costs.append(this_evader)
     return costs
 
-
 class LayerGraph:
     s = 0
     num_layers = 0
@@ -58,6 +57,7 @@ class LayerGraph:
         self.p is the probability that a node is connected to any given node ahead of it
         - we'll use it as a proportion to calculate arcs per node and sample a random set of that number
         '''
+
         self.num_layers = num_layerss
         self.num_per_layer = num_per_layerr
         self.p = pp
@@ -70,7 +70,6 @@ class LayerGraph:
         # pdb.set_trace()
 
         for i in range(self.num_layers+1):
-
             new_arcs = arcs_for_current_layer(
                 current_layer, next_layer, self.p)
 
@@ -94,6 +93,8 @@ class LayerGraph:
         print("m: " + str(self.m))
         if edge_list:
             print("arcs: ")
+            # import pdb; pdb.set_trace()
+
             for i in range(self.m):
                 print("     " + str(self.arcs[i]))
 
@@ -104,10 +105,16 @@ class LayerGraph:
         - check anything you want - connectivity, parallel edges, etc
         - also writes graph to a file in standard edge list style for ya
         '''
+
         edge_set = set(self.arcs)
         self.arcs = list(edge_set)
+        self.m = len(self.arcs)
+
         G = nx.DiGraph(self.arcs)
+        path = nx.has_path(G, self.s, self.t)
         nx.write_edgelist(G, filename, data=False)
+
+        return path
 
 
 class TestBed:

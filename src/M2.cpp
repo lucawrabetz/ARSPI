@@ -82,35 +82,49 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
 
     for (int a = 0; a < m; a++)
     {
+        // ASSUMING FINITE INTERDICTION COST, A REASONABLE NUMBER IS MAX - MIN
         // interdiction_costs.push_back((max - min));
-        // for simplegraph.txt
+        // ASSUMING INFINITE INTERDICTION COST (REMOVING ARC) ADJUST SO LARGE ENOUGH
         interdiction_costs.push_back(100000);
     }
 
-    // std::random_device rd;                           // obtain a random number from hardware
-    // std::mt19937 gen(rd());                          // seed the generator
-    // std::uniform_int_distribution<> distr(min, max); // define the range
+    std::random_device rd;                           // obtain a random number from hardware
+    std::mt19937 gen(rd());                          // seed the generator
+    std::uniform_int_distribution<> distr(min, max); // define the range
 
-    // for (int q = 0; q < p; q++)
-    // {
-    //     vector<int> new_vector = {};
-    //     arc_costs.push_back(new_vector);
-    //     for (int a = 0; a < m; a++)
-    //     {
-    //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
-    //     }
-    // }
+    for (int q = 0; q < p; q++)
+    {
+        vector<int> new_vector = {};
+        arc_costs.push_back(new_vector);
+        for (int a = 0; a < m; a++)
+        {
+            arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
+        }
+    }
+
+    for (int q = 0; q < p; q++)
+    {
+        for (int a = 0; a < m; a++)
+        {
+            cout << arc_costs[q][a] << "\n";
+        }
+    }
 
     // hardcoded example "simplegraph.txt"
-    vector<int> costs1 = {9, 12, 3};
-    vector<int> costs2 = {9, 1, 10};
-    vector<int> costs3 = {9, 12, 10};
-    arc_costs.push_back(costs1);
-    arc_costs.push_back(costs2);
-    arc_costs.push_back(costs3);
+    // vector<int> costs1 = {9, 12, 3};
+    // vector<int> costs2 = {9, 1, 10};
+    // vector<int> costs3 = {9, 12, 10};
+    // arc_costs.push_back(costs1);
+    // arc_costs.push_back(costs2);
+    // arc_costs.push_back(costs3);
 }
 
 // ------ MIP Formulations for M2 ------
+
+M2ModelLinear::M2ModelLinear(){
+    int n = 0;
+    int m = 0;
+}
 
 M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
 {
@@ -537,6 +551,12 @@ void BendersSeparation::callback()
             }
         }
     }
+}
+
+M2Benders::M2Benders()
+{
+    int n = 0;
+    int m = 0;
 }
 
 M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
