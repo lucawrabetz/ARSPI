@@ -78,13 +78,21 @@ int main()
     //}
 
     // FOR TESTING M2 STUFF 
-    int n = 3;
+    int n = 11;
     //float running_time;
     //std::vector<float> x_final_benders;
     //float x_final_linear;
-    const std::string filename = "set1_08-2-21_3_0.5.txt";
+    const std::string filename = "dat/set1_08-24-21/set1_08-24-21_11_0.5.txt";
     const LayerGraph G = LayerGraph(filename, n);
-    M2ProblemInstance *M2 = new M2ProblemInstance(G, 150, 160, 3, 2);
+    M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
+
+    vector<string> graph_names;
+    vector<int> sizes; 
+    vector<int> r_0s; 
+    vector<int> followers_set; 
+    string outfile;
+
+    comp_exp_M2(vector<string> graph_names, vector<int> sizes, vector<int> r_0s, vector<int> followers_set, string outfile);
 
     //M2ModelLinear M2_L = M2ModelLinear(M2);
     //M2_L.M2model->write("simplegraph1mip.lp");

@@ -104,9 +104,11 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
 
     for (int q = 0; q < p; q++)
     {
+        // cout << "q: " << q << endl;
         for (int a = 0; a < m; a++)
         {
-            cout << arc_costs[q][a] << "\n";
+            // cout << "a: " << a << endl;
+            // cout << arc_costs[q][a] << "\n";
         }
     }
 

@@ -23,6 +23,7 @@ def arcs_for_current_layer(current_layer, next_layer, p):
             print("SAMPLE EXCEPTION OCCURRED")
             print("len next_layer: " + str(len(next_layer)))
             print("arcs_per_node: " + str(arcs_per_node))
+            print("p: " + str(p))
         for j in sampled_nodes:
             new_arc = (i, j)
             new_arcs.append(new_arc)

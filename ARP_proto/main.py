@@ -1,38 +1,57 @@
 import layergraph
-import model
 import os
 
 # PRACTITIONER DEFINED EXPERIMENTAL INPUTS
-# REMEMBER TO CHANGE RUNNAME OR YOU WILL OVERWRITE THE RESULTS!!!
-NUM_LAYERS = 10
-NUM_PER_LAYER = 15
-ARCS_PER_NODE = 3
-MAX_EVADERS = 50
-SAMPLES = 20
-MU = 200
-SIGMA = 20
-R_0 = 8
-DATA_DIR = "dat"
-RUNNAME = "run1_08-1-21"
-FILENAME = RUNNAME + ".csv"
-LOGNAME = RUNNAME + ".log"
-FILEPATH = os.path.join(DATA_DIR, FILENAME)
-LOGPATH = os.path.join(DATA_DIR, LOGNAME)
+# REMEMBER TO CHANGE SETNAME OR YOU WILL OVERWRITE THE RESULTS!!!
+NUM_LAYERS = [3, 5]
+DENSITY_P = [0.5]
+NUM_PER_LAYER = 3
+DATANAME = "dat"
+SETNAME = "set1_08-24-21"
 
-ExpBed = layergraph.TestBed(
-    NUM_LAYERS, NUM_PER_LAYER, ARCS_PER_NODE, MAX_EVADERS, SAMPLES, MU, SIGMA, R_0)
-ExpBed.writeBed(LOGPATH)
+# PATHS
+LOGNAME = SETNAME + ".log"
+DATAPATH = os.path.join(DATANAME, SETNAME)
+LOGPATH = os.path.join(DATAPATH, LOGNAME)
 
-results = {}
-with open(FILEPATH, "w") as file:
-    for evaders in range(1, MAX_EVADERS+1):
-        current_results = []
-        line = ""
-        for sample in range(1, SAMPLES+1):
-            sample_results = model.M2Model(
-                ExpBed.cc[evaders][sample], ExpBed.d, ExpBed.r_0, ExpBed.G.arcs, ExpBed.G.n)
-            current_results.append(sample_results)
-            line = line + str(sample_results[2][0]) + ","
-        file.write(line + "\n")
-        results[evaders] = current_results
-print(results)
+if not os.path.isdir(DATAPATH):
+    os.mkdir(DATAPATH)
+# import pdb; pdb.set_trace()
+
+# OTHER DATA TO WRITE FOR CPP (SUCH AS NUMBER OF NODES FOR EVERY GRAPH)
+filepath_list = [] # append through the loop to ensure it matches the order
+n_list = [] # append through the loop to ensure it matches the order
+
+with open (LOGPATH, "w") as logfile:
+    for layers in NUM_LAYERS:
+        for p in DENSITY_P:
+            has_path = False
+            n = (2+layers*NUM_PER_LAYER)
+
+            while not has_path:
+                G = layergraph.LayerGraph(layers, NUM_PER_LAYER, p)
+                filename = SETNAME + "_" + str(n) + "_" + str(p) + ".txt"
+                filepath = os.path.join(DATAPATH, filename)
+                has_path = G.checksNX(filepath)
+
+            n_list.append(n)
+            filepath_list.append(filepath)
+            G.printGraph()
+
+    n_list_string = " ".join([str(i) for i in n_list]) + "\n"
+    filepath_list_string = " ".join(filepath_list) + "\n"
+    logfile.write(n_list_string)
+    logfile.write(filepath_list_string)
+
+# SOME OLD CODE TO GENERATE A WHOLE TESTBED (WITH COSTS USING THE EXPBED CLASS, NOW IN CPP)
+# with open(FILEPATH, "w") as file:
+#     for evaders in range(1, MAX_EVADERS+1):
+#         current_results = []
+#         line = ""
+#         for sample in range(1, SAMPLES+1):
+#             sample_results = model.M2Model(
+#                 ExpBed.cc[evaders][sample], ExpBed.d, ExpBed.r_0, ExpBed.G.arcs, ExpBed.G.n)
+#             current_results.append(sample_results)
+#             line = line + str(sample_results[2][0]) + ","
+#         file.write(line + "\n")
+#         results[evaders] = current_results
