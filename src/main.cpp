@@ -1,6 +1,6 @@
 #include "../inc/M3.h"
 
-void comp_exp_M2(vector<string> graph_names, vector<int> sizes, vector<int> r_0s, vector<int> followers_set, string outfile) {
+void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r_0s, vector<int>& followers_set, string& outfile) {
     /*
      * Function to run a computational experiment for M2
      * Sample latex line for SFFP report: 
@@ -30,10 +30,12 @@ void comp_exp_M2(vector<string> graph_names, vector<int> sizes, vector<int> r_0s
     int min;
     int max;
 
-    
+    cout << "in computational experiment now" << endl;
+
     // for each graph 
     for (int i = 0; i<graph_names.size(); ++i){
         graph_name = graph_names[i];
+        cout << graph_name << endl;
 
         // for each number of followers (set followers, n, r_0)
         for (int j = 0; j<followers_set.size(); ++j){
@@ -86,13 +88,84 @@ int main()
     const LayerGraph G = LayerGraph(filename, n);
     M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
 
-    vector<string> graph_names;
+    // COMPUTATIONAL EXPERIMENT FOR M2
+    const std::string logfilename = "dat/set1_08-24-21/set1_08-24-21.log";
+
+    int num_instances;
+    string line;
+    ifstream myfile(logfilename);
+
     vector<int> sizes; 
+    vector<string> graph_names;
     vector<int> r_0s; 
     vector<int> followers_set; 
-    string outfile;
+    
+    if (myfile.is_open()){
 
-    comp_exp_M2(vector<string> graph_names, vector<int> sizes, vector<int> r_0s, vector<int> followers_set, string outfile);
+        const char *cline;
+        int line_counter = 0;
+
+        while (getline(myfile, line)) {
+
+            stringstream ss(line);
+            string word;
+
+            // if (line_counter == 0) {
+            //     // number of instances
+            //     num_instances = stoi(line);
+            // }
+
+            if (line_counter == 0) {
+                // sizes
+                while (ss >> word) {
+                    sizes.push_back(stoi(word));
+                }
+            }
+
+            else if (line_counter == 1) {
+                // graph names 
+                while (ss >> word) {
+                    graph_names.push_back(word);
+                }
+            }
+
+            // else if (line_counter == 3) {
+            //     // r_0
+            //     while (ss >> word) {
+            //         r_0s.push_back(stoi(word));
+            //     }
+            // }
+
+            // else if (line_counter == 3) {
+            //     // followers
+            //     while (ss >> word) {
+            //         followers_set.push_back(stoi(word));
+            //     }
+            // }
+
+            ++line_counter;
+        }
+    }
+
+    // check the totals are correct
+    // cout << "Number of instances: " << num_instances << endl;
+    cout << "Number of sizes: " << sizes.size() << endl;
+    cout << "Number of names: " << graph_names.size() << endl;
+    // cout << "Number of r_0: " << r_0s.size() << endl;
+    // cout << "Number of followers: " << followers_set.size() << endl;
+
+    
+    for (int i = 0; i < sizes.size(); ++i) {
+
+        cout << "Graph name: " << graph_names[i] << endl;
+        cout << "Graph size: " << sizes[i] << endl;
+
+    }
+
+    string outfile = "exp1_08-24-21.txt";
+
+    comp_exp_M2(sizes, graph_names, r_0s, followers_set, outfile);
+
 
     //M2ModelLinear M2_L = M2ModelLinear(M2);
     //M2_L.M2model->write("simplegraph1mip.lp");

@@ -6,6 +6,7 @@
 #include <random>
 #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
+using std::stringstream;
 using std::endl;
 using std::cout;
 using std::string;

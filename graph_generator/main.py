@@ -6,8 +6,8 @@ import os
 NUM_LAYERS = [3, 5]
 DENSITY_P = [0.5]
 NUM_PER_LAYER = 3
-DATANAME = "dat"
-SETNAME = "set1_08-24-21"
+DATANAME = "../dat"
+SETNAME = "set2_08-24-21"
 
 # PATHS
 LOGNAME = SETNAME + ".log"
@@ -18,7 +18,8 @@ if not os.path.isdir(DATAPATH):
     os.mkdir(DATAPATH)
 # import pdb; pdb.set_trace()
 
-# OTHER DATA TO WRITE FOR CPP (SUCH AS NUMBER OF NODES FOR EVERY GRAPH)
+# OTHER DATA TO WRITE FOR CPP (WILL WRITE TO LOGFILE)
+number_of_instances = len(NUM_LAYERS) * len(DENSITY_P)
 filepath_list = [] # append through the loop to ensure it matches the order
 n_list = [] # append through the loop to ensure it matches the order
 
@@ -38,8 +39,11 @@ with open (LOGPATH, "w") as logfile:
             filepath_list.append(filepath)
             G.printGraph()
 
+    instances_string = str(number_of_instances) + "\n"
     n_list_string = " ".join([str(i) for i in n_list]) + "\n"
     filepath_list_string = " ".join(filepath_list) + "\n"
+
+    logfile.write(instances_string)
     logfile.write(n_list_string)
     logfile.write(filepath_list_string)
 
