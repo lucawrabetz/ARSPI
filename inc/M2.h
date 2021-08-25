@@ -70,6 +70,7 @@ public:
     int p;
     int r_0;
     float running_time;
+    float optimality_gap;
 
     M2ProblemInstance *M2Instance;
 
@@ -82,11 +83,12 @@ public:
     vector<vector<GRBVar>> lambda; // decision variable;
     GRBVar z;                                // decision variable; objective func dummy
     vector<GRBVar> x;                   // decision variable; interdiction variable
+    vector<float> x_prime; // float vector for x_final, [0] is objective
 
     M2ModelLinear();
     M2ModelLinear(M2ProblemInstance *the_M2Instance);
 
-    float solve();
+    vector<float> solve();
 };
 
 class BendersSub
@@ -130,6 +132,7 @@ public:
     int m;
     int p;
     int counter = 0;
+    int cut_count = 0;
 
     vector<vector<int>> c; // base costs
     vector<int> d;              // interdiction costs
@@ -167,6 +170,8 @@ public:
     int p;
     int r_0;
     float running_time;
+    float optimality_gap;
+    int cut_count;
 
     M2ProblemInstance *M2Instance;
     BendersSeparation sep;

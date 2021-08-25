@@ -239,22 +239,34 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
     }
 }
 
-float M2ModelLinear::solve()
+vector<float> M2ModelLinear::solve()
 {
+    /*
+     * Returns vector of objective value [0] and interdiction policy [1-m+1]
+     * Note: the return values are stored in class variables so unassigned in some compexp runs 
+     */
+
     try
     {
         clock_t model_begin = clock();
         M2model->optimize();
         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
+        optimality_gap = M2model->get(GRB_DoubleAttr_MIPGap);
+
+        cout << "In MIP.solve() method" << endl;
         cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
+        x_prime.push_back(M2model->get(GRB_DoubleAttr_ObjVal));
         cout << "Running time: " << running_time << "\n";
+
         for (int a = 0; a < m; a++)
         {
             cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
                       << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
+            x_prime.push_back(x[a].get(GRB_DoubleAttr_X));
         }
 
-        return running_time;
+        return x_prime;
+
     }
     catch (GRBException e)
     {
@@ -539,6 +551,7 @@ void BendersSeparation::callback()
                     cout << "\nadded cut: "
                          << "zetabar"
                          << "<=" << new_cut << "\n";
+                    ++cut_count;
                 }
                 catch (GRBException e)
                 {
@@ -632,6 +645,11 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
 
 vector<float> M2Benders::solve()
 {
+    /*
+     * Currently the return vector returns the objective value [0] and interdiction policy [1-m+1]
+     * Again for computational experiments this can be ignored and not assigned as run stats are class vars
+     */ 
+
     // ------ Set Callback on Master Model
     M2Bendersmodel->setCallback(&sep);
 
@@ -640,7 +658,11 @@ vector<float> M2Benders::solve()
 
     try
     {
+        clock_t model_begin = clock();
         M2Bendersmodel->optimize();
+        running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
+        optimality_gap = M2Bendersmodel->get(GRB_DoubleAttr_MIPGap);
+        cut_count = sep.cut_count;
     }
     catch (GRBException e)
     {
