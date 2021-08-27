@@ -38,9 +38,9 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
     // for each graph 
     for (int i = 0; i<graph_names.size(); ++i){
         graph_name = graph_names[i];
-        cout << graph_name << endl;
         n = sizes[i];
         r_0 = r_0s[i];
+        cout << graph_name << endl;
 
         // read graph (set density)
         const LayerGraph G = LayerGraph(graph_name, n);
@@ -49,6 +49,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
         // for each number of followers (set followers, n, r_0)
         for (int j = 0; j<followers_set.size(); ++j){
             followers = followers_set[j];
+            cout << "followers: " << followers << endl;
 
             // set M2 instance with followers and generate costs 
             M2 = M2ProblemInstance(G, min, max, followers, r_0);
@@ -64,8 +65,8 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             else {MIP_gap = to_string(M2_L.optimality_gap);}
             
             cout << "Back in Comp Exp" << endl;
-            cout << "MIP running_time" << MIP_time << endl;
-            cout << "MIP gap" << MIP_gap << endl;
+            cout << "MIP running_time: " << MIP_time << endl;
+            cout << "MIP gap: " << MIP_gap << endl;
 
             // solve with Benders, (set Benders stats: Benders, Benders Gap, Benders Cuts)
             M2_B = M2Benders(&M2);
@@ -79,9 +80,9 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             
             benders_cuts = M2_B.sep.cut_count;
             
-            cout << "Benders running_time" << benders_time << endl;
-            cout << "Benders gap" << benders_gap << endl;
-            cout << "Benders cuts" << benders_cuts << endl;
+            cout << "Benders running_time: " << benders_time << endl;
+            cout << "Benders gap: " << benders_gap << endl;
+            cout << "Benders cuts: " << benders_cuts << endl;
             
             // set latex string 
             // $n$ & Density & Followers & $r_0$ & MIP (s) & MIP Gap (\%) & Benders (s) & Benders Gap (\%) & Benders Cuts
