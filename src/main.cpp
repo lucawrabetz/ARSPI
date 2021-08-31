@@ -9,7 +9,8 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
      */ 
 
     // ----- Temporary Variables -----
-    vector<float> run_results;
+    vector<float> MIP_result;
+    vector<float> benders_result;
 
     // ----- File-Related Global Variables -----
     string graph_name;
@@ -40,7 +41,6 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
         graph_name = graph_names[i];
         n = sizes[i];
         r_0 = r_0s[i];
-        cout << graph_name << endl;
 
         // read graph (set density)
         const LayerGraph G = LayerGraph(graph_name, n);
@@ -49,41 +49,68 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
         // for each number of followers (set followers, n, r_0)
         for (int j = 0; j<followers_set.size(); ++j){
             followers = followers_set[j];
-            cout << "followers: " << followers << endl;
 
             // set M2 instance with followers and generate costs 
             M2 = M2ProblemInstance(G, min, max, followers, r_0);
 
             // solve with MIP, (set MIP stats: MIP, MIP Gap)
             M2_L = M2ModelLinear(&M2);
-            M2_L.solve();
+            MIP_result = M2_L.solve();
             MIP_time = M2_L.running_time;
             
             if (M2_L.optimality_gap == 0) {
                 MIP_gap = "-";
             }
+            else if (M2_L.optimality_gap == -1) {
+                MIP_gap = "unb";
+            }
             else {MIP_gap = to_string(M2_L.optimality_gap);}
             
-            cout << "Back in Comp Exp" << endl;
-            cout << "MIP running_time: " << MIP_time << endl;
-            cout << "MIP gap: " << MIP_gap << endl;
 
             // solve with Benders, (set Benders stats: Benders, Benders Gap, Benders Cuts)
             M2_B = M2Benders(&M2);
-            M2_B.solve();
+            benders_result = M2_B.solve();
             benders_time = M2_B.running_time;
             
             if (M2_B.optimality_gap == 0) {
                 benders_gap = "-";
             }
+            else if (M2_B.optimality_gap == -1) {
+                benders_gap = "unb";
+            }
             else {benders_gap = to_string(M2_B.optimality_gap);}
             
             benders_cuts = M2_B.sep.cut_count;
             
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            
+            cout << "INSTANCE RESULTS: " << endl;
+            cout << "Graph, Followers: " << graph_name << ", " << followers << endl;
+            cout << "MIP obj: " << MIP_result[0] << endl;
+            cout << "Benders obj: " << benders_result[0] << endl;
+            
+            cout << "MIP running_time: " << MIP_time << endl;
+            cout << "MIP gap: " << MIP_gap << endl;
             cout << "Benders running_time: " << benders_time << endl;
             cout << "Benders gap: " << benders_gap << endl;
             cout << "Benders cuts: " << benders_cuts << endl;
             
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+            cout << "--------------------------------------------------------------" << endl;
+
             // set latex string 
             // $n$ & Density & Followers & $r_0$ & MIP (s) & MIP Gap (\%) & Benders (s) & Benders Gap (\%) & Benders Cuts
             
@@ -110,14 +137,14 @@ int main()
     //    }
     //}
 
-    // FOR TESTING M2 STUFF 
-    int n = 11;
+    // FOR TESTING (SINGLE INSTANCE) M2 STUFF 
+    // int n = 11;
     //float running_time;
     //std::vector<float> x_final_benders;
     //float x_final_linear;
-    const std::string filename = "dat/set1_08-24-21/set1_08-24-21_11_0.5.txt";
-    const LayerGraph G = LayerGraph(filename, n);
-    M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
+    // const std::string filename = "dat/set1_08-24-21/set1_08-24-21_11_0.5.txt";
+    // const LayerGraph G = LayerGraph(filename, n);
+    // M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
 
     // COMPUTATIONAL EXPERIMENT FOR M2
     const std::string logfilename = "dat/set1_08-24-21/set1_08-24-21.log";

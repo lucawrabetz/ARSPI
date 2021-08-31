@@ -248,22 +248,50 @@ vector<float> M2ModelLinear::solve()
 
     try
     {
+        cout << "In MIP.solve() method" << endl;
         clock_t model_begin = clock();
         M2model->optimize();
         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
-        optimality_gap = M2model->get(GRB_DoubleAttr_MIPGap);
 
-        cout << "In MIP.solve() method" << endl;
-        cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
-        x_prime.push_back(M2model->get(GRB_DoubleAttr_ObjVal));
+        try {
+
+            optimality_gap = M2model->get(GRB_DoubleAttr_MIPGap);
+            cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
+            x_prime.push_back(M2model->get(GRB_DoubleAttr_ObjVal));
+
+            for (int a = 0; a < m; a++)
+            {
+                cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
+                          << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
+                x_prime.push_back(x[a].get(GRB_DoubleAttr_X));
+            }
+        }
+
+        catch (GRBException e) {
+
+            if (e.getErrorCode() == 10005) {
+                // in this case the error is because the model was unbounded
+                // set the optimality gap to -1 and we'll list as unbounded 
+                // put -infinity as objective value (the objectives are negative, min -z)
+                // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
+                optimality_gap = -1;
+                cout << "Objective: unbounded" << "\n";
+                x_prime.push_back(-GRB_INFINITY);
+
+                for (int a = 0; a < m; a++)
+                {
+                    x_prime.push_back(-1);
+                }
+            }
+
+            else {
+                cout << "Gurobi error number [M2Linear.optimize()]: " << e.getErrorCode() << "\n";
+                cout << e.getMessage() << "\n";
+            }
+        }
+
         cout << "Running time: " << running_time << "\n";
 
-        for (int a = 0; a < m; a++)
-        {
-            cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
-                      << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
-            x_prime.push_back(x[a].get(GRB_DoubleAttr_X));
-        }
 
         return x_prime;
 
@@ -388,11 +416,11 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
 
 void BendersSub::update(vector<int> &xhat)
 {
-    cout << "\nsubmodel: updating based on xbar, new interdiction policy: \n";
-    for (int a = 0; a < m; ++a)
-    {
-        cout << "xbar_" << a << ": " << xhat[a] << "\n";
-    }
+    // cout << "\nsubmodel: updating based on xbar, new interdiction policy: \n";
+    // for (int a = 0; a < m; ++a)
+    // {
+    //     cout << "xbar_" << a << ": " << xhat[a] << "\n";
+    // }
 
     // update array of constraints instead of only the parameter vector
     for (int q = 0; q < p; ++q)
@@ -431,11 +459,11 @@ vector<vector<float>> BendersSub::solve(int counter)
             yhat[q].push_back(Submodels[q]->get(GRB_DoubleAttr_ObjVal));
             cout << "\nq = " + to_string(q);
             cout << "\nsubmodel obj: " << yhat[q][0];
-            cout << "\narc values: \n";
+            // cout << "\narc values: \n";
             for (int a = 0; a < m; ++a)
             {
                 yhat[q].push_back(y[q][a].get(GRB_DoubleAttr_X));
-                cout << "y_" << q << "_" << a << ": " << y[q][a].get(GRB_DoubleAttr_X) << "\n";
+                // cout << "y_" << q << "_" << a << ": " << y[q][a].get(GRB_DoubleAttr_X) << "\n";
             }
         }
         return yhat;
@@ -661,9 +689,44 @@ vector<float> M2Benders::solve()
         clock_t model_begin = clock();
         M2Bendersmodel->optimize();
         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
-        optimality_gap = M2Bendersmodel->get(GRB_DoubleAttr_MIPGap);
+
+        try {
+            optimality_gap = M2Bendersmodel->get(GRB_DoubleAttr_MIPGap);
+            sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
+
+            for (int a = 0; a < m; ++a)
+            {
+                sep.xprime[a + 1] = x[a].get(GRB_DoubleAttr_X);
+            }
+
+        }
+
+        catch (GRBException e) {
+
+            if (e.getErrorCode() == 10005) {
+                // in this case the error is because the model was unbounded
+                // set the optimality gap to -1 and we'll list as unbounded 
+                // put objective value as -infinity (objectives are negated min -z)
+                // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
+                optimality_gap = -1;
+                sep.xprime[0] = -GRB_INFINITY;
+
+                for (int a = 0; a < m; ++a)
+                {
+                    sep.xprime[a + 1] = -1;
+                }
+            }
+
+            else {
+                cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
+                cout << e.getMessage() << "\n";
+            }
+
+        }
+        
         cut_count = sep.cut_count;
     }
+
     catch (GRBException e)
     {
         cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
@@ -676,26 +739,6 @@ vector<float> M2Benders::solve()
     }
     M2Bendersmodel->write("simplegraph1_benders_after.lp");
 
-    sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
-    for (int a = 0; a < m; ++a)
-    {
-        try
-        {
-            sep.xprime[a + 1] = x[a].get(GRB_DoubleAttr_X);
-        }
-        catch (GRBException e)
-        {
-            std::cout << "x_" << a << "\n";
-            std::cout << "Gurobi error number [M2Benders - retrieve values for xprime]: " << e.getErrorCode() << "\n";
-            std::cout << e.getMessage() << "\n";
-        }
-        catch (...)
-        {
-            std::cout << "Non-gurobi error during optimization [M2Benders - retrieve values for xprime]"
-                      << "\n";
-        }
-        // sep.xprime[a] = 0;
-    }
 
     // for submodel testing and stuff
     // vector<int> test_xhat = {1, 1, 0};
