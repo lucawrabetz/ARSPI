@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Model Files
+modelfiles/
+
+# Graph files 
+dat/

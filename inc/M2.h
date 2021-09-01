@@ -14,7 +14,7 @@ using std::vector;
 using std::to_string;
 using std::stoi;
 using std::ifstream;
-
+using std::ofstream;
 
 struct Arc
 {
@@ -49,6 +49,8 @@ public:
     int m;
     int p;
     int r_0;
+    string instance_name;
+    string setname;
 
     vector<vector<int>> arc_costs;
     vector<int> interdiction_costs;
@@ -56,7 +58,7 @@ public:
     LayerGraph G;
 
     M2ProblemInstance();
-    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0);
+    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0, string& the_instance_name, string& the_setname);
 };
 
 
@@ -71,6 +73,9 @@ public:
     int r_0;
     float running_time;
     float optimality_gap;
+    string instance_name;
+    string setname;
+    string modelname;
 
     M2ProblemInstance *M2Instance;
 
@@ -169,6 +174,10 @@ public:
     int m;
     int p;
     int r_0;
+    string instance_name;
+    string setname;
+    string modelname;
+
     float running_time;
     float optimality_gap;
     int cut_count;

@@ -1,6 +1,6 @@
 #include "../inc/M3.h"
 
-void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r_0s, vector<int>& followers_set, string& outfile) {
+void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r_0s, vector<int>& followers_set, string& setname, string& outfile) {
     /*
      * Function to run a computational experiment for M2
      * Sample latex line for SFFP report: 
@@ -11,10 +11,10 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
     // ----- Temporary Variables -----
     vector<float> MIP_result;
     vector<float> benders_result;
+    string instance_name;
 
     // ----- File-Related Global Variables -----
     string graph_name;
-    string outfile_name = outfile;
 
     // ----- Latex Variables ----- 
     int n;
@@ -26,17 +26,20 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
     string benders_gap;
     int benders_cuts;
     int r_0;
+    string latex_line;
 
     // ----- Global Variables Related to Algorithm -----
     M2ProblemInstance M2;
     M2ModelLinear M2_L;
     M2Benders M2_B;
-    int min;
-    int max;
+    int min = 30;
+    int max = 80;
 
-    cout << "in computational experiment now" << endl;
+    cout << "starting experiment" << endl;
 
     // for each graph 
+    ofstream out(outfile);
+
     for (int i = 0; i<graph_names.size(); ++i){
         graph_name = graph_names[i];
         n = sizes[i];
@@ -44,14 +47,24 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 
         // read graph (set density)
         const LayerGraph G = LayerGraph(graph_name, n);
-        density = (float(n) / G.m );
+
+        // for SFFP report we just use G.m instead of density 
+        // because computed it wrong in first experiment
+        density = G.m;
+        
+        // later on : actual density is 
+        // density = (float(G.m) / (n*(n-1) / 2) );
+        // density = (int)(density * 100 + .5);
+        // density = (float)density / 100; 
 
         // for each number of followers (set followers, n, r_0)
         for (int j = 0; j<followers_set.size(); ++j){
+
             followers = followers_set[j];
+            instance_name = to_string(n) + "_" + "p-" + to_string(followers);
 
             // set M2 instance with followers and generate costs 
-            M2 = M2ProblemInstance(G, min, max, followers, r_0);
+            M2 = M2ProblemInstance(G, min, max, followers, r_0, instance_name, setname);
 
             // solve with MIP, (set MIP stats: MIP, MIP Gap)
             M2_L = M2ModelLinear(&M2);
@@ -66,7 +79,6 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             }
             else {MIP_gap = to_string(M2_L.optimality_gap);}
             
-
             // solve with Benders, (set Benders stats: Benders, Benders Gap, Benders Cuts)
             M2_B = M2Benders(&M2);
             benders_result = M2_B.solve();
@@ -81,15 +93,6 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             else {benders_gap = to_string(M2_B.optimality_gap);}
             
             benders_cuts = M2_B.sep.cut_count;
-            
-            cout << "--------------------------------------------------------------" << endl;
-            cout << "--------------------------------------------------------------" << endl;
-            cout << "--------------------------------------------------------------" << endl;
-            cout << "--------------------------------------------------------------" << endl;
-            cout << "--------------------------------------------------------------" << endl;
-            cout << "--------------------------------------------------------------" << endl;
-            cout << "--------------------------------------------------------------" << endl;
-            cout << "--------------------------------------------------------------" << endl;
             
             cout << "INSTANCE RESULTS: " << endl;
             cout << "Graph, Followers: " << graph_name << ", " << followers << endl;
@@ -113,8 +116,10 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 
             // set latex string 
             // $n$ & Density & Followers & $r_0$ & MIP (s) & MIP Gap (\%) & Benders (s) & Benders Gap (\%) & Benders Cuts
-            
+            latex_line = to_string(n) + " & " + to_string(density) + " & " + to_string(followers) + " & " + to_string(r_0) + " & " + to_string(MIP_time) + " & " + (MIP_gap) + " & " + to_string(benders_time) + " & " + (benders_gap) + " & " + to_string(benders_cuts) + "\n";
+
             // write latex string to file, and a hline when necessary
+            out << latex_line;
         }
     }       
     
@@ -147,7 +152,8 @@ int main()
     // M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
 
     // COMPUTATIONAL EXPERIMENT FOR M2
-    const std::string logfilename = "dat/set1_08-24-21/set1_08-24-21.log";
+    string setname = "set1_08-31-21";
+    const string logfilename = "dat/" + setname + "/" + setname + ".log";
 
     int num_instances;
     string line;
@@ -205,11 +211,14 @@ int main()
 
     // }
 
-    string outfile = "exp1_08-24-21.txt";
-    followers_set.push_back(2);
-    followers_set.push_back(4);
+    string outfile = "dat/" + setname + "/outfile.txt";
+    followers_set.push_back(1);
+    followers_set.push_back(3);
+    followers_set.push_back(5);
+    followers_set.push_back(10);
 
-    comp_exp_M2(sizes, graph_names, r_0s, followers_set, outfile);
+    comp_exp_M2(sizes, graph_names, r_0s, followers_set, setname, outfile);
+
 
 
     //M2ModelLinear M2_L = M2ModelLinear(M2);

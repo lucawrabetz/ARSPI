@@ -70,7 +70,7 @@ M2ProblemInstance::M2ProblemInstance()
     r_0 = 0;
 }
 
-M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0)
+M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0, string& the_instance_name, string& the_setname)
 {
     // ------ Assign graph and random costs ------
     // ------ Variables and int parameters ------
@@ -79,13 +79,15 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     m = G.m;
     p = the_p;
     r_0 = the_r0;
+    instance_name = the_instance_name;
+    setname = the_setname;
 
     for (int a = 0; a < m; a++)
     {
         // ASSUMING FINITE INTERDICTION COST, A REASONABLE NUMBER IS MAX - MIN
         // interdiction_costs.push_back((max - min));
         // ASSUMING INFINITE INTERDICTION COST (REMOVING ARC) ADJUST SO LARGE ENOUGH
-        interdiction_costs.push_back(100000);
+        interdiction_costs.push_back(1000);
     }
 
     std::random_device rd;                           // obtain a random number from hardware
@@ -94,6 +96,7 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
 
     for (int q = 0; q < p; q++)
     {
+        instance_name = the_instance_name;
         vector<int> new_vector = {};
         arc_costs.push_back(new_vector);
         for (int a = 0; a < m; a++)
@@ -141,10 +144,15 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         m = M2Instance->G.m;
         p = M2Instance->p;
         r_0 = M2Instance->r_0;
+        instance_name = M2Instance->instance_name;
+        setname = M2Instance->setname;
 
         // ------ Initialize model and environment ------
         M2env = new GRBEnv();
         M2model = new GRBModel(*M2env);
+
+        M2model->set(GRB_IntParam_OutputFlag, 0);
+        M2model->set(GRB_DoubleParam_TimeLimit, 3600);
 
         // ------ Decision variables ------
         string varname;
@@ -226,6 +234,11 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
             M2model->addConstr(pi[q][0] == 0);
         }
         M2model->update();
+
+        modelname = "modelfiles/" + setname + "/" + instance_name + "-M2Model.lp";
+        M2model->write(modelname);
+        // cout << modelname << endl;
+
     }
     catch (GRBException e)
     {
@@ -248,7 +261,8 @@ vector<float> M2ModelLinear::solve()
 
     try
     {
-        cout << "In MIP.solve() method" << endl;
+        // cout << "In MIP.solve() method" << endl;
+
         clock_t model_begin = clock();
         M2model->optimize();
         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
@@ -256,26 +270,26 @@ vector<float> M2ModelLinear::solve()
         try {
 
             optimality_gap = M2model->get(GRB_DoubleAttr_MIPGap);
-            cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
+            // cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
             x_prime.push_back(M2model->get(GRB_DoubleAttr_ObjVal));
 
             for (int a = 0; a < m; a++)
             {
-                cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
-                          << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
+                // cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
+                          // << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
                 x_prime.push_back(x[a].get(GRB_DoubleAttr_X));
             }
         }
 
         catch (GRBException e) {
 
-            if (e.getErrorCode() == 10005) {
+            if (e.getErrorCode() == 10005 || e.getErrorCode() == 10013) {
                 // in this case the error is because the model was unbounded
                 // set the optimality gap to -1 and we'll list as unbounded 
                 // put -infinity as objective value (the objectives are negative, min -z)
                 // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
                 optimality_gap = -1;
-                cout << "Objective: unbounded" << "\n";
+                // cout << "Objective: unbounded" << "\n";
                 x_prime.push_back(-GRB_INFINITY);
 
                 for (int a = 0; a < m; a++)
@@ -290,7 +304,7 @@ vector<float> M2ModelLinear::solve()
             }
         }
 
-        cout << "Running time: " << running_time << "\n";
+        // cout << "Running time: " << running_time << "\n";
 
 
         return x_prime;
@@ -340,6 +354,7 @@ BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
     {
         Subenvs.push_back(new GRBEnv());
         Submodels.push_back(new GRBModel(*Subenvs[q]));
+        Submodels[q]->set(GRB_IntParam_OutputFlag, 0);
     }
 
     // ------ Decision Variables ------
@@ -452,13 +467,13 @@ vector<vector<float>> BendersSub::solve(int counter)
         {
             y_dummy2 = {};
             yhat.push_back(y_dummy2);
-            string modelname = "submodel_" + to_string(counter) + "q=" + to_string(q) + ".lp";
-            Submodels[q]->write(modelname);
+            // string modelname = "submodel_" + to_string(counter) + "q=" + to_string(q) + ".lp";
+            // Submodels[q]->write(modelname);
             Submodels[q]->optimize();
 
             yhat[q].push_back(Submodels[q]->get(GRB_DoubleAttr_ObjVal));
-            cout << "\nq = " + to_string(q);
-            cout << "\nsubmodel obj: " << yhat[q][0];
+            // cout << "\nq = " + to_string(q);
+            // cout << "\nsubmodel obj: " << yhat[q][0];
             // cout << "\narc values: \n";
             for (int a = 0; a < m; ++a)
             {
@@ -554,7 +569,7 @@ void BendersSeparation::callback()
             subproblem.update(xhat);
             zeta_u = GRB_CB_MIPSOL_OBJBST; // best obj found so far (entire tree)
 
-            cout << "\n\n\n\nsolving sub from callback: \n\n\n\n";
+            // cout << "\n\n\n\nsolving sub from callback: \n\n\n\n";
             yhat = subproblem.solve(counter);
             zeta_temp = GRB_INFINITY;
             for (int q = 0; q < p; ++q)
@@ -576,9 +591,9 @@ void BendersSeparation::callback()
                 try
                 {
                     addLazy(zetabar <= new_cut);
-                    cout << "\nadded cut: "
-                         << "zetabar"
-                         << "<=" << new_cut << "\n";
+                    // cout << "\nadded cut: "
+                         // << "zetabar"
+                         // << "<=" << new_cut << "\n";
                     ++cut_count;
                 }
                 catch (GRBException e)
@@ -614,12 +629,16 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         M2Bendersmodel = new GRBModel(*M2Bendersenv);
 
         M2Bendersmodel->getEnv().set(GRB_IntParam_LazyConstraints, 1);
+        M2Bendersmodel->set(GRB_IntParam_OutputFlag, 0);
+        M2Bendersmodel->set(GRB_DoubleParam_TimeLimit, 3600);
 
         // ------ Variables and int parameters ------
         n = M2Instance->n;
         m = M2Instance->m;
         p = M2Instance->p;
         r_0 = M2Instance->r_0;
+        instance_name = M2Instance->instance_name;
+        setname = M2Instance->setname;
 
         // ------ Decision variables ------
         string varname;
@@ -647,7 +666,7 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
         M2Bendersmodel->addConstr(linexpr <= r_0);
 
         // ------ Trying to add the first lazy contraint ------
-        cout << "\n\n\n\nsolving sub from constructor: \n\n\n\n";
+        // cout << "\n\n\n\nsolving sub from constructor: \n\n\n\n";
         sep.yhat = sep.subproblem.solve(0);
         for (int q = 0; q < p; ++q)
         {
@@ -658,6 +677,10 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
             }
             M2Bendersmodel->addConstr(zeta <= linexpr);
         }
+
+        modelname = "modelfiles/" + setname + "/" + instance_name + "-M2BendersModel.lp";
+        M2Bendersmodel->write(modelname);
+
     }
     catch (GRBException e)
     {
@@ -681,16 +704,18 @@ vector<float> M2Benders::solve()
     // ------ Set Callback on Master Model
     M2Bendersmodel->setCallback(&sep);
 
+
     // ------ Optimize Inside Benders Scheme -------
-    M2Bendersmodel->write("simplegraph1_benders_before.lp");
 
     try
     {
+
         clock_t model_begin = clock();
         M2Bendersmodel->optimize();
         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
 
         try {
+
             optimality_gap = M2Bendersmodel->get(GRB_DoubleAttr_MIPGap);
             sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
 
@@ -703,7 +728,7 @@ vector<float> M2Benders::solve()
 
         catch (GRBException e) {
 
-            if (e.getErrorCode() == 10005) {
+            if (e.getErrorCode() == 10005 || e.getErrorCode() == 10013) {
                 // in this case the error is because the model was unbounded
                 // set the optimality gap to -1 and we'll list as unbounded 
                 // put objective value as -infinity (objectives are negated min -z)
@@ -737,7 +762,6 @@ vector<float> M2Benders::solve()
         cout << "Non-gurobi error during optimization [M2Benders.optimize()]"
                   << "\n";
     }
-    M2Bendersmodel->write("simplegraph1_benders_after.lp");
 
 
     // for submodel testing and stuff

@@ -3,19 +3,27 @@ import os
 
 # PRACTITIONER DEFINED EXPERIMENTAL INPUTS
 # REMEMBER TO CHANGE SETNAME OR YOU WILL OVERWRITE THE RESULTS!!!
-NUM_LAYERS = [3, 5]
-DENSITY_P = [0.5]
-NUM_PER_LAYER = 3
+NUM_LAYERS = [3, 5, 10, 20, 50, 100, 200]
+DENSITY_P = [0.2]
+NUM_PER_LAYER = 4
 DATANAME = "../dat"
-SETNAME = "set2_08-24-21"
+DATANAME2 = "dat"
+MODELSNAME = "../modelfiles"
+SETNAME = "set1_09-01-21"
 
 # PATHS
 LOGNAME = SETNAME + ".log"
 DATAPATH = os.path.join(DATANAME, SETNAME)
+DATAPATH2 = os.path.join(DATANAME2, SETNAME)
+MODELSPATH = os.path.join(MODELSNAME, SETNAME)
 LOGPATH = os.path.join(DATAPATH, LOGNAME)
 
 if not os.path.isdir(DATAPATH):
     os.mkdir(DATAPATH)
+if not os.path.isdir(DATAPATH2):
+    os.mkdir(DATAPATH2)
+if not os.path.isdir(MODELSPATH):
+    os.mkdir(MODELSPATH)
 # import pdb; pdb.set_trace()
 
 # OTHER DATA TO WRITE FOR CPP (WILL WRITE TO LOGFILE)
@@ -32,18 +40,21 @@ with open (LOGPATH, "w") as logfile:
             while not has_path:
                 G = layergraph.LayerGraph(layers, NUM_PER_LAYER, p)
                 filename = SETNAME + "_" + str(n) + "_" + str(p) + ".txt"
+
+                # filepath 1 is for python, 2 is for c++
                 filepath = os.path.join(DATAPATH, filename)
+                filepath2 = os.path.join(DATAPATH2, filename)
                 has_path = G.checksNX(filepath)
 
             n_list.append(n)
-            filepath_list.append(filepath)
+            filepath_list.append(filepath2)
             G.printGraph()
 
-    instances_string = str(number_of_instances) + "\n"
+    # instances_string = str(number_of_instances) + "\n"
     n_list_string = " ".join([str(i) for i in n_list]) + "\n"
     filepath_list_string = " ".join(filepath_list) + "\n"
 
-    logfile.write(instances_string)
+    # logfile.write(instances_string)
     logfile.write(n_list_string)
     logfile.write(filepath_list_string)
 
