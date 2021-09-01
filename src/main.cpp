@@ -1,6 +1,6 @@
 #include "../inc/M3.h"
 
-void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r_0s, vector<int>& followers_set, string& setname, string& outfile) {
+void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r_0s, vector<int>& followers_set, string& setname, string& outfile, string& experiment_logfile) {
     /*
      * Function to run a computational experiment for M2
      * Sample latex line for SFFP report: 
@@ -12,6 +12,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
     vector<float> MIP_result;
     vector<float> benders_result;
     string instance_name;
+    string exp_logline;
 
     // ----- File-Related Global Variables -----
     string graph_name;
@@ -27,6 +28,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
     int benders_cuts;
     int r_0;
     string latex_line;
+    string correct;
 
     // ----- Global Variables Related to Algorithm -----
     M2ProblemInstance M2;
@@ -36,10 +38,10 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
     int max = 80;
 
     cout << "starting experiment" << endl;
+    ofstream out(outfile);
+    ofstream out2(experiment_logfile);
 
     // for each graph 
-    ofstream out(outfile);
-
     for (int i = 0; i<graph_names.size(); ++i){
         graph_name = graph_names[i];
         n = sizes[i];
@@ -93,6 +95,10 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             else {benders_gap = to_string(M2_B.optimality_gap);}
             
             benders_cuts = M2_B.sep.cut_count;
+
+            // if MIP and benders have same objective, we can safely assume we got the correct answer
+            if (abs(MIP_result[0] - benders_result[0]) <= M2_B.sep.epsilon) {correct="true";}
+            else {correct = "false";}
             
             cout << "INSTANCE RESULTS: " << endl;
             cout << "Graph, Followers: " << graph_name << ", " << followers << endl;
@@ -105,6 +111,9 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             cout << "Benders gap: " << benders_gap << endl;
             cout << "Benders cuts: " << benders_cuts << endl;
             
+            if (correct=="true") {cout << "CORRECT" << endl;}
+            else {cout << "INCORRECT" << endl;}
+            
             cout << "--------------------------------------------------------------" << endl;
             cout << "--------------------------------------------------------------" << endl;
             cout << "--------------------------------------------------------------" << endl;
@@ -116,10 +125,12 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 
             // set latex string 
             // $n$ & Density & Followers & $r_0$ & MIP (s) & MIP Gap (\%) & Benders (s) & Benders Gap (\%) & Benders Cuts
-            latex_line = to_string(n) + " & " + to_string(density) + " & " + to_string(followers) + " & " + to_string(r_0) + " & " + to_string(MIP_time) + " & " + (MIP_gap) + " & " + to_string(benders_time) + " & " + (benders_gap) + " & " + to_string(benders_cuts) + "\n";
+            latex_line = to_string(n) + " & " + to_string(density) + " & " + to_string(followers) + " & " + to_string(r_0) + " & " + to_string(MIP_time) + " & " + (MIP_gap) + " & " + to_string(benders_time) + " & " + (benders_gap) + " & " + to_string(benders_cuts) + "\\\\" + "\n" + "\\hline" + "\n";
+            exp_logline = graph_name + ", " + correct;
 
             // write latex string to file, and a hline when necessary
             out << latex_line;
+            out2 << exp_logline;
         }
     }       
     
@@ -152,7 +163,7 @@ int main()
     // M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
 
     // COMPUTATIONAL EXPERIMENT FOR M2
-    string setname = "set1_08-31-21";
+    string setname = "set1_09-01-21";
     const string logfilename = "dat/" + setname + "/" + setname + ".log";
 
     int num_instances;
@@ -212,12 +223,13 @@ int main()
     // }
 
     string outfile = "dat/" + setname + "/outfile.txt";
+    string exp_logfile = "dat/:" + setname + "/exp_logfile.txt";
     followers_set.push_back(1);
     followers_set.push_back(3);
     followers_set.push_back(5);
     followers_set.push_back(10);
 
-    comp_exp_M2(sizes, graph_names, r_0s, followers_set, setname, outfile);
+    comp_exp_M2(sizes, graph_names, r_0s, followers_set, setname, outfile, exp_logfile);
 
 
 
