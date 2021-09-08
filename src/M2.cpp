@@ -1,16 +1,8 @@
 #include "../inc/M2.h"
 
-Arc::Arc()
-{
-    i = 0;
-    j = 0;
-}
+Arc::Arc(){i = 0; j = 0;}
 
-Arc::Arc(int the_i, int the_j)
-{
-    i = the_i;
-    j = the_j;
-}
+Arc::Arc(int the_i, int the_j){i = the_i; j = the_j;}
 
 LayerGraph::LayerGraph()
 {

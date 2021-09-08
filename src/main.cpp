@@ -19,6 +19,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 
     // ----- Latex Variables ----- 
     int n;
+    int max_n = 200;
     float density;
     int followers; 
     float MIP_time;
@@ -28,7 +29,11 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
     int benders_cuts;
     int r_0;
     string latex_line;
-    string correct;
+    string objective_correct;
+    bool policy_agree = true;
+    string policy_agree_str;
+    string MIP_policy = "";
+    string benders_policy = "";
 
     // ----- Global Variables Related to Algorithm -----
     M2ProblemInstance M2;
@@ -41,26 +46,33 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
     ofstream out(outfile);
     ofstream out2(experiment_logfile);
 
+    string csv_header = "graphname,followers,objectiveagree,policyagree,policies\n";
+    out2 << csv_header;
+
     // for each graph 
     for (int i = 0; i<graph_names.size(); ++i){
         graph_name = graph_names[i];
         n = sizes[i];
         r_0 = r_0s[i];
 
+        if (n>max_n){continue;}
         // read graph (set density)
         const LayerGraph G = LayerGraph(graph_name, n);
-
+        
         // for SFFP report we just use G.m instead of density 
         // because computed it wrong in first experiment
         density = G.m;
         
-        // later on : actual density is 
+        // later on: actual density is 
         // density = (float(G.m) / (n*(n-1) / 2) );
         // density = (int)(density * 100 + .5);
         // density = (float)density / 100; 
 
         // for each number of followers (set followers, n, r_0)
         for (int j = 0; j<followers_set.size(); ++j){
+            policy_agree = true;
+            MIP_policy = "";
+            benders_policy = "";
 
             followers = followers_set[j];
             instance_name = to_string(n) + "_" + "p-" + to_string(followers);
@@ -96,9 +108,26 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             
             benders_cuts = M2_B.sep.cut_count;
 
-            // if MIP and benders have same objective, we can safely assume we got the correct answer
-            if (abs(MIP_result[0] - benders_result[0]) <= M2_B.sep.epsilon) {correct="true";}
-            else {correct = "false";}
+            // if MIP and benders have same objective
+            if (abs(MIP_result[0] - benders_result[0]) <= M2_B.sep.epsilon) {objective_correct="true";}
+
+            else {
+                // diagnostics
+                objective_correct = "false";
+            }
+
+            cout << "hello" << endl;
+            for (int a=0; a<G.m+1; ++a){
+                // include objective
+                MIP_policy +=  to_string(MIP_result[a]) + ",";
+                benders_policy += to_string(benders_result[a]) + ",";
+
+                if (policy_agree){
+                    if (MIP_result[a] != benders_result[a]) {
+                        policy_agree = false;
+                    }
+                }
+            }
             
             cout << "INSTANCE RESULTS: " << endl;
             cout << "Graph, Followers: " << graph_name << ", " << followers << endl;
@@ -111,8 +140,8 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             cout << "Benders gap: " << benders_gap << endl;
             cout << "Benders cuts: " << benders_cuts << endl;
             
-            if (correct=="true") {cout << "CORRECT" << endl;}
-            else {cout << "INCORRECT" << endl;}
+            if (objective_correct=="true") {cout << "OBJECTIVES MATCH" << endl;}
+            else {cout << "OBJECTIVES DON'T MATCH" << endl;}
             
             cout << "--------------------------------------------------------------" << endl;
             cout << "--------------------------------------------------------------" << endl;
@@ -126,7 +155,12 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             // set latex string 
             // $n$ & Density & Followers & $r_0$ & MIP (s) & MIP Gap (\%) & Benders (s) & Benders Gap (\%) & Benders Cuts
             latex_line = to_string(n) + " & " + to_string(density) + " & " + to_string(followers) + " & " + to_string(r_0) + " & " + to_string(MIP_time) + " & " + (MIP_gap) + " & " + to_string(benders_time) + " & " + (benders_gap) + " & " + to_string(benders_cuts) + "\\\\" + "\n" + "\\hline" + "\n";
-            exp_logline = graph_name + ", " + correct;
+
+            if (policy_agree) {policy_agree_str="true";}
+            else {policy_agree_str="false";}
+
+            // data for each graph with interdiction policies to post process and analyze in python
+            exp_logline = graph_name + "," + to_string(followers) + "," + objective_correct + "," + policy_agree_str + "," + MIP_policy + benders_policy + "\n";
 
             // write latex string to file, and a hline when necessary
             out << latex_line;
@@ -163,7 +197,7 @@ int main()
     // M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
 
     // COMPUTATIONAL EXPERIMENT FOR M2
-    string setname = "set1_09-01-21";
+    string setname = "set1_08-31-21";
     const string logfilename = "dat/" + setname + "/" + setname + ".log";
 
     int num_instances;
@@ -222,16 +256,14 @@ int main()
 
     // }
 
-    string outfile = "dat/" + setname + "/outfile.txt";
-    string exp_logfile = "dat/:" + setname + "/exp_logfile.txt";
+    string outfile = "dat/" + setname + "/outfile2.txt";
+    string exp_logfile = "dat/" + setname + "/exp_logfile2.csv";
     followers_set.push_back(1);
     followers_set.push_back(3);
     followers_set.push_back(5);
     followers_set.push_back(10);
 
     comp_exp_M2(sizes, graph_names, r_0s, followers_set, setname, outfile, exp_logfile);
-
-
 
     //M2ModelLinear M2_L = M2ModelLinear(M2);
     //M2_L.M2model->write("simplegraph1mip.lp");
