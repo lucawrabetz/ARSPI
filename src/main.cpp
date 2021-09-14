@@ -167,7 +167,6 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             out2 << exp_logline;
         }
     }       
-    
 }
 
 int main()
@@ -195,76 +194,102 @@ int main()
     // const std::string filename = "dat/set1_08-24-21/set1_08-24-21_11_0.5.txt";
     // const LayerGraph G = LayerGraph(filename, n);
     // M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
-
-    // COMPUTATIONAL EXPERIMENT FOR M2
-    string setname = "set1_08-31-21";
-    const string logfilename = "dat/" + setname + "/" + setname + ".log";
-
-    int num_instances;
-    string line;
-    ifstream myfile(logfilename);
-
-    int n_temp;
-    int r_0_temp;
-    vector<int> sizes; 
-    vector<string> graph_names;
-    vector<int> r_0s; 
-    vector<int> followers_set; 
     
-    if (myfile.is_open()){
+    // TESTING DIJSKTRA 
+    int n=2;
+    const string filename = "dat/simplegraph1.txt";
+    cout << "hello 0" << endl;
 
-        int line_counter = 0;
+    const LayerGraph G = LayerGraph(filename, n);
+    cout << "hello 1" << endl;
 
-        while (getline(myfile, line)) {
+    string instance_name = "simple";
+    string set_name = "simplegraph";
+    cout << "hello from main" << endl;
+    M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2, instance_name, set_name); 
 
-            stringstream ss(line);
-            string word;
+    vector<int> sp_result = M2.Dijkstra(0);
 
-            if (line_counter == 0) {
-                // sizes
-                // the size (n) will also determine the r_0 to keep it independent of graph density
-                // for now we will set it as r_0 = floor(n * 0.5)
-                while (ss >> word) {
-                    n_temp = stoi(word);
-                    sizes.push_back(n_temp);
-                    r_0_temp = floor(0.5 * n_temp);
-                    r_0s.push_back(r_0_temp);
-                }
-            }
-
-            else if (line_counter == 1) {
-                // graph names 
-                while (ss >> word) {
-                    graph_names.push_back(word);
-                }
-            }
-
-            ++line_counter;
-        }
+    cout << "Path objective: " << sp_result[0] << endl;
+    for (int a=1; a<G.m+1; ++a){
+        cout << sp_result[a] << endl;
     }
 
-    // check the totals are correct
-    // cout << "Number of sizes: " << sizes.size() << endl;
-    // cout << "Number of names: " << graph_names.size() << endl;
-    // cout << "Number of r_0: " << r_0s.size() << endl;
 
-    
-    // for (int i = 0; i < sizes.size(); ++i) {
 
-    //     cout << "Graph name: " << graph_names[i] << endl;
-    //     cout << "Graph size: " << sizes[i] << endl;
+    // COMPUTATIONAL EXPERIMENT FOR M2
+    // string setname = "set1_08-31-21";
+    // const string logfilename = "dat/" + setname + "/" + setname + ".log";
 
+    // int num_instances;
+    // string line;
+    // ifstream myfile(logfilename);
+
+    // int n_temp;
+    // int r_0_temp;
+    // vector<int> sizes; 
+    // vector<string> graph_names;
+    // vector<int> r_0s; 
+    // vector<int> followers_set; 
+    // 
+    // if (myfile.is_open()){
+
+    //     int line_counter = 0;
+
+    //     while (getline(myfile, line)) {
+
+    //         stringstream ss(line);
+    //         string word;
+
+    //         if (line_counter == 0) {
+    //             // sizes
+    //             // the size (n) will also determine the r_0 to keep it independent of graph density
+    //             // for now we will set it as r_0 = floor(n * 0.5)
+    //             while (ss >> word) {
+    //                 n_temp = stoi(word);
+    //                 sizes.push_back(n_temp);
+    //                 r_0_temp = floor(0.5 * n_temp);
+    //                 r_0s.push_back(r_0_temp);
+    //             }
+    //         }
+
+    //         else if (line_counter == 1) {
+    //             // graph names 
+    //             while (ss >> word) {
+    //                 graph_names.push_back(word);
+    //             }
+    //         }
+
+    //         ++line_counter;
+    //     }
     // }
 
-    string outfile = "dat/" + setname + "/outfile2.txt";
-    string exp_logfile = "dat/" + setname + "/exp_logfile2.csv";
-    followers_set.push_back(1);
-    followers_set.push_back(3);
-    followers_set.push_back(5);
-    followers_set.push_back(10);
+    // // check the totals are correct
+    // // cout << "Number of sizes: " << sizes.size() << endl;
+    // // cout << "Number of names: " << graph_names.size() << endl;
+    // // cout << "Number of r_0: " << r_0s.size() << endl;
 
-    comp_exp_M2(sizes, graph_names, r_0s, followers_set, setname, outfile, exp_logfile);
+    // 
+    // // for (int i = 0; i < sizes.size(); ++i) {
 
+    // //     cout << "Graph name: " << graph_names[i] << endl;
+    // //     cout << "Graph size: " << sizes[i] << endl;
+
+    // // }
+
+    // string outfile = "dat/" + setname + "/outfile2.txt";
+    // string exp_logfile = "dat/" + setname + "/exp_logfile2.csv";
+    // followers_set.push_back(1);
+    // followers_set.push_back(3);
+    // followers_set.push_back(5);
+    // followers_set.push_back(10);
+
+    // comp_exp_M2(sizes, graph_names, r_0s, followers_set, setname, outfile, exp_logfile);
+
+    
+
+
+    // FOR TESTING MODELS
     //M2ModelLinear M2_L = M2ModelLinear(M2);
     //M2_L.M2model->write("simplegraph1mip.lp");
 

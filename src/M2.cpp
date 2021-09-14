@@ -19,16 +19,23 @@ LayerGraph::LayerGraph(const string &filename, int the_n)
     {
 
         n = the_n;
+        int counter = 0;
         const char *cline;
         int i;
         int j;
         vector<int> new_vector;
+        vector<int> zeros_vector;
+
+        for (int i = 0; i < n; i++) {zeros_vector.push_back(0);}
 
         for (int i = 0; i < n; i++)
         {
             new_vector = {};
             adjacency_list.push_back(new_vector);
             reverse_list.push_back(new_vector);
+            arc_index_hash.push_back(new_vector);
+            reverse_arc_index_hash.push_back(new_vector);
+            n_n_adjacency_list.push_back(zeros_vector);
         }
 
         while (getline(myfile, line))
@@ -37,11 +44,19 @@ LayerGraph::LayerGraph(const string &filename, int the_n)
             // assign i and j, create arc
             // add to arc set
             // add to adjacency list
+            // set adjacency matrix [i][j] to 1
             cline = line.c_str();
             sscanf(cline, "%d %d", &i, &j);
+
             arcs.push_back(Arc(i, j));
             adjacency_list[i].push_back(j);
+            arc_index_hash[i].push_back(counter);
+
             reverse_list[j].push_back(i);
+            reverse_arc_index_hash[j].push_back(counter);
+
+            n_n_adjacency_list[i][j] = 1;
+            ++counter; // to track the index in the 0-(m-1) vectors
         }
         m = arcs.size();
     }
@@ -82,38 +97,133 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
         interdiction_costs.push_back(1000);
     }
 
-    std::random_device rd;                           // obtain a random number from hardware
-    std::mt19937 gen(rd());                          // seed the generator
-    std::uniform_int_distribution<> distr(min, max); // define the range
+    // std::random_device rd;                           // obtain a random number from hardware
+    // std::mt19937 gen(rd());                          // seed the generator
+    // std::uniform_int_distribution<> distr(min, max); // define the range
 
-    for (int q = 0; q < p; q++)
-    {
-        instance_name = the_instance_name;
-        vector<int> new_vector = {};
-        arc_costs.push_back(new_vector);
-        for (int a = 0; a < m; a++)
-        {
-            arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
-        }
-    }
+    // for (int q = 0; q < p; q++)
+    // {
+    //     instance_name = the_instance_name;
+    //     vector<int> new_vector = {};
+    //     arc_costs.push_back(new_vector);
+    //     for (int a = 0; a < m; a++)
+    //     {
+    //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
+    //     }
+    // }
 
-    for (int q = 0; q < p; q++)
-    {
-        // cout << "q: " << q << endl;
-        for (int a = 0; a < m; a++)
-        {
-            // cout << "a: " << a << endl;
-            // cout << arc_costs[q][a] << "\n";
-        }
-    }
+    // for (int q = 0; q < p; q++)
+    // {
+    //     // cout << "q: " << q << endl;
+    //     for (int a = 0; a < m; a++)
+    //     {
+    //         // cout << "a: " << a << endl;
+    //         // cout << arc_costs[q][a] << "\n";
+    //     }
+    // }
 
+    cout << "hello" << endl;
     // hardcoded example "simplegraph.txt"
-    // vector<int> costs1 = {9, 12, 3};
-    // vector<int> costs2 = {9, 1, 10};
-    // vector<int> costs3 = {9, 12, 10};
-    // arc_costs.push_back(costs1);
-    // arc_costs.push_back(costs2);
-    // arc_costs.push_back(costs3);
+    vector<int> costs1 = {9, 12, 3};
+    vector<int> costs2 = {9, 1, 10};
+    vector<int> costs3 = {9, 12, 10};
+    arc_costs.push_back(costs1);
+    arc_costs.push_back(costs2);
+    arc_costs.push_back(costs3);
+}
+
+vector<int> M2ProblemInstance::Dijkstra(int q)
+{
+    vector<int> bar_S;
+    vector<int> S;
+    vector<int> dist;
+    vector<int> pred;
+    vector<int> result;
+    
+    int min;
+    int node;
+    int j_node;
+    int arc;
+    int final_cost;
+
+    cout << "in dijkstra's" << endl;
+
+    // d(s) = 0
+    // pred(s) = 0
+    bar_S.push_back(0);
+    dist.push_back(0);
+    pred.push_back(0);
+
+    for (int a=0; a<m+1; ++a){
+        // result[0] = path objective
+        // result[a+1] = 1 if arc in path
+        result.push_back(0);
+    }
+
+    for (int i=1; i<n; ++i) {
+        // d(i) = inf
+        // pred(s) = -1
+        bar_S.push_back(i);
+        dist.push_back(interdiction_costs[0]*10);
+        pred.push_back(-1);
+    }
+
+    while (S.size()<n) {
+        min = interdiction_costs[0]*10 + 1;
+
+        for (int i=0; i<n; ++i) {
+            if (dist[i] < min) {
+                node=i;
+                min=dist[i];
+            }
+        }
+
+        // remove node from bar_S
+        for (int i=0; i<n; ++i) {
+            if (bar_S[i]==node){bar_S.erase(bar_S.begin()+i); break;}
+        }
+        
+        // add node to S
+        S.push_back(node);
+
+        for (int i=0; i<G.arc_index_hash[node].size(); ++i){
+            arc=G.arc_index_hash[node][i];
+            j_node=G.adjacency_list[node][i];
+
+            if (dist[j_node] > (dist[node]+arc_costs[q][arc])){
+                dist[j_node] = dist[node]+arc_costs[q][arc];
+                pred[j_node] = node;
+            }
+        }
+    }
+
+    final_cost=dist[n-1];
+    result[0]=final_cost;
+    j_node=n-1;
+
+    while(j_node!=0){
+        node=pred[j_node];
+
+        for (int i=0; i<G.adjacency_list[node].size(); ++i){
+            if (G.adjacency_list[node][i]==j_node){
+                arc=G.arc_index_hash[node][i];
+                break;
+            }
+        }
+
+        result[arc]=1;
+        j_node=node;
+    }
+
+    return result;
+}
+
+vector<int> M2ProblemInstance::validatePolicy(vector<int>& x_bar)
+{
+    vector<int> result; 
+    // Update M2 based on x_bar
+    // run dijstra on graph to get objective 
+    // Revert M2 
 }
 
 // ------ MIP Formulations for M2 ------

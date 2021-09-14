@@ -32,18 +32,25 @@ class LayerGraph
 public:
     int n, m;
     vector<Arc> arcs;
+
+    // arc_index_hash maintains a linked list representation with indexes 
+    // to the corresponding arc in the 0-(m-1) vectors, for example the cost
+    // or arc object vectors
+    vector<vector<int>> arc_index_hash;
+    vector<vector<int>> reverse_arc_index_hash;
     vector<vector<int>> adjacency_list;
+    vector<vector<int>> n_n_adjacency_list;
     vector<vector<int>> reverse_list;
 
     LayerGraph();
     LayerGraph(const string &filename, int the_n);
+    void updateGraph(vector<int>& x_bar, bool rev=false);
     void printGraph();
 };
 
 class M2ProblemInstance
 {
     // Full Instance of an M2 problem (a Layer Graph + arc costs and interdiction costs)
-    // TODO: randomized cost generation in this class
 public:
     int n;
     int m;
@@ -59,6 +66,8 @@ public:
 
     M2ProblemInstance();
     M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0, string& the_instance_name, string& the_setname);
+    vector <int> Dijkstra(int q);
+    vector<int> validatePolicy(vector<int>& x_bar);
 };
 
 
