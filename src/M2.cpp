@@ -1,17 +1,15 @@
 #include "../inc/M2.h"
 
-Arc::Arc(){i = 0; j = 0;}
+Arc::Arc(){i=0; j=0;}
 
-Arc::Arc(int the_i, int the_j){i = the_i; j = the_j;}
+Arc::Arc(int the_i, int the_j){i=the_i; j=the_j;}
 
-LayerGraph::LayerGraph()
-{
-    n = 0;
-    m = 0;
-}
+LayerGraph::LayerGraph(){n=0; m=0;}
 
 LayerGraph::LayerGraph(const string &filename, int the_n)
 {
+    // LayerGraph Constructor from file
+
     string line;
     ifstream myfile(filename);
 
@@ -64,6 +62,8 @@ LayerGraph::LayerGraph(const string &filename, int the_n)
 
 void LayerGraph::printGraph(vector<vector<int>> costs, vector<int> interdiction_costs, bool is_costs) const
 {
+    // Print arc summary of a graph, with costs if called from M2 Instance
+
     int p = costs.size();
     cout << "n: " << n << ", m: " << m << ", p: " << p <<  endl;
 
@@ -87,11 +87,7 @@ void LayerGraph::printGraph(vector<vector<int>> costs, vector<int> interdiction_
     }
 }
 
-M2ProblemInstance::M2ProblemInstance()
-{
-    // Default constructor
-    r_0 = 0;
-}
+M2ProblemInstance::M2ProblemInstance(){r_0=0;}
 
 M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0, string& the_instance_name, string& the_setname)
 {
@@ -140,14 +136,11 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
 
     cout << "hello" << endl;
     // hardcoded example "simplegraph.txt"
-    vector<int> costs1 = {2, 5, 2};
+    vector<int> costs1 = {6, 4, 2, 2, 1, 2, 7, 1, 3};
     arc_costs.push_back(costs1);
 }
 
-void M2ProblemInstance::printInstance() const
-{
-    G.printGraph(arc_costs, interdiction_costs, true);
-}
+void M2ProblemInstance::printInstance() const {G.printGraph(arc_costs, interdiction_costs, true);}
 
 vector<int> M2ProblemInstance::Dijkstra(int q)
 {
@@ -202,23 +195,31 @@ vector<int> M2ProblemInstance::Dijkstra(int q)
         
         // add node to S
         S.push_back(node);
+        // cout << "i: " << node << endl;
 
         for (int i=0; i<G.arc_index_hash[node].size(); ++i){
             arc=G.arc_index_hash[node][i];
+            // cout << "arc: " << arc << " ; " << G.arcs[arc].i << " " << G.arcs[arc].j << endl; 
             j_node=G.adjacency_list[node][i];
+            // cout << "j: " << j_node << endl;
 
             if (dist[j_node] > (dist[node]+arc_costs[q][arc])){
                 dist[j_node] = dist[node]+arc_costs[q][arc];
+                // cout << "d[j]: " << dist[j_node] << endl;
                 pred[j_node] = node;
+                // cout << "pred[j]: " << pred[j_node] << endl;
             }
         }
+        // cout << "\n\n\n";
     }
 
     final_cost=dist[n-1];
+    // cout << "final " << final_cost << endl;
     result[0]=final_cost;
     j_node=n-1;
 
     while(j_node!=0){
+        // find the arc index for the arc i, j (looping backwards through sp tree using pred to determine i)
         node=pred[j_node];
 
         for (int i=0; i<G.adjacency_list[node].size(); ++i){
@@ -228,7 +229,7 @@ vector<int> M2ProblemInstance::Dijkstra(int q)
             }
         }
 
-        result[arc]=1;
+        result[arc+1]=1;
         j_node=node;
     }
 
@@ -244,7 +245,6 @@ vector<int> M2ProblemInstance::validatePolicy(vector<int>& x_bar)
 }
 
 // ------ MIP Formulations for M2 ------
-
 M2ModelLinear::M2ModelLinear(){
     int n = 0;
     int m = 0;
