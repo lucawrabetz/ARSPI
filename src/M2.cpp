@@ -62,12 +62,28 @@ LayerGraph::LayerGraph(const string &filename, int the_n)
     }
 }
 
-void LayerGraph::printGraph()
+void LayerGraph::printGraph(vector<vector<int>> costs, vector<int> interdiction_costs, bool is_costs) const
 {
-    cout << "n: " << n << ", m: " << m << "\n";
-    for (int a = 0; a < m; a++)
-    {
-        cout << "(" << arcs[a].i << "," << arcs[a].j << ")\n";
+    int p = costs.size();
+    cout << "n: " << n << ", m: " << m << ", p: " << p <<  endl;
+
+    if (is_costs){
+        for (int a = 0; a < m; a++)
+        {
+            cout << "(" << arcs[a].i << "," << arcs[a].j << ")" << endl;
+            cout << "   interdiction_cost: " << interdiction_costs[a] << endl;
+
+            for (int q = 0; q<p; ++q){
+                cout << "   arc_cost_" << q << ": " << costs[q][a] << endl;
+            }
+        }
+    }
+
+    else {
+        for (int a = 0; a < m; a++)
+        {
+            cout << "(" << arcs[a].i << "," << arcs[a].j << ")\n";
+        }
     }
 }
 
@@ -124,12 +140,13 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
 
     cout << "hello" << endl;
     // hardcoded example "simplegraph.txt"
-    vector<int> costs1 = {9, 12, 3};
-    vector<int> costs2 = {9, 1, 10};
-    vector<int> costs3 = {9, 12, 10};
+    vector<int> costs1 = {2, 5, 2};
     arc_costs.push_back(costs1);
-    arc_costs.push_back(costs2);
-    arc_costs.push_back(costs3);
+}
+
+void M2ProblemInstance::printInstance() const
+{
+    G.printGraph(arc_costs, interdiction_costs, true);
 }
 
 vector<int> M2ProblemInstance::Dijkstra(int q)
@@ -170,18 +187,18 @@ vector<int> M2ProblemInstance::Dijkstra(int q)
 
     while (S.size()<n) {
         min = interdiction_costs[0]*10 + 1;
+        int erase_index;
 
-        for (int i=0; i<n; ++i) {
-            if (dist[i] < min) {
-                node=i;
-                min=dist[i];
+        for (int i=0; i<bar_S.size(); ++i) {
+            if (dist[bar_S[i]] < min) {
+                erase_index = i;
+                node=bar_S[i];
+                min=dist[bar_S[i]];
             }
         }
 
         // remove node from bar_S
-        for (int i=0; i<n; ++i) {
-            if (bar_S[i]==node){bar_S.erase(bar_S.begin()+i); break;}
-        }
+        bar_S.erase(bar_S.begin()+erase_index); 
         
         // add node to S
         S.push_back(node);

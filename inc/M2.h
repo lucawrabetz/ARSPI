@@ -45,7 +45,7 @@ public:
     LayerGraph();
     LayerGraph(const string &filename, int the_n);
     void updateGraph(vector<int>& x_bar, bool rev=false);
-    void printGraph();
+    void printGraph(vector<vector<int>> costs, vector<int> interdiction_costs, bool is_costs=false) const;
 };
 
 class M2ProblemInstance
@@ -66,6 +66,7 @@ public:
 
     M2ProblemInstance();
     M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0, string& the_instance_name, string& the_setname);
+    void printInstance() const;
     vector <int> Dijkstra(int q);
     vector<int> validatePolicy(vector<int>& x_bar);
 };

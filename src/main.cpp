@@ -196,17 +196,21 @@ int main()
     // M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
     
     // TESTING DIJSKTRA 
-    int n=2;
-    const string filename = "dat/simplegraph1.txt";
+    int n=3;
+    const string filename = "dat/simplegraph2.txt";
+    vector<vector<int>> empty_vector1;
+    vector<int> empty_vector2;
     cout << "hello 0" << endl;
 
     const LayerGraph G = LayerGraph(filename, n);
+    G.printGraph(empty_vector1, empty_vector2);
     cout << "hello 1" << endl;
 
     string instance_name = "simple";
     string set_name = "simplegraph";
     cout << "hello from main" << endl;
-    M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2, instance_name, set_name); 
+    M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 1, 2, instance_name, set_name); 
+    M2.printInstance();
 
     vector<int> sp_result = M2.Dijkstra(0);
 
