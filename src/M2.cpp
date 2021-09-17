@@ -106,7 +106,7 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
         // ASSUMING FINITE INTERDICTION COST, A REASONABLE NUMBER IS MAX - MIN
         // interdiction_costs.push_back((max - min));
         // ASSUMING INFINITE INTERDICTION COST (REMOVING ARC) ADJUST SO LARGE ENOUGH
-        interdiction_costs.push_back(1000);
+        interdiction_costs.push_back(10);
     }
 
     std::random_device rd;                           // obtain a random number from hardware
