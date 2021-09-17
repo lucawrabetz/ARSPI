@@ -275,10 +275,7 @@ float M2ProblemInstance::validatePolicy(vector<float>& x_bar)
 }
 
 // ------ MIP Formulations for M2 ------
-M2ModelLinear::M2ModelLinear(){
-    int n = 0;
-    int m = 0;
-}
+M2ModelLinear::M2ModelLinear(){n=0; m=0;}
 
 M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
 {
@@ -472,12 +469,7 @@ vector<float> M2ModelLinear::solve()
 }
 
 // ------ Bender's Schemes for M2 ------
-BendersSub::BendersSub()
-{
-    n = 0;
-    m = 0;
-    p = 0;
-}
+BendersSub::BendersSub(){n=0; m=0; p=0;}
 
 BendersSub::BendersSub(M2ProblemInstance *the_M2Instance)
 {
@@ -707,8 +699,11 @@ void BendersSeparation::callback()
 {
     if (where == GRB_CB_MIPSOL)
     {
+        // zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJBST); // ??????? 
+
         if (zeta_u - zeta_l >= epsilon)
         {
+            cout << "in callback" << endl;
             counter++;
             // xhat = current solution from master problem, then update subproblem
             for (int a = 0; a < m; ++a)
@@ -716,18 +711,22 @@ void BendersSeparation::callback()
                 xhat[a] = getSolution(xbar[a]);
             }
             subproblem.update(xhat);
-            zeta_u = GRB_CB_MIPSOL_OBJBST; // best obj found so far (entire tree)
+            // zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJ); // ??????? 
 
             // cout << "\n\n\n\nsolving sub from callback: \n\n\n\n";
             yhat = subproblem.solve(counter);
             zeta_temp = GRB_INFINITY;
+
             for (int q = 0; q < p; ++q)
             {
+                cout << "sub q=" << q << ": " << yhat[q][0] << endl;
                 if (zeta_temp > yhat[q][0])
                 {
                     zeta_temp = yhat[q][0]; // first element of yhat[q] is the objective
                 }
             }
+            cout << "zeta_temp: " << zeta_temp << endl;
+
             // use yhat[(q-l)+1][1-m] to create new cut from LinExpr
             for (int q = 0; q < p; ++q)
             {
@@ -756,6 +755,9 @@ void BendersSeparation::callback()
             {
                 zeta_l = zeta_temp;
             }
+            cout << "zeta_l: " << zeta_l << endl;
+            zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJBND); // ??????? 
+            cout << "zeta_u: " << zeta_u << endl;
         }
     }
 }
@@ -858,13 +860,11 @@ vector<float> M2Benders::solve()
 
     try
     {
-
         clock_t model_begin = clock();
         M2Bendersmodel->optimize();
         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
 
         try {
-
             optimality_gap = M2Bendersmodel->get(GRB_DoubleAttr_MIPGap);
             sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
 
