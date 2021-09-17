@@ -67,8 +67,9 @@ public:
     M2ProblemInstance();
     M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0, string& the_instance_name, string& the_setname);
     void printInstance() const;
-    vector <int> Dijkstra(int q);
-    vector<int> validatePolicy(vector<int>& x_bar);
+    vector<int> Dijkstra(int q);
+    void updateCosts(vector<float>& x_bar, bool rev=false);
+    float validatePolicy(vector<float>& x_bar);
 };
 
 

@@ -109,20 +109,20 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
         interdiction_costs.push_back(1000);
     }
 
-    // std::random_device rd;                           // obtain a random number from hardware
-    // std::mt19937 gen(rd());                          // seed the generator
-    // std::uniform_int_distribution<> distr(min, max); // define the range
+    std::random_device rd;                           // obtain a random number from hardware
+    std::mt19937 gen(rd());                          // seed the generator
+    std::uniform_int_distribution<> distr(min, max); // define the range
 
-    // for (int q = 0; q < p; q++)
-    // {
-    //     instance_name = the_instance_name;
-    //     vector<int> new_vector = {};
-    //     arc_costs.push_back(new_vector);
-    //     for (int a = 0; a < m; a++)
-    //     {
-    //         arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
-    //     }
-    // }
+    for (int q = 0; q < p; q++)
+    {
+        instance_name = the_instance_name;
+        vector<int> new_vector = {};
+        arc_costs.push_back(new_vector);
+        for (int a = 0; a < m; a++)
+        {
+            arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
+        }
+    }
 
     // for (int q = 0; q < p; q++)
     // {
@@ -134,10 +134,9 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     //     }
     // }
 
-    cout << "hello" << endl;
     // hardcoded example "simplegraph.txt"
-    vector<int> costs1 = {6, 4, 2, 2, 1, 2, 7, 1, 3};
-    arc_costs.push_back(costs1);
+    // vector<int> costs1 = {6, 4, 2, 2, 1, 2, 7, 1, 3};
+    // arc_costs.push_back(costs1);
 }
 
 void M2ProblemInstance::printInstance() const {G.printGraph(arc_costs, interdiction_costs, true);}
@@ -155,8 +154,6 @@ vector<int> M2ProblemInstance::Dijkstra(int q)
     int j_node;
     int arc;
     int final_cost;
-
-    cout << "in dijkstra's" << endl;
 
     // d(s) = 0
     // pred(s) = 0
@@ -236,12 +233,45 @@ vector<int> M2ProblemInstance::Dijkstra(int q)
     return result;
 }
 
-vector<int> M2ProblemInstance::validatePolicy(vector<int>& x_bar)
+void M2ProblemInstance::updateCosts(vector<float>& x_bar, bool rev){
+    // Receive interdiction policy and update costs for the M2 instance
+    // If rev, we are "removing" the interdiction policy and returning the instance to its original state
+    
+    for (int a=0; a<m; ++a){
+        if (x_bar[a]==1) {
+            for (int q=0; q<p; ++q){
+                if (rev){
+                    arc_costs[q][a]-=interdiction_costs[a];
+                }
+                else {
+                    arc_costs[q][a]+=interdiction_costs[a];
+                }
+            }
+        }
+    }
+}
+
+float M2ProblemInstance::validatePolicy(vector<float>& x_bar)
 {
-    vector<int> result; 
+    float objective=100000000;
+    vector<int> sp_result;
+
     // Update M2 based on x_bar
+    updateCosts(x_bar);
+
     // run dijstra on graph to get objective 
+    for (int q=0; q<p; ++q){
+        sp_result = Dijkstra(q);
+        
+        if (sp_result[0]<objective){
+            objective=sp_result[0];
+        }
+    }
+    
     // Revert M2 
+    updateCosts(x_bar, true);
+
+    return objective;
 }
 
 // ------ MIP Formulations for M2 ------
@@ -816,7 +846,7 @@ M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
 vector<float> M2Benders::solve()
 {
     /*
-     * Currently the return vector returns the objective value [0] and interdiction policy [1-m+1]
+     * Return vector returns the objective value [0] and interdiction policy [1-m+1]
      * Again for computational experiments this can be ignored and not assigned as run stats are class vars
      */ 
 

@@ -171,6 +171,41 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 
 int main()
 {
+    // TESTING VALIDATION BETWEEN BENDERS AND MIP 
+    int n=22;
+    int p=3;
+    int r_0=11;
+    const string filename = "dat/set1_08-31-21_22_0.4.txt";
+    string test = "test";
+
+    const LayerGraph G = LayerGraph(filename, n);
+    M2ProblemInstance M2 = M2ProblemInstance(G, 30, 80, p, r_0, test, test); 
+    M2ModelLinear M_L = M2ModelLinear(&M2);
+    M2Benders M_B = M2Benders(&M2);
+
+    vector<float> x_MIP = M_L.solve();
+    vector<float> x_bend = M_B.solve();
+    float MIP_obj = x_MIP[0];
+    float bend_obj = x_bend[0];
+
+    x_MIP.erase(x_MIP.begin());
+    x_bend.erase(x_bend.begin());
+
+    float MIP_valid_obj = M2.validatePolicy(x_MIP);
+    float bend_valid_obj = M2.validatePolicy(x_bend);
+
+    vector<int> sp_temp;
+
+    for (int q=0; q<p; ++q){
+        sp_temp=M2.Dijkstra(q);
+        cout << "SP q=" << q << ": " << sp_temp[0] << endl;
+    }
+
+    cout << "mip obj: " << MIP_obj << endl;
+    cout << "benders obj: " << bend_obj << endl;
+    cout << "mip obj from dij: " << MIP_valid_obj << endl;
+    cout << "benders obj from dij: " << bend_valid_obj << endl;
+
     // FOR TESTING THE ENUMERATION CODE
     //vector<int> nums;
     //vector<vector<int>> result;
@@ -196,27 +231,27 @@ int main()
     // M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 3, 2);
     
     // TESTING DIJSKTRA 
-    int n=6;
-    const string filename = "dat/simplegraph3.txt";
-    vector<vector<int>> empty_vector1;
-    vector<int> empty_vector2;
-    cout << "hello 0" << endl;
+    // int n=6;
+    // const string filename = "dat/simplegraph3.txt";
+    // vector<vector<int>> empty_vector1;
+    // vector<int> empty_vector2;
+    // cout << "hello 0" << endl;
 
-    const LayerGraph G = LayerGraph(filename, n);
-    cout << "hello 1" << endl;
+    // const LayerGraph G = LayerGraph(filename, n);
+    // cout << "hello 1" << endl;
 
-    string instance_name = "simple";
-    string set_name = "simplegraph";
-    cout << "hello from main" << endl;
-    M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 1, 0, instance_name, set_name); 
-    M2.printInstance();
+    // string instance_name = "simple";
+    // string set_name = "simplegraph";
+    // cout << "hello from main" << endl;
+    // M2ProblemInstance M2 = M2ProblemInstance(G, 150, 160, 1, 0, instance_name, set_name); 
+    // M2.printInstance();
 
-    vector<int> sp_result = M2.Dijkstra(0);
+    // vector<int> sp_result = M2.Dijkstra(0);
 
-    cout << "Path objective: " << sp_result[0] << endl;
-    for (int a=1; a<G.m+1; ++a){
-        cout << sp_result[a] << endl;
-    }
+    // cout << "Path objective: " << sp_result[0] << endl;
+    // for (int a=1; a<G.m+1; ++a){
+    //     cout << sp_result[a] << endl;
+    // }
 
 
 
