@@ -8,3 +8,5 @@
     * reverse adjacency list
     * adjacency matrix 
     * dijkstra's 
+- [ ] Better implementation of Dijkstra (priority queue) if it will be used 
+- [ ] Bitwise enumeration code 
