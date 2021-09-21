@@ -8,21 +8,19 @@ LayerGraph::LayerGraph(){n=0; m=0;}
 
 LayerGraph::LayerGraph(const string &filename, int the_n)
 {
-    // LayerGraph Constructor from file
-
+    // LayerGraph constructor from file
     string line;
     ifstream myfile(filename);
 
     if (myfile.is_open())
     {
-
         n = the_n;
         int counter = 0;
-        const char *cline;
         int i;
         int j;
         vector<int> new_vector;
         vector<int> zeros_vector;
+        const char *cline;
 
         for (int i = 0; i < n; i++) {zeros_vector.push_back(0);}
 
@@ -30,40 +28,29 @@ LayerGraph::LayerGraph(const string &filename, int the_n)
         {
             new_vector = {};
             adjacency_list.push_back(new_vector);
-            reverse_list.push_back(new_vector);
             arc_index_hash.push_back(new_vector);
-            reverse_arc_index_hash.push_back(new_vector);
             n_n_adjacency_list.push_back(zeros_vector);
         }
 
         while (getline(myfile, line))
         {
-            // read line
-            // assign i and j, create arc
-            // add to arc set
-            // add to adjacency list
-            // set adjacency matrix [i][j] to 1
             cline = line.c_str();
             sscanf(cline, "%d %d", &i, &j);
 
             arcs.push_back(Arc(i, j));
             adjacency_list[i].push_back(j);
             arc_index_hash[i].push_back(counter);
-
-            reverse_list[j].push_back(i);
-            reverse_arc_index_hash[j].push_back(counter);
-
             n_n_adjacency_list[i][j] = 1;
             ++counter; // to track the index in the 0-(m-1) vectors
         }
+
         m = arcs.size();
     }
 }
 
 void LayerGraph::printGraph(vector<vector<int>> costs, vector<int> interdiction_costs, bool is_costs) const
 {
-    // Print arc summary of a graph, with costs if called from M2 Instance
-
+    // Print arc summary of a graph, with costs if called from M2 Instance (is_costs)
     int p = costs.size();
     cout << "n: " << n << ", m: " << m << ", p: " << p <<  endl;
 
@@ -236,7 +223,6 @@ vector<int> M2ProblemInstance::Dijkstra(int q)
 void M2ProblemInstance::updateCosts(vector<float>& x_bar, bool rev){
     // Receive interdiction policy and update costs for the M2 instance
     // If rev, we are "removing" the interdiction policy and returning the instance to its original state
-    
     for (int a=0; a<m; ++a){
         if (x_bar[a]==1) {
             for (int q=0; q<p; ++q){
@@ -362,19 +348,40 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
 
         // main constraint for each arc
         int i;
-        int j;
-        for (int q = 0; q < p; ++q)
-        {
-            linexpr = 0;
-            for (int a = 0; a < m; ++a)
-            {
-                i = M2Instance->G.arcs[a].i;
-                j = M2Instance->G.arcs[a].j;
-                M2model->addConstr((pi[q][j] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
+        int j; // looping index 
+        int jn; // node j
+        int a;
+
+        cout << "m: " << M2Instance->G.m << endl;
+        for (int q=0; q<p; ++q){
+            for (i=0; i<n; ++i){
+                for (j=0; j<M2Instance->G.adjacency_list[i].size(); ++j){
+                    jn=M2Instance->G.adjacency_list[i][j];
+                    a=M2Instance->G.arc_index_hash[i][j];
+
+                    cout << "a: " << a << endl;
+                    cout << "i: " << i << endl;
+                    cout << "j: " << jn << endl;
+
+                    // add constraint
+                    M2model->addConstr((pi[q][jn] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
+
+                }
             }
         }
 
-        // pi[0] = 0
+        // for (int q = 0; q < p; ++q)
+        // {
+        //     linexpr = 0;
+        //     for (int a = 0; a < m; ++a)
+        //     {
+        //         i = M2Instance->G.arcs[a].i;
+        //         j = M2Instance->G.arcs[a].j;
+        //         M2model->addConstr((pi[q][j] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
+        //     }
+        // }
+
+        // pi[0] =0
         for (int q = 0; q < p; q++)
         {
             M2model->addConstr(pi[q][0] == 0);

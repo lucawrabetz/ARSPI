@@ -37,10 +37,8 @@ public:
     // to the corresponding arc in the 0-(m-1) vectors, for example the cost
     // or arc object vectors
     vector<vector<int>> arc_index_hash;
-    vector<vector<int>> reverse_arc_index_hash;
     vector<vector<int>> adjacency_list;
     vector<vector<int>> n_n_adjacency_list;
-    vector<vector<int>> reverse_list;
 
     LayerGraph();
     LayerGraph(const string &filename, int the_n);
