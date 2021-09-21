@@ -19,7 +19,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 
     // ----- Latex Variables ----- 
     int n;
-    int max_n = 200;
+    int max_n = 1000000;
     float density;
     int followers; 
     float MIP_time;
@@ -172,39 +172,39 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 int main()
 {
     // TESTING VALIDATION BETWEEN BENDERS AND MIP 
-    int n=22;
-    int p=3;
-    int r_0=11;
-    const string filename = "dat/set1_08-31-21_22_0.4.txt";
-    string test = "test";
+    // int n=22;
+    // int p=3;
+    // int r_0=11;
+    // const string filename = "dat/set1_08-31-21_22_0.4.txt";
+    // string test = "test";
 
-    const LayerGraph G = LayerGraph(filename, n);
-    M2ProblemInstance M2 = M2ProblemInstance(G, 30, 80, p, r_0, test, test); 
-    M2ModelLinear M_L = M2ModelLinear(&M2);
-    M2Benders M_B = M2Benders(&M2);
+    // const LayerGraph G = LayerGraph(filename, n);
+    // M2ProblemInstance M2 = M2ProblemInstance(G, 30, 80, p, r_0, test, test); 
+    // M2ModelLinear M_L = M2ModelLinear(&M2);
+    // M2Benders M_B = M2Benders(&M2);
 
-    vector<float> x_MIP = M_L.solve();
-    vector<float> x_bend = M_B.solve();
-    float MIP_obj = x_MIP[0];
-    float bend_obj = x_bend[0];
+    // vector<float> x_MIP = M_L.solve();
+    // vector<float> x_bend = M_B.solve();
+    // float MIP_obj = x_MIP[0];
+    // float bend_obj = x_bend[0];
 
-    x_MIP.erase(x_MIP.begin());
-    x_bend.erase(x_bend.begin());
+    // x_MIP.erase(x_MIP.begin());
+    // x_bend.erase(x_bend.begin());
 
-    float MIP_valid_obj = M2.validatePolicy(x_MIP);
-    float bend_valid_obj = M2.validatePolicy(x_bend);
+    // float MIP_valid_obj = M2.validatePolicy(x_MIP);
+    // float bend_valid_obj = M2.validatePolicy(x_bend);
 
-    vector<int> sp_temp;
+    // vector<int> sp_temp;
 
-    for (int q=0; q<p; ++q){
-        sp_temp=M2.Dijkstra(q);
-        cout << "SP q=" << q << ": " << sp_temp[0] << endl;
-    }
+    // for (int q=0; q<p; ++q){
+    //     sp_temp=M2.Dijkstra(q);
+    //     cout << "SP q=" << q << ": " << sp_temp[0] << endl;
+    // }
 
-    cout << "mip obj: " << MIP_obj << endl;
-    cout << "benders obj: " << bend_obj << endl;
-    cout << "mip obj from dij: " << MIP_valid_obj << endl;
-    cout << "benders obj from dij: " << bend_valid_obj << endl;
+    // cout << "mip obj: " << MIP_obj << endl;
+    // cout << "benders obj: " << bend_obj << endl;
+    // cout << "mip obj from dij: " << MIP_valid_obj << endl;
+    // cout << "benders obj from dij: " << bend_valid_obj << endl;
 
     // FOR TESTING THE ENUMERATION CODE
     //vector<int> nums;
@@ -256,58 +256,56 @@ int main()
 
 
     // COMPUTATIONAL EXPERIMENT FOR M2
-    // string setname = "set1_08-31-21";
-    // const string logfilename = "dat/" + setname + "/" + setname + ".log";
+    string setname = "set1_09-17-21";
+    const string logfilename = "dat/" + setname + "/" + setname + ".log";
 
-    // int num_instances;
-    // string line;
-    // ifstream myfile(logfilename);
+    int num_instances;
+    string line;
+    ifstream myfile(logfilename);
 
-    // int n_temp;
-    // int r_0_temp;
-    // vector<int> sizes; 
-    // vector<string> graph_names;
-    // vector<int> r_0s; 
-    // vector<int> followers_set; 
-    // 
-    // if (myfile.is_open()){
+    int n_temp;
+    int r_0_temp;
+    vector<int> sizes; 
+    vector<string> graph_names;
+    vector<int> r_0s; 
+    vector<int> followers_set; 
+    
+    if (myfile.is_open()){
+        int line_counter = 0;
 
-    //     int line_counter = 0;
+        while (getline(myfile, line)) {
 
-    //     while (getline(myfile, line)) {
+            stringstream ss(line);
+            string word;
 
-    //         stringstream ss(line);
-    //         string word;
+            if (line_counter == 0) {
+                // sizes
+                // the size (n) will also determine the r_0 to keep it independent of graph density
+                // for now we will set it as r_0 = floor(n * 0.5)
+                while (ss >> word) {
+                    n_temp = stoi(word);
+                    sizes.push_back(n_temp);
+                    r_0_temp = floor(0.5 * n_temp);
+                    r_0s.push_back(r_0_temp);
+                }
+            }
 
-    //         if (line_counter == 0) {
-    //             // sizes
-    //             // the size (n) will also determine the r_0 to keep it independent of graph density
-    //             // for now we will set it as r_0 = floor(n * 0.5)
-    //             while (ss >> word) {
-    //                 n_temp = stoi(word);
-    //                 sizes.push_back(n_temp);
-    //                 r_0_temp = floor(0.5 * n_temp);
-    //                 r_0s.push_back(r_0_temp);
-    //             }
-    //         }
+            else if (line_counter == 1) {
+                // graph names 
+                while (ss >> word) {
+                    graph_names.push_back(word);
+                }
+            }
 
-    //         else if (line_counter == 1) {
-    //             // graph names 
-    //             while (ss >> word) {
-    //                 graph_names.push_back(word);
-    //             }
-    //         }
-
-    //         ++line_counter;
-    //     }
-    // }
+            ++line_counter;
+        }
+    }
 
     // // check the totals are correct
     // // cout << "Number of sizes: " << sizes.size() << endl;
     // // cout << "Number of names: " << graph_names.size() << endl;
     // // cout << "Number of r_0: " << r_0s.size() << endl;
 
-    // 
     // // for (int i = 0; i < sizes.size(); ++i) {
 
     // //     cout << "Graph name: " << graph_names[i] << endl;
@@ -315,14 +313,14 @@ int main()
 
     // // }
 
-    // string outfile = "dat/" + setname + "/outfile2.txt";
-    // string exp_logfile = "dat/" + setname + "/exp_logfile2.csv";
-    // followers_set.push_back(1);
-    // followers_set.push_back(3);
-    // followers_set.push_back(5);
-    // followers_set.push_back(10);
+    string outfile = "dat/" + setname + "/outfile.txt";
+    string exp_logfile = "dat/" + setname + "/exp_logfile.csv";
+    followers_set.push_back(1);
+    followers_set.push_back(3);
+    followers_set.push_back(5);
+    followers_set.push_back(10);
 
-    // comp_exp_M2(sizes, graph_names, r_0s, followers_set, setname, outfile, exp_logfile);
+    comp_exp_M2(sizes, graph_names, r_0s, followers_set, setname, outfile, exp_logfile);
 
     
 
