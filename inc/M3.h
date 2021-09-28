@@ -13,11 +13,16 @@ public:
     int k;
 
     M3ProblemInstance();
-    M3ProblemInstance(const M2ProblemInstance &the_M2, int the_k);
-
+    M3ProblemInstance(M2ProblemInstance &the_M2, int the_k);
 };
 
 
 class M3MIP
 {
+public: 
+    M3ProblemInstance M3;
+    
+    M3MIP();
+    M3MIP(M3ProblemInstance the_M3);
+    vector<vector<int>> solve();
 };

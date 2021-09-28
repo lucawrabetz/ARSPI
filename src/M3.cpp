@@ -27,4 +27,3 @@ void enum_partitions(int k, vector<int>& p, vector<vector<int>>& so_far, vector<
 
     // if k > 1, recursive function
 }
-

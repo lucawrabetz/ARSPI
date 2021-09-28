@@ -49,8 +49,10 @@ public:
 class M2ProblemInstance
 {
     // Full Instance of an M2 problem (a Layer Graph + arc costs and interdiction costs)
+    // EDIT: Will all fit in an M3 instance - just add the k parameter and use k=1 to generate an M2 instance
 public:
     int n;
+    int k;
     int m;
     int p;
     int r_0;
@@ -63,7 +65,7 @@ public:
     LayerGraph G;
 
     M2ProblemInstance();
-    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0, string& the_instance_name, string& the_setname);
+    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_k, int the_r0, string& the_instance_name, string& the_setname);
     void printInstance() const;
     vector<int> Dijkstra(int q);
     void updateCosts(vector<float>& x_bar, bool rev=false);
@@ -73,7 +75,7 @@ public:
 
 class M2ModelLinear
 {
-    // Linear MIP for solving an M2ProblemInstance
+    // Linear MIP for solving an M2ProblemInstance (M2 or M3)
 public:
     int s = 0;
     int n;
@@ -93,9 +95,11 @@ public:
 
     GRBLinExpr linexpr;
 
+    vector<vector<GRBVar>> H; // set partitioning variables ... p vectors of size k, H[q][w] tells us if scenario q is in the kth subset of the partition
+    vector<GRBVar> eta; // eta variable for every q=1,...p
     vector<vector<GRBVar>> pi;     // decision variable;
     vector<vector<GRBVar>> lambda; // decision variable;
-    GRBVar z;                                // decision variable; objective func dummy
+    vector<GRBVar> z;                                // decision variable; objective func dummy (for every w)
     vector<GRBVar> x;                   // decision variable; interdiction variable
     vector<float> x_prime; // float vector for x_final, [0] is objective
 

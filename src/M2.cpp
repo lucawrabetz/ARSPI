@@ -51,8 +51,7 @@ LayerGraph::LayerGraph(const string &filename, int the_n)
 void LayerGraph::printGraph(vector<vector<int>> costs, vector<int> interdiction_costs, bool is_costs) const
 {
     // Print arc summary of a graph, with costs if called from M2 Instance (is_costs)
-    int p = costs.size();
-    cout << "n: " << n << ", m: " << m << ", p: " << p <<  endl;
+    cout << "n: " << n << ", m: " << m << endl;
 
     if (is_costs){
         for (int a = 0; a < m; a++)
@@ -76,7 +75,7 @@ void LayerGraph::printGraph(vector<vector<int>> costs, vector<int> interdiction_
 
 M2ProblemInstance::M2ProblemInstance(){r_0=0;}
 
-M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_r0, string& the_instance_name, string& the_setname)
+M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_k, int the_r0, string& the_instance_name, string& the_setname)
 {
     // ------ Assign graph and random costs ------
     // ------ Variables and int parameters ------
@@ -84,6 +83,7 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     n = G.n;
     m = G.m;
     p = the_p;
+    k = the_k;
     r_0 = the_r0;
     instance_name = the_instance_name;
     setname = the_setname;
@@ -126,7 +126,13 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     // arc_costs.push_back(costs1);
 }
 
-void M2ProblemInstance::printInstance() const {G.printGraph(arc_costs, interdiction_costs, true);}
+void M2ProblemInstance::printInstance() const {
+    // Print Summary of Problem Instance
+
+    cout << "k: " << k << endl;
+    cout << "p: " << p << endl;
+    G.printGraph(arc_costs, interdiction_costs, true);
+}
 
 vector<int> M2ProblemInstance::Dijkstra(int q)
 {
@@ -298,7 +304,10 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
 
         // objective func dummy 'z'
         varname = "z";
-        z = M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
+        
+        for (int w=0; w<k; ++w) {
+            z.push_back(M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname));
+        }
 
         vector<GRBVar> new_vector;
         // post interdiction flow 'pi'
