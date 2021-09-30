@@ -394,17 +394,12 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         int jn; // node j
         int a;
 
-        cout << "m: " << M2Instance->G.m << endl;
         for (int w = 0; w<k; ++w){
             for (int q=0; q<p; ++q){
                 for (i=0; i<n; ++i){
                     for (j=0; j<M2Instance->G.adjacency_list[i].size(); ++j){
                         jn=M2Instance->G.adjacency_list[i][j];
                         a=M2Instance->G.arc_index_hash[i][j];
-
-                        cout << "a: " << a << endl;
-                        cout << "i: " << i << endl;
-                        cout << "j: " << jn << endl;
 
                         // add constraint
                         M2model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[w][a]));
@@ -1003,3 +998,40 @@ vector<float> M2Benders::solve()
     return sep.xprime;
 }
 
+// vector<vector<int>> enum_combs(int a, vector<int>& nums){
+//     // INPUTS:
+//     // a - size of each combination
+//     // nums - nums to pick from
+//     int n = nums.size();
+//     vector<vector<int>> result;
+//     vector<int> temp;
+//     
+//     // base case - a == nums.size() (nums is the only combination)
+//     if (a == n) {
+//         temp = nums;
+//         result.push_back(temp);
+//         return result;
+//     }
+// }
+// 
+// vector<vector<vector<int>>> enum_partitions(int k, vector<int>& p, vector<vector<vector<int>>>& res){
+//     // INPUTS:  
+//     // int k - the number of subsets in every partition
+//     // vector<int> p - the full universe of indexes to choose from (at the top of the recursion tree, 0,1, ... , p)
+//     // vector<vector<vector<int>>>* result - the final vector of partitions, we are working in place 
+// 
+//     vector<int> dummy;
+//     vector<vector<int>> dummy2;
+//     
+//     // base case - k == 1
+//     if (k==1) {
+//         res.push_back(dummy2);
+//         res[i].push_back(p);
+//         return res;
+//     }
+// 
+//     // if k > 1, recursive function
+//     else {
+// 
+//     }
+// }

@@ -196,6 +196,24 @@ int main()
         }
         cout << endl;
     }
+
+    k=1;
+    M2ProblemInstance M22 = M2ProblemInstance(G, 30, 80, p, k, r_0, test, test); 
+    M2ModelLinear M_L2 = M2ModelLinear(&M2);
+    // M2Benders M_B = M2Benders(&M2);
+
+    vector<vector<float>> x_MIP2 = M_L2.solve();
+
+    cout << "objective: " << x_MIP2[0][0] << endl;
+
+    for (int w=1; w<k+1; ++w){
+        cout << "policy " << w << ": ";
+
+        for (int a=0; a<M22.m; ++a){
+            cout << x_MIP2[w][a];
+        }
+        cout << endl;
+    }
     // vector<float> x_bend = M_B.solve();
     // float MIP_obj = x_MIP[0];
     // float bend_obj = x_bend[0];

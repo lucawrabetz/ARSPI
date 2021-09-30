@@ -70,6 +70,8 @@ public:
     vector<int> Dijkstra(int q);
     void updateCosts(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar);
+
+    vector<vector<float>> solveEnum();
 };
 
 
@@ -83,7 +85,7 @@ public:
     int p;
     int k;
     int r_0;
-    int M=200;
+    int M=500;
     float running_time;
     float optimality_gap;
     string instance_name;
