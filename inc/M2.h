@@ -83,7 +83,7 @@ public:
     int p;
     int k;
     int r_0;
-    int M=100;
+    int M=200;
     float running_time;
     float optimality_gap;
     string instance_name;

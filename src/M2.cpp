@@ -424,8 +424,18 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         //     }
         // }
 
-        // pi[0] =0
+        // set-partitioning constraint
+        for (int q=0; q<p; ++q){
+            linexpr=0;
 
+            for (int w=0; w<k; ++w){
+                linexpr+=H[w][q];
+            }
+
+            M2model->addConstr(linexpr == 1);
+        }
+
+        // pi[0] = 0
         for (int w=0; w<k; ++w) {
             for (int q = 0; q < p; q++)
             {
