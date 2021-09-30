@@ -295,64 +295,94 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         // ------ Decision variables ------
         string varname;
 
+        vector<GRBVar> new_vector;
+
+        // set partitioning variables
+        for (int w = 0; w < k; ++w){
+            H.push_back(new_vector);
+            for (int q =0; q<p; ++q){
+                varname = "H_" + to_string(w) + "_" + to_string(q);
+                H[w].push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
+            }
+        }
+
         // interdiction policy on arcs 'x'
-        for (int a = 0; a < m; a++)
-        {
-            varname = "x_" + to_string(a);
-            x.push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
+        for (int w = 0; w < k; ++w) {
+            new_vector = {};
+            x.push_back(new_vector);
+
+            for (int a = 0; a < m; a++)
+            {
+                varname = "x_" + to_string(w) + "_" + to_string(a);
+                x[w].push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
+            }
         }
 
         // objective func dummy 'z'
         varname = "z";
-        
-        for (int w=0; w<k; ++w) {
-            z.push_back(M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname));
-        }
+        z = M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
 
-        vector<GRBVar> new_vector;
+        vector<vector<GRBVar>> newnew_vector;
         // post interdiction flow 'pi'
-        for (int q = 0; q < p; q++)
-        {
-            new_vector = {};
-            pi.push_back(new_vector);
-            for (int i = 0; i < n; i++)
+        for (int w = 0; w<k; ++w){
+            newnew_vector = {};
+            pi.push_back(newnew_vector);
+
+            for (int q = 0; q < p; q++)
             {
-                varname = "pi_" + to_string(q) + "_" + to_string(i);
-                pi[q].push_back(M2model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+                new_vector = {};
+                pi[w].push_back(new_vector);
+
+                for (int i = 0; i < n; i++)
+                {
+                    varname = "pi_" + to_string(w) + "_" + to_string(q) + "_" + to_string(i);
+                    pi[w][q].push_back(M2model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+                }
             }
         }
-
         // arc variable 'lambda'
-        for (int q = 0; q < p; q++)
-        {
-            new_vector = {};
-            lambda.push_back(new_vector);
-            for (int a = 0; a < m; a++)
+        for (int w = 0; w<k; ++w){
+            newnew_vector = {};
+            lambda.push_back(newnew_vector);
+
+            for (int q = 0; q < p; q++)
             {
-                varname = "lambda_" + to_string(q) + "_" + to_string(a);
-                lambda[q].push_back(M2model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+                new_vector = {};
+                lambda[w].push_back(new_vector);
+                
+                for (int a = 0; a < m; a++)
+                {
+                    varname = "lambda_" + to_string(w) + "_"  + to_string(q) + "_" + to_string(a);
+                    lambda[w][q].push_back(M2model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+                }
             }
         }
 
         // ------ Constraints ------
         // budget constraint
-        linexpr = 0;
-        for (int a = 0; a < m; a++)
-        {
-            linexpr += x[a];
+        for (int w = 0; w<k; ++w){
+            linexpr = 0;
+            for (int a = 0; a < m; a++)
+            {
+                linexpr += x[w][a];
+            }
+            M2model->addConstr(linexpr <= r_0);
         }
-        M2model->addConstr(linexpr <= r_0);
 
         // z constraints
-        for (int q = 0; q < p; q++)
-        {
-            linexpr = 0;
-            linexpr += (pi[q][n - 1] - pi[q][s]); // b^\top pi (our b is simply a source-sink single unit of flow)
-            for (int a = 0; a < m; ++a)
+        for (int w = 0; w<k; ++w){
+            for (int q = 0; q < p; q++)
             {
-                linexpr += -lambda[q][a]; // u^\top \cdot lambda (our u is 1)
+                linexpr = 0;
+                linexpr += (pi[w][q][n - 1] - pi[w][q][s]); // b^\top pi (our b is simply a source-sink single unit of flow)
+                for (int a = 0; a < m; ++a)
+                {
+                    linexpr += -lambda[w][q][a]; // u^\top \cdot lambda (our u is 1)
+                }
+
+                linexpr += M * (1 - H[w][q]);
+                M2model->addConstr(z <= linexpr);
             }
-            M2model->addConstr(z <= linexpr);
         }
 
         // main constraint for each arc
@@ -362,19 +392,20 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         int a;
 
         cout << "m: " << M2Instance->G.m << endl;
-        for (int q=0; q<p; ++q){
-            for (i=0; i<n; ++i){
-                for (j=0; j<M2Instance->G.adjacency_list[i].size(); ++j){
-                    jn=M2Instance->G.adjacency_list[i][j];
-                    a=M2Instance->G.arc_index_hash[i][j];
+        for (int w = 0; w<k; ++w){
+            for (int q=0; q<p; ++q){
+                for (i=0; i<n; ++i){
+                    for (j=0; j<M2Instance->G.adjacency_list[i].size(); ++j){
+                        jn=M2Instance->G.adjacency_list[i][j];
+                        a=M2Instance->G.arc_index_hash[i][j];
 
-                    cout << "a: " << a << endl;
-                    cout << "i: " << i << endl;
-                    cout << "j: " << jn << endl;
+                        cout << "a: " << a << endl;
+                        cout << "i: " << i << endl;
+                        cout << "j: " << jn << endl;
 
-                    // add constraint
-                    M2model->addConstr((pi[q][jn] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
-
+                        // add constraint
+                        M2model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[w][a]));
+                    }
                 }
             }
         }
@@ -391,9 +422,12 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         // }
 
         // pi[0] =0
-        for (int q = 0; q < p; q++)
-        {
-            M2model->addConstr(pi[q][0] == 0);
+
+        for (int w=0; w<k; ++w) {
+            for (int q = 0; q < p; q++)
+            {
+                M2model->addConstr(pi[w][q][0] == 0);
+            }
         }
         M2model->update();
 
@@ -414,10 +448,10 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
     }
 }
 
-vector<float> M2ModelLinear::solve()
+vector<vector<float>> M2ModelLinear::solve()
 {
     /*
-     * Returns vector of objective value [0] and interdiction policy [1-m+1]
+     * Returns vector of interdiction policy [0-m] (for every (w) for M3, plus an extra singleton as first element for the objective value)
      * Note: the return values are stored in class variables so unassigned in some compexp runs 
      */
 
@@ -431,15 +465,24 @@ vector<float> M2ModelLinear::solve()
 
         try {
 
+            vector<float> x_vector; 
             optimality_gap = M2model->get(GRB_DoubleAttr_MIPGap);
             // cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
-            x_prime.push_back(M2model->get(GRB_DoubleAttr_ObjVal));
+            
+            vector<float> objective_vec;
+            objective_vec.push_back(M2model->get(GRB_DoubleAttr_ObjVal));
+            x_prime.push_back(objective_vec);
 
-            for (int a = 0; a < m; a++)
-            {
-                // cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
-                          // << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
-                x_prime.push_back(x[a].get(GRB_DoubleAttr_X));
+            for (int w=0; w<k; ++w){
+                x_vector = {};
+
+                for (int a = 0; a < m; a++)
+                {
+                    // cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
+                              // << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
+                    x_vector.push_back(x[w][a].get(GRB_DoubleAttr_X));
+                }
+                x_prime.push_back(x_vector);
             }
         }
 

@@ -171,40 +171,41 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 
 int main()
 {
-    // TESTING VALIDATION BETWEEN BENDERS AND MIP 
+    // TESTING MODELS
     int n=22;
     int p=3;
+    int k=2;
     int r_0=11;
     const string filename = "dat/set1_08-31-21_22_0.4.txt";
     string test = "test";
 
     const LayerGraph G = LayerGraph(filename, n);
-    M2ProblemInstance M2 = M2ProblemInstance(G, 30, 80, p, r_0, test, test); 
+    M2ProblemInstance M2 = M2ProblemInstance(G, 30, 80, p, k, r_0, test, test); 
     M2ModelLinear M_L = M2ModelLinear(&M2);
     M2Benders M_B = M2Benders(&M2);
 
-    vector<float> x_MIP = M_L.solve();
-    vector<float> x_bend = M_B.solve();
-    float MIP_obj = x_MIP[0];
-    float bend_obj = x_bend[0];
+    // vector<vector<float>> x_MIP = M_L.solve();
+    // vector<float> x_bend = M_B.solve();
+    // float MIP_obj = x_MIP[0];
+    // float bend_obj = x_bend[0];
 
-    x_MIP.erase(x_MIP.begin());
-    x_bend.erase(x_bend.begin());
+    // x_MIP.erase(x_MIP.begin());
+    // x_bend.erase(x_bend.begin());
 
-    float MIP_valid_obj = M2.validatePolicy(x_MIP);
-    float bend_valid_obj = M2.validatePolicy(x_bend);
+    // float MIP_valid_obj = M2.validatePolicy(x_MIP);
+    // float bend_valid_obj = M2.validatePolicy(x_bend);
 
     vector<int> sp_temp;
 
-    for (int q=0; q<p; ++q){
-        sp_temp=M2.Dijkstra(q);
-        cout << "SP q=" << q << ": " << sp_temp[0] << endl;
-    }
+    // for (int q=0; q<p; ++q){
+    //     sp_temp=M2.Dijkstra(q);
+    //     cout << "SP q=" << q << ": " << sp_temp[0] << endl;
+    // }
 
-    cout << "mip obj: " << MIP_obj << endl;
-    cout << "benders obj: " << bend_obj << endl;
-    cout << "mip obj from dij: " << MIP_valid_obj << endl;
-    cout << "benders obj from dij: " << bend_valid_obj << endl;
+    // cout << "mip obj: " << MIP_obj << endl;
+    //cout << "benders obj: " << bend_obj << endl;
+    //cout << "mip obj from dij: " << MIP_valid_obj << endl;
+    //cout << "benders obj from dij: " << bend_valid_obj << endl;
 
     // FOR TESTING THE ENUMERATION CODE
     //vector<int> nums;
@@ -326,53 +327,5 @@ int main()
 
 
     // FOR TESTING MODELS
-    //M2ModelLinear M2_L = M2ModelLinear(M2);
-    //M2_L.M2model->write("simplegraph1mip.lp");
 
-    //M2Benders M2_Bend = M2Benders(M2);
-
-    // M2ModelLinear (above) is the equivalent to (17)-(21) in Overleaf
-    // There is no bilenear term in this model
-    // If we want to experiment with the other formulation (6)-(10),
-    // we could have a linear and a bilinear version for that one
-    // currently the class M2ModelBilinear is unstable, it is (6)-(10)
-    // without manual linearization (using gurobi quadratic constraints)
-
-    // M2ModelBilinear M2_BL = M2ModelBilinear(M2);
-    // M2_BL.M2model->write("bilinear.lp");
-    // cout << "\n\n";
-    // cout << "\nSolving Using LINEAR MODEL\n";
-    // running_time = M2_L.solve();
-
-    //cout << "\n\n";
-    //cout << "\nSolving Using LINEAR MODEL\n";
-
-    //x_final_linear = M2_L.solve();
-
-    // printout for the linear model
-    // cout << "\nObjective: " << x_final[0] << "\n";
-    // for (int i = 1; i < n + 1; ++i)
-    // {
-    //     cout << "\nx_" << i - 1 << ": " << x_final[i] << "\n";
-    // }
-
-    //x_final_benders = M2_Bend.solve();
-    //// printout for the benders model
-    //cout << "\nObjective: " << x_final_benders[0] << "\n";
-    //for (int a = 1; a < G.m + 1; ++a)
-    //{
-    //    cout << "\nx_" << a - 1 << ": " << x_final_benders[a] << "\n";
-    //}
-
-    //// cout << "\n\n\n\n\n";
-    //// cout << "\nSolving Using BiLINEAR MODEL\n";
-    //// running_time = M2_BL.solve();
-    //delete M2_L.M2env;
-    //delete M2_L.M2model;
-    //// delete M2_BL.M2env;
-    //// delete M2_BL.M2model;
-    //delete M2_Bend.M2Bendersenv;
-    //delete M2_Bend.M2Bendersmodel;
-
-    //delete M2;
 }

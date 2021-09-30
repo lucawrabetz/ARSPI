@@ -81,7 +81,9 @@ public:
     int n;
     int m;
     int p;
+    int k;
     int r_0;
+    int M=100;
     float running_time;
     float optimality_gap;
     string instance_name;
@@ -95,18 +97,17 @@ public:
 
     GRBLinExpr linexpr;
 
+    GRBVar z; // objective function dummy var - just one!
     vector<vector<GRBVar>> H; // set partitioning variables ... p vectors of size k, H[q][w] tells us if scenario q is in the kth subset of the partition
-    vector<GRBVar> eta; // eta variable for every q=1,...p
-    vector<vector<GRBVar>> pi;     // decision variable;
-    vector<vector<GRBVar>> lambda; // decision variable;
-    vector<GRBVar> z;                                // decision variable; objective func dummy (for every w)
-    vector<GRBVar> x;                   // decision variable; interdiction variable
-    vector<float> x_prime; // float vector for x_final, [0] is objective
+    vector<vector<vector<GRBVar>>> pi;     // decision variable (for every w, q, i)
+    vector<vector<vector<GRBVar>>> lambda; // decision variable (for every w, q, a)
+    vector<vector<GRBVar>> x;                   // decision variable; interdiction variable (for every w, a)
+    vector<vector<float>> x_prime; // float vector for x_final, [0] is objective (for every w, a)
 
     M2ModelLinear();
     M2ModelLinear(M2ProblemInstance *the_M2Instance);
 
-    vector<float> solve();
+    vector<vector<float>> solve();
 };
 
 class BendersSub
