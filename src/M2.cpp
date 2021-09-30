@@ -52,6 +52,7 @@ void LayerGraph::printGraph(vector<vector<int>> costs, vector<int> interdiction_
 {
     // Print arc summary of a graph, with costs if called from M2 Instance (is_costs)
     cout << "n: " << n << ", m: " << m << endl;
+    int p = costs.size();
 
     if (is_costs){
         for (int a = 0; a < m; a++)
@@ -495,12 +496,9 @@ vector<vector<float>> M2ModelLinear::solve()
                 // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
                 optimality_gap = -1;
                 // cout << "Objective: unbounded" << "\n";
-                x_prime.push_back(-GRB_INFINITY);
-
-                for (int a = 0; a < m; a++)
-                {
-                    x_prime.push_back(-1);
-                }
+                vector<float> vec; 
+                vec.push_back(-GRB_INFINITY);
+                x_prime.push_back(vec);
             }
 
             else {

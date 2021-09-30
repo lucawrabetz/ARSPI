@@ -9,7 +9,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
      */ 
 
     // ----- Temporary Variables -----
-    vector<float> MIP_result;
+    vector<vector<float>> MIP_result;
     vector<float> benders_result;
     string instance_name;
     string exp_logline;
@@ -78,7 +78,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             instance_name = to_string(n) + "_" + "p-" + to_string(followers);
 
             // set M2 instance with followers and generate costs 
-            M2 = M2ProblemInstance(G, min, max, followers, r_0, instance_name, setname);
+            M2 = M2ProblemInstance(G, min, max, followers, 1, r_0, instance_name, setname);
 
             // solve with MIP, (set MIP stats: MIP, MIP Gap)
             M2_L = M2ModelLinear(&M2);
@@ -109,7 +109,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             benders_cuts = M2_B.sep.cut_count;
 
             // if MIP and benders have same objective
-            if (abs(MIP_result[0] - benders_result[0]) <= M2_B.sep.epsilon) {objective_correct="true";}
+            if (abs(MIP_result[0][0] - benders_result[0]) <= M2_B.sep.epsilon) {objective_correct="true";}
 
             else {
                 // diagnostics
@@ -119,11 +119,11 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             cout << "hello" << endl;
             for (int a=0; a<G.m+1; ++a){
                 // include objective
-                MIP_policy +=  to_string(MIP_result[a]) + ",";
+                MIP_policy +=  to_string(MIP_result[1][a]) + ",";
                 benders_policy += to_string(benders_result[a]) + ",";
 
                 if (policy_agree){
-                    if (MIP_result[a] != benders_result[a]) {
+                    if (MIP_result[1][a] != benders_result[a]) {
                         policy_agree = false;
                     }
                 }
@@ -131,7 +131,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
             
             cout << "INSTANCE RESULTS: " << endl;
             cout << "Graph, Followers: " << graph_name << ", " << followers << endl;
-            cout << "MIP obj: " << MIP_result[0] << endl;
+            cout << "MIP obj: " << MIP_result[0][0] << endl;
             cout << "Benders obj: " << benders_result[0] << endl;
             
             cout << "MIP running_time: " << MIP_time << endl;
@@ -172,19 +172,30 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 int main()
 {
     // TESTING MODELS
-    int n=22;
-    int p=3;
+    int n=6;
+    int p=4;
     int k=2;
-    int r_0=11;
-    const string filename = "dat/set1_08-31-21_22_0.4.txt";
+    int r_0=2;
+    const string filename = "dat/simplegraph3.txt";
     string test = "test";
 
     const LayerGraph G = LayerGraph(filename, n);
     M2ProblemInstance M2 = M2ProblemInstance(G, 30, 80, p, k, r_0, test, test); 
     M2ModelLinear M_L = M2ModelLinear(&M2);
-    M2Benders M_B = M2Benders(&M2);
+    // M2Benders M_B = M2Benders(&M2);
 
-    // vector<vector<float>> x_MIP = M_L.solve();
+    vector<vector<float>> x_MIP = M_L.solve();
+
+    cout << "objective: " << x_MIP[0][0] << endl;
+
+    for (int w=1; w<k+1; ++w){
+        cout << "policy " << w << endl;
+        cout << endl;
+
+        for (int a=0; a<M2.m; ++a){
+            cout << "x_" << a << ": " << x_MIP[w][a] << endl;
+        }
+    }
     // vector<float> x_bend = M_B.solve();
     // float MIP_obj = x_MIP[0];
     // float bend_obj = x_bend[0];
@@ -195,7 +206,7 @@ int main()
     // float MIP_valid_obj = M2.validatePolicy(x_MIP);
     // float bend_valid_obj = M2.validatePolicy(x_bend);
 
-    vector<int> sp_temp;
+    // vector<int> sp_temp;
 
     // for (int q=0; q<p; ++q){
     //     sp_temp=M2.Dijkstra(q);
