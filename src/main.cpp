@@ -173,7 +173,7 @@ int main()
 {
     // TESTING MODELS
     int n=6;
-    int p=4;
+    int p=3;
     int k=2;
     int r_0=2;
     const string filename = "dat/simplegraph3.txt";
@@ -189,12 +189,12 @@ int main()
     cout << "objective: " << x_MIP[0][0] << endl;
 
     for (int w=1; w<k+1; ++w){
-        cout << "policy " << w << endl;
-        cout << endl;
+        cout << "policy " << w << ": ";
 
         for (int a=0; a<M2.m; ++a){
-            cout << "x_" << a << ": " << x_MIP[w][a] << endl;
+            cout << x_MIP[w][a];
         }
+        cout << endl;
     }
     // vector<float> x_bend = M_B.solve();
     // float MIP_obj = x_MIP[0];

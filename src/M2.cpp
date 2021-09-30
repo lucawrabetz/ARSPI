@@ -282,6 +282,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         n = M2Instance->G.n;
         m = M2Instance->G.m;
         p = M2Instance->p;
+        k = M2Instance->k;
         r_0 = M2Instance->r_0;
         instance_name = M2Instance->instance_name;
         setname = M2Instance->setname;
@@ -290,7 +291,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         M2env = new GRBEnv();
         M2model = new GRBModel(*M2env);
 
-        M2model->set(GRB_IntParam_OutputFlag, 0);
+        // M2model->set(GRB_IntParam_OutputFlag, 0);
         M2model->set(GRB_DoubleParam_TimeLimit, 3600);
 
         // ------ Decision variables ------
@@ -300,6 +301,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
 
         // set partitioning variables
         for (int w = 0; w < k; ++w){
+            cout << "in model constructor" << endl;
             H.push_back(new_vector);
             for (int q =0; q<p; ++q){
                 varname = "H_" + to_string(w) + "_" + to_string(q);
@@ -460,9 +462,13 @@ vector<vector<float>> M2ModelLinear::solve()
     {
         // cout << "In MIP.solve() method" << endl;
 
+        cout << "in solve" << endl;
+
         clock_t model_begin = clock();
         M2model->optimize();
         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
+
+        cout << "just optimized" << endl;
 
         try {
 
