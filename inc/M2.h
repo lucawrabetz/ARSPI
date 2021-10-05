@@ -70,8 +70,6 @@ public:
     vector<int> Dijkstra(int q);
     void updateCosts(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar);
-
-    vector<vector<float>> solveEnum();
 };
 
 
@@ -212,3 +210,5 @@ public:
     M2Benders(M2ProblemInstance *the_M2Instance);
     vector<float> solve();
 };
+
+vector<vector<vector<int>>> enumSolve(M2ProblemInstance& M2);

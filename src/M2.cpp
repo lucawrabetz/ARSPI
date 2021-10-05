@@ -1014,24 +1014,40 @@ vector<float> M2Benders::solve()
 //     }
 // }
 // 
-// vector<vector<vector<int>>> enum_partitions(int k, vector<int>& p, vector<vector<vector<int>>>& res){
-//     // INPUTS:  
-//     // int k - the number of subsets in every partition
-//     // vector<int> p - the full universe of indexes to choose from (at the top of the recursion tree, 0,1, ... , p)
-//     // vector<vector<vector<int>>>* result - the final vector of partitions, we are working in place 
-// 
-//     vector<int> dummy;
-//     vector<vector<int>> dummy2;
-//     
-//     // base case - k == 1
-//     if (k==1) {
-//         res.push_back(dummy2);
-//         res[i].push_back(p);
-//         return res;
-//     }
-// 
-//     // if k > 1, recursive function
-//     else {
-// 
-//     }
-// }
+vector<vector<vector<int>>> enumSolve(M2ProblemInstance& M2){
+    // Pass a M2ProblemInstance and solve using enumeration algorithm
+    // Initialize and maintain an H matrix representing partitioning 
+    // Enumerate all possible partitions by enumerating H matrix
+
+    // ints 
+    int k = M2.k;
+    int p = M2.p;
+    int m = M2.G.m;
+    
+    // initialize partitioning matrix
+    vector<int> p_vec(p, 0);
+    vector<vector<int>> H(k, p_vec);
+
+    // initialize solution vector
+    vector<int> arc_vec(m, 0);
+    vector<vector<int>> p_arc_vec(p, arc_vec);
+    vector<vector<vector<int>>> sol(k, p_arc_vec);;
+
+    cout << "[";
+    for (int w=0; w<k; ++w) {
+        cout << "[";
+        for (int q=0; q<p; ++q){
+            cout << H[w][q]<<",";
+        }
+        cout << "]" << endl;
+    }
+    
+    // for (int w=0; w<k; ++w) {
+    //     for (int q=0; q<p; ++q){
+    //         for (int a=0; a<m; ++a){
+    //         }
+    //     }
+    // }
+
+    return sol;
+}
