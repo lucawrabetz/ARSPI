@@ -48,7 +48,7 @@ LayerGraph::LayerGraph(const string &filename, int the_n)
     }
 }
 
-void LayerGraph::printGraph(vector<vector<int>> costs, vector<int> interdiction_costs, bool is_costs) const
+void LayerGraph::printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs) const
 {
     // Print arc summary of a graph, with costs if called from M2 Instance (is_costs)
     cout << "n: " << n << ", m: " << m << endl;
@@ -310,22 +310,23 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         }
 
         // interdiction policy on arcs 'x'
-        for (int w = 0; w < k; ++w) {
-            new_vector = {};
-            x.push_back(new_vector);
+        x = vector<vector<GRBVar> >(k, vector<GRBVar>(m, M2model->addVar(0, 1, 0, GRB_BINARY)));
+//        for (int w = 0; w < k; ++w) {
+         //   new_vector = {};
+         //   x.push_back(new_vector);
 
-            for (int a = 0; a < m; a++)
-            {
-                varname = "x_" + to_string(w) + "_" + to_string(a);
-                x[w].push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
-            }
-        }
+         //   for (int a = 0; a < m; a++)
+         //   {
+         //       varname = "x_" + to_string(w) + "_" + to_string(a);
+         //       x[w].push_back());
+         //   }
+         //   }
+        //
 
         // objective func dummy 'z'
-        varname = "z";
-        z = M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
+        z = M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
 
-        vector<vector<GRBVar>> newnew_vector;
+        vector<vector<GRBVar> > newnew_vector;
         // post interdiction flow 'pi'
         for (int w = 0; w<k; ++w){
             newnew_vector = {};
@@ -998,32 +999,63 @@ vector<float> M2Benders::solve()
     return sep.xprime;
 }
 
-// vector<vector<int>> enum_combs(int a, vector<int>& nums){
-//     // INPUTS:
-//     // a - size of each combination
-//     // nums - nums to pick from
-//     int n = nums.size();
-//     vector<vector<int>> result;
-//     vector<int> temp;
-//     
-//     // base case - a == nums.size() (nums is the only combination)
-//     if (a == n) {
-//         temp = nums;
-//         result.push_back(temp);
-//         return result;
-//     }
-// }
-// 
+vector<int> initKappa(int p, int k) {
+    // initialize partition vector based on total number in set (p) and exact number of partitions required
+    vector<int> kappa(p, 0);
+
+    for (int q=(p-k+1); q<p; ++q){
+        kappa[q]=(q-(p-k));
+    }
+
+    return kappa;
+}
+
+int max_int(int a, int b){
+    if (a <= b) {return b;}
+    else {return a;}
+}
+
+bool nextKappa(vector<int>& kappa, vector<int>& max, int k, int p){
+    // update kappa and max place to next partition
+    // if this is the last one, return false
+    
+    for (int q=(p-1); q>0; --q){
+        if ((kappa[q] < k-1) && (kappa[q] <= max[q-1])){
+            ++kappa[q]; max[q] = max_int(max[q], kappa[q]);
+
+            for (int u=q+1; u<=(p-(k-max[q])); ++u){
+                kappa[u]=0; max[u]=max[q];
+            }
+
+            for (int u=(p-(k-max[q])); u<p; ++u){
+                kappa[u] = (k-(p-u));
+                max[u] = kappa[u];
+            }
+
+            return true;
+        }
+    }
+    return false;
+}
+
 vector<vector<vector<int>>> enumSolve(M2ProblemInstance& M2){
     // Pass a M2ProblemInstance and solve using enumeration algorithm
     // Initialize and maintain an H matrix representing partitioning 
     // Enumerate all possible partitions by enumerating H matrix
+    // Enumeration is done through the 'string' method, and then the H matrix/problem instance are updated (??)
 
-    // ints 
+    // ints and bool
     int k = M2.k;
     int p = M2.p;
     int m = M2.G.m;
+    bool next = true;
     
+    // initialize partitioning 'string' vector as in Orlov Paper 
+    // initialize corresponding max vector 
+    vector<int> kappa = initKappa(p, k);
+    vector<int> max = kappa;
+
+
     // initialize partitioning matrix
     vector<int> p_vec(p, 0);
     vector<vector<int>> H(k, p_vec);
@@ -1031,23 +1063,19 @@ vector<vector<vector<int>>> enumSolve(M2ProblemInstance& M2){
     // initialize solution vector
     vector<int> arc_vec(m, 0);
     vector<vector<int>> p_arc_vec(p, arc_vec);
-    vector<vector<vector<int>>> sol(k, p_arc_vec);;
+    vector<vector<vector<int>>> sol(k, p_arc_vec);
 
-    cout << "[";
-    for (int w=0; w<k; ++w) {
-        cout << "[";
-        for (int q=0; q<p; ++q){
-            cout << H[w][q]<<",";
-        }
+    // enumerate while not 'failing' to get next partition
+    while (next) {
+        cout << "[ ";
+        for (int q=0; q<p; ++q){cout << kappa[q] << " ";}
         cout << "]" << endl;
+        next = nextKappa(kappa, max, k, p);
+
+        // everything else in the the algorithm based on M2 and the partition here !
     }
-    
-    // for (int w=0; w<k; ++w) {
-    //     for (int q=0; q<p; ++q){
-    //         for (int a=0; a<m; ++a){
-    //         }
-    //     }
-    // }
+
+
 
     return sol;
 }
