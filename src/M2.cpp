@@ -457,7 +457,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
     }
 }
 
-vector<vector<float>> M2ModelLinear::solve()
+vector<vector<float> > M2ModelLinear::solve()
 {
     /*
      * Returns vector of interdiction policy [0-m] (for every (w) for M3, plus an extra singleton as first element for the objective value)
@@ -666,12 +666,12 @@ void BendersSub::update(vector<int> &xhat)
     }
 }
 
-vector<vector<float>> BendersSub::solve(int counter)
+vector<vector<float> > BendersSub::solve(int counter)
 {
     try
     {
         // yhat has q elements - each one has m+1 elements (first is the objective, rest is the flow)
-        vector<vector<float>> yhat;
+        vector<vector<float> > yhat;
 
         for (int q = 0; q < p; ++q)
         {
@@ -831,11 +831,7 @@ void BendersSeparation::callback()
     }
 }
 
-M2Benders::M2Benders()
-{
-    int n = 0;
-    int m = 0;
-}
+M2Benders::M2Benders(){int n, m=0;}
 
 M2Benders::M2Benders(M2ProblemInstance *the_M2Instance)
 {
@@ -1010,6 +1006,12 @@ vector<int> initKappa(int p, int k) {
     return kappa;
 }
 
+RobustAlgoModel::RobustAlgoModel(){int n, m=0;}
+
+RobustAlgoModel::RobustAlgoModel(M2ProblemInstance& M2) {
+
+}
+
 int max_int(int a, int b){
     if (a <= b) {return b;}
     else {return a;}
@@ -1021,13 +1023,20 @@ bool nextKappa(vector<int>& kappa, vector<int>& max, int k, int p){
     
     for (int q=(p-1); q>0; --q){
         if ((kappa[q] < k-1) && (kappa[q] <= max[q-1])){
+            
+            //cout << "q = " << q << endl; 
+
             ++kappa[q]; max[q] = max_int(max[q], kappa[q]);
 
             for (int u=q+1; u<=(p-(k-max[q])); ++u){
+                //cout << "first half pass loop" << endl;
+                //cout << "u: " << u << endl;
                 kappa[u]=0; max[u]=max[q];
             }
 
-            for (int u=(p-(k-max[q])); u<p; ++u){
+            for (int u=(p-(k-max[q]))+1; u<p; ++u){
+                // cout << "second half pass loop" << endl;
+                // cout << "u: " << u << endl;
                 kappa[u] = (k-(p-u));
                 max[u] = kappa[u];
             }
@@ -1038,7 +1047,20 @@ bool nextKappa(vector<int>& kappa, vector<int>& max, int k, int p){
     return false;
 }
 
-vector<vector<vector<int>>> enumSolve(M2ProblemInstance& M2){
+vector<vector<int> > kappa_to_partition(vector<int>& kappa, int k, int p){
+    // convert a kappa vector to a partition of subsets
+    vector<int> subset;
+    vector<vector<int> > partition(k, subset);
+
+    for (int q=0; q<p; ++q) {
+        int subset_index = kappa[q];
+        partition[subset_index].push_back(q);
+    }
+
+    return partition;
+}
+
+vector<vector<vector<int> > > enumSolve(M2ProblemInstance& M2){
     // Pass a M2ProblemInstance and solve using enumeration algorithm
     // Initialize and maintain an H matrix representing partitioning 
     // Enumerate all possible partitions by enumerating H matrix
@@ -1052,30 +1074,47 @@ vector<vector<vector<int>>> enumSolve(M2ProblemInstance& M2){
     
     // initialize partitioning 'string' vector as in Orlov Paper 
     // initialize corresponding max vector 
+    vector<M2ModelLinear> mips(k, M2ModelLinear());
     vector<int> kappa = initKappa(p, k);
     vector<int> max = kappa;
 
-
     // initialize partitioning matrix
     vector<int> p_vec(p, 0);
-    vector<vector<int>> H(k, p_vec);
+    vector<vector<int> > H(k, p_vec);
 
     // initialize solution vector
     vector<int> arc_vec(m, 0);
-    vector<vector<int>> p_arc_vec(p, arc_vec);
-    vector<vector<vector<int>>> sol(k, p_arc_vec);
+    vector<vector<int> > p_arc_vec(p, arc_vec);
+    vector<vector<vector<int> > > sol(k, p_arc_vec);
+
+    // objective value maintained here
+    double best_worstcase_solution = 0;
 
     // enumerate while not 'failing' to get next partition
     while (next) {
+        // everything else in the the algorithm based on M2 and the partition here !
+        vector<vector<vector<int> > > temp_sol(k, p_arc_vec);
+        double temp_worst_sol = DBL_MAX;
+
+        for (int w=0; w<k; ++w) {
+            // for every subset in partition, solve M2 for k=1
+
+            // update temp_worst_sol if this subset is worse
+        }
+
+        if (temp_worst_sol > best_worstcase_solution) {
+            best_worstcase_solution = temp_worst_sol; 
+            sol = temp_sol;
+        }
+
+        cout << "next: " << next << endl;
         cout << "[ ";
         for (int q=0; q<p; ++q){cout << kappa[q] << " ";}
         cout << "]" << endl;
         next = nextKappa(kappa, max, k, p);
-
-        // everything else in the the algorithm based on M2 and the partition here !
     }
 
-
+    cout << "next: " << next << endl;
 
     return sol;
 }

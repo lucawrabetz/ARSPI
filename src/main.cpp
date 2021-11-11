@@ -1,4 +1,4 @@
-#include "../inc/M3.h"
+#include "../inc/M2.h"
 
 void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r_0s, vector<int>& followers_set, string& setname, string& outfile, string& experiment_logfile) {
     /*
@@ -9,7 +9,7 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
      */ 
 
     // ----- Temporary Variables -----
-    vector<vector<float>> MIP_result;
+    vector<vector<float> > MIP_result;
     vector<float> benders_result;
     string instance_name;
     string exp_logline;
@@ -173,7 +173,7 @@ int main()
 {
     // TESTING MODELS
     int n=6;
-    int p=3;
+    int p=4;
     int k=2;
     int r_0=2;
     const string filename = "dat/simplegraph3.txt";
@@ -186,7 +186,7 @@ int main()
     // M2ModelLinear M_L = M2ModelLinear(&M2);
     // // M2Benders M_B = M2Benders(&M2);
 
-    // vector<vector<float>> x_MIP = M_L.solve();
+    // vector<vector<float> > x_MIP = M_L.solve();
 
     // cout << "objective: " << x_MIP[0][0] << endl;
 
@@ -204,7 +204,7 @@ int main()
     // M2ModelLinear M_L2 = M2ModelLinear(&M2);
     // // M2Benders M_B = M2Benders(&M2);
 
-    // vector<vector<float>> x_MIP2 = M_L2.solve();
+    // vector<vector<float> > x_MIP2 = M_L2.solve();
 
     // cout << "objective: " << x_MIP2[0][0] << endl;
 
@@ -240,7 +240,7 @@ int main()
 
     // FOR TESTING THE ENUMERATION CODE
     //vector<int> nums;
-    //vector<vector<int>> result;
+    //vector<vector<int> > result;
     //nums.push_back(0);
     //nums.push_back(1);
     //nums.push_back(2);
@@ -265,7 +265,7 @@ int main()
     // TESTING DIJSKTRA 
     // int n=6;
     // const string filename = "dat/simplegraph3.txt";
-    // vector<vector<int>> empty_vector1;
+    // vector<vector<int> > empty_vector1;
     // vector<int> empty_vector2;
     // cout << "hello 0" << endl;
 

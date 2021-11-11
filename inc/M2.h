@@ -1,5 +1,6 @@
 #pragma once
 #include <time.h>
+#include <float.h>
 #include <fstream>
 #include <string>
 #include <sstream>
@@ -36,14 +37,14 @@ public:
     // arc_index_hash maintains a linked list representation with indexes 
     // to the corresponding arc in the 0-(m-1) vectors, for example the cost
     // or arc object vectors
-    vector<vector<int>> arc_index_hash;
-    vector<vector<int>> adjacency_list;
-    vector<vector<int>> n_n_adjacency_list;
+    vector<vector<int> > arc_index_hash;
+    vector<vector<int> > adjacency_list;
+    vector<vector<int> > n_n_adjacency_list;
 
     LayerGraph();
     LayerGraph(const string &filename, int the_n);
     void updateGraph(vector<int>& x_bar, bool rev=false);
-    void printGraph(vector<vector<int>> costs, vector<int> interdiction_costs, bool is_costs=false) const;
+    void printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs=false) const;
 };
 
 class M2ProblemInstance
@@ -59,7 +60,7 @@ public:
     string instance_name;
     string setname;
 
-    vector<vector<int>> arc_costs;
+    vector<vector<int> > arc_costs;
     vector<int> interdiction_costs;
 
     LayerGraph G;
@@ -70,6 +71,31 @@ public:
     vector<int> Dijkstra(int q);
     void updateCosts(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar);
+};
+ 
+class RobustAlgoModel
+{
+    // Special Purpose Model for the Enumerative Algorithm - Static Robust Dual Reformulation
+public:
+    // This data will stay throughout the algorithm (all decision variables and non-negativity constraints):
+    const int s = 0; 
+    int n; 
+    int m;
+    int p;
+    int r_0;
+
+    GRBEnv *AlgoEnv;
+    GRBModel *AlgoModel;
+
+    GRBVar z;
+    vector<vector<GRBVar> > pi; // decision variable (for every q, i)
+    vector<vector<GRBVar> > lambda; // decision variable (for every q, a)
+    vector<GRBVar> x; // interdiction decision variable (for every a)
+
+    // constraints will be added in update based on the subset of [p] that we want to include
+    RobustAlgoModel();
+    RobustAlgoModel(M2ProblemInstance& M2);
+    void update(vector<int>& subset, vector<GRBLinExpr>& z_constraints, vector<vector<GRBLinExpr> >& dual_constraints);
 };
 
 
@@ -98,16 +124,15 @@ public:
     GRBLinExpr linexpr;
 
     GRBVar z; // objective function dummy var - just one!
-    vector<vector<GRBVar>> H; // set partitioning variables ... p vectors of size k, H[q][w] tells us if scenario q is in the kth subset of the partition
-    vector<vector<vector<GRBVar>>> pi;     // decision variable (for every w, q, i)
-    vector<vector<vector<GRBVar>>> lambda; // decision variable (for every w, q, a)
-    vector<vector<GRBVar>> x;                   // decision variable; interdiction variable (for every w, a)
-    vector<vector<float>> x_prime; // float vector for x_final, [0] is objective (for every w, a)
+    vector<vector<GRBVar> > H; // set partitioning variables ... p vectors of size k, H[q][w] tells us if scenario q is in the kth subset of the partition
+    vector<vector<vector<GRBVar> > > pi;     // decision variable (for every w, q, i)
+    vector<vector<vector<GRBVar> > > lambda; // decision variable (for every w, q, a)
+    vector<vector<GRBVar> > x;                   // decision variable; interdiction variable (for every w, a)
+    vector<vector<float> > x_prime; // float vector for x_final, [0] is objective (for every w, a)
 
     M2ModelLinear();
     M2ModelLinear(M2ProblemInstance *the_M2Instance);
-
-    vector<vector<float>> solve();
+    vector<vector<float> > solve();
 };
 
 class BendersSub
@@ -119,18 +144,18 @@ public:
     vector<GRBEnv *> Subenvs;
     vector<GRBModel *> Submodels;
 
-    vector<vector<int>> c_bar; // this is the current objective function cost vector
+    vector<vector<int> > c_bar; // this is the current objective function cost vector
     // i.e. - the objective function is c_bar \cdot y
     // computed during solution tree based on graph costs (c^q and d) and the current
     // x_bar from the master problem
 
-    vector<vector<int>> c; // base costs
+    vector<vector<int> > c; // base costs
     vector<int> d;              // interdiction costs
 
     GRBConstr *obj_constr;              // array of constraints for the objective lower bounding constraints over the qs
                                         // need this as an array to update it
     vector<GRBVar> zeta_subs;      // dummy objective function variable because we have to argmin over q
-    vector<vector<GRBVar>> y; // main decision variable - arc path selection/flow (one y vector for every q)
+    vector<vector<GRBVar> > y; // main decision variable - arc path selection/flow (one y vector for every q)
     vector<GRBVar> y_dummy;        // just to construct and push_back y
     vector<float> y_dummy2;        // just to construct and push_back yhat
     GRBLinExpr linexpr;                 // when adding the flow constraints, we use this one for outgoing arcs
@@ -140,7 +165,7 @@ public:
 
     BendersSub();
     BendersSub(M2ProblemInstance *the_M2Instance);
-    vector<vector<float>> solve(int counter); // now returns a vector of vectors of size p+1, where the first is a singleton with the obj value
+    vector<vector<float> > solve(int counter); // now returns a vector of vectors of size p+1, where the first is a singleton with the obj value
     void update(vector<int> &xhat);
 };
 
@@ -153,7 +178,7 @@ public:
     int counter = 0;
     int cut_count = 0;
 
-    vector<vector<int>> c; // base costs
+    vector<vector<int> > c; // base costs
     vector<int> d;              // interdiction costs
 
     // a hat vector is numbers, a bar vector is GRBVars
@@ -162,7 +187,7 @@ public:
     vector<GRBVar> xbar;             // 'connecting' GRBVars for x
     vector<int> xhat;                // current xhat to solve with, i.e. interdiction policy we are subject to
     vector<float> xprime;            // current best interdiction policy (includes extra x[0] for obj)
-    vector<vector<float>> yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[q][0] for objective for each q), it is of size p (vectors), first element of each flow is the objective
+    vector<vector<float> > yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[q][0] for objective for each q), it is of size p (vectors), first element of each flow is the objective
 
     BendersSub subproblem;
 
@@ -211,4 +236,4 @@ public:
     vector<float> solve();
 };
 
-vector<vector<vector<int>>> enumSolve(M2ProblemInstance& M2);
+vector<vector<vector<int> > > enumSolve(M2ProblemInstance& M2);
