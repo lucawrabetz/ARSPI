@@ -1,4 +1,5 @@
 #pragma once
+#include <utility>
 #include <time.h>
 #include <float.h>
 #include <fstream>
@@ -7,6 +8,8 @@
 #include <random>
 #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
+using std::pair;
+using std::make_pair;
 using std::stringstream;
 using std::endl;
 using std::cout;
@@ -93,9 +96,15 @@ public:
     vector<GRBVar> x; // interdiction decision variable (for every a)
 
     // constraints will be added in update based on the subset of [p] that we want to include
+    // hold on to linexpr for all constraints
+    vector<GRBTempConstr> z_constraints; 
+    vector<vector<GRBTempConstr> > dual_constraints;
+
     RobustAlgoModel();
     RobustAlgoModel(M2ProblemInstance& M2);
-    void update(vector<int>& subset, vector<GRBLinExpr>& z_constraints, vector<vector<GRBLinExpr> >& dual_constraints);
+    void update(vector<int>& subset);
+    void reverse_update(vector<int>& subset);
+    vector<double> solve(); // returns solution value at 0, arc interdiction policy at 1-m
 };
 
 
@@ -236,4 +245,4 @@ public:
     vector<float> solve();
 };
 
-vector<vector<vector<int> > > enumSolve(M2ProblemInstance& M2);
+pair<vector<vector<int> >, vector<vector<double> > > enumSolve(M2ProblemInstance& M2);

@@ -129,7 +129,6 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
 
 void M2ProblemInstance::printInstance() const {
     // Print Summary of Problem Instance
-
     cout << "k: " << k << endl;
     cout << "p: " << p << endl;
     G.printGraph(arc_costs, interdiction_costs, true);
@@ -1009,7 +1008,102 @@ vector<int> initKappa(int p, int k) {
 RobustAlgoModel::RobustAlgoModel(){int n, m=0;}
 
 RobustAlgoModel::RobustAlgoModel(M2ProblemInstance& M2) {
+    // Construct baseline model with no constraints
+    n = M2.n;
+    m = M2.m;
+    p = M2.p;
+    r_0 = M2.r_0;
+    AlgoEnv = new GRBEnv();
+    AlgoModel = new GRBModel(*AlgoEnv);
 
+    // Decision Variables
+    z = AlgoModel->addVar(0, GRB_INFINITY, 1, GRB_CONTINUOUS);
+    x = vector<GRBVar>(m, AlgoModel->addVar(0, 1, 0, GRB_BINARY));
+    pi = vector<vector<GRBVar> >(p, vector<GRBVar>(n, AlgoModel->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS)));
+    lambda = vector<vector<GRBVar> >(p, vector<GRBVar>(m, AlgoModel->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS)));
+
+    // Populate Global Constraints
+    // Arc/Dual Constraints
+    for (int q=0; q<p; ++q){
+        dual_constraints.push_back(vector<GRBTempConstr>());
+
+        for (int i=0; i<n; ++i) {
+            for (int j=0; j<M2.G.adjacency_list[i].size(); ++j){
+                int next = M2.G.adjacency_list[i][j];
+                int a = M2.G.arc_index_hash[i][j];
+
+                GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= M2.arc_costs[q][a] + (M2.interdiction_costs[a]*x[a]);
+                dual_constraints[q].push_back(constraint);
+            }
+        }
+    }
+
+    // Objective Constraints
+    for (int q=0; q<p; ++q) {
+        GRBLinExpr linexpr = 0;
+        linexpr += (pi[q][n-1] - pi[q][s]); // b^\top pi
+
+        for (int a=0; a<m; ++a){
+            linexpr += -lambda[q][a]; // u^\top \cdot lambda
+        }
+
+        z_constraints.push_back(z <= linexpr);
+    }
+}
+
+void RobustAlgoModel::update(vector<int>& subset) {
+    // add constraints to model for subset in partition
+    for (int q : subset) {
+        string zero_name = "zero_" + to_string(q);
+        string z_name = "z_" + to_string(q);
+        AlgoModel->addConstr(pi[q][0]==0, zero_name);
+        AlgoModel->addConstr(z_constraints[q], z_name);
+
+        int a = 0;
+        for (GRBTempConstr constraint : dual_constraints[q]) {
+            string dual_name = "dual_" + to_string(q) + "_" + to_string(a);
+            AlgoModel->addConstr(constraint, dual_name);
+            ++a;
+        }
+    }
+    
+    AlgoModel->update();
+}
+
+void RobustAlgoModel::reverse_update(vector<int>& subset) {
+    // remove all constraints from model - i.e. all constraints associated with this subset
+    for (int q : subset) {
+        string zero_name = "zero_" + to_string(q);
+        string z_name = "z_" + to_string(q);
+
+        GRBConstr zero_constraint = AlgoModel->getConstrByName(zero_name);
+        GRBConstr z_constraint = AlgoModel->getConstrByName(z_name);
+        AlgoModel->remove(zero_constraint);
+        AlgoModel->remove(z_constraint);
+
+        int a = 0;
+        for (GRBTempConstr constraint : dual_constraints[q]) {
+            string dual_name = "dual_" + to_string(q) + "_" + to_string(a);
+            GRBConstr dual_constraint = AlgoModel->getConstrByName(dual_name);
+            AlgoModel->remove(dual_constraint);
+            ++a;
+        }
+    }
+
+    AlgoModel->update();
+}
+
+vector<double> RobustAlgoModel::solve() {
+    // solve static model, return policy and objective value
+    AlgoModel->optimize();
+    vector<double> sol(m+1, 0);
+    
+    sol[0] = AlgoModel->get(GRB_DoubleAttr_ObjVal);
+    for (int a=1; a<m+1; ++a) {
+        sol[a] = x[a].get(GRB_DoubleAttr_X);
+    }
+
+    return sol;
 }
 
 int max_int(int a, int b){
@@ -1060,11 +1154,14 @@ vector<vector<int> > kappa_to_partition(vector<int>& kappa, int k, int p){
     return partition;
 }
 
-vector<vector<vector<int> > > enumSolve(M2ProblemInstance& M2){
+pair<vector<vector<int> >, vector<vector<double> > > enumSolve(M2ProblemInstance& M2){
     // Pass a M2ProblemInstance and solve using enumeration algorithm
     // Initialize and maintain an H matrix representing partitioning 
     // Enumerate all possible partitions by enumerating H matrix
     // Enumeration is done through the 'string' method, and then the H matrix/problem instance are updated (??)
+    // Return: pair of nested vectors:
+    //      first: ints - optimal partition
+    //      second: doubles - k interdiction policies
 
     // ints and bool
     int k = M2.k;
@@ -1074,47 +1171,65 @@ vector<vector<vector<int> > > enumSolve(M2ProblemInstance& M2){
     
     // initialize partitioning 'string' vector as in Orlov Paper 
     // initialize corresponding max vector 
-    vector<M2ModelLinear> mips(k, M2ModelLinear());
     vector<int> kappa = initKappa(p, k);
     vector<int> max = kappa;
 
-    // initialize partitioning matrix
-    vector<int> p_vec(p, 0);
-    vector<vector<int> > H(k, p_vec);
-
     // initialize solution vector
-    vector<int> arc_vec(m, 0);
-    vector<vector<int> > p_arc_vec(p, arc_vec);
-    vector<vector<vector<int> > > sol(k, p_arc_vec);
+    vector<double> arc_vec(m, 0);
+    vector<vector<double> > sol(k, arc_vec);
 
-    // objective value maintained here
-    double best_worstcase_solution = 0;
+    // initialize static robust model
+    try {
+        RobustAlgoModel static_robust = RobustAlgoModel(M2);
 
-    // enumerate while not 'failing' to get next partition
-    while (next) {
-        // everything else in the the algorithm based on M2 and the partition here !
-        vector<vector<vector<int> > > temp_sol(k, p_arc_vec);
-        double temp_worst_sol = DBL_MAX;
+        // objective value maintained here (and optimal partition)
+        double best_worstcase_solution = 0;
+        vector<vector<int> > best_worstcase_partition; 
 
-        for (int w=0; w<k; ++w) {
-            // for every subset in partition, solve M2 for k=1
+        // enumerate while not 'failing' to get next partition
+        while (next) {
+            vector<vector<double> > temp_sol(k, arc_vec);
+            double temp_worst_sol = DBL_MAX;
+            vector<vector<int> > partition = kappa_to_partition(kappa, k, p);
 
-            // update temp_worst_sol if this subset is worse
-        }
+            for (int w=0; w<k; ++w) {
+                // for every subset in partition, solve M2 for k=1
+                static_robust.update(partition[w]);
+                vector<double> temp_single_solution = static_robust.solve();
+                static_robust.reverse_update(partition[w]);
 
-        if (temp_worst_sol > best_worstcase_solution) {
-            best_worstcase_solution = temp_worst_sol; 
-            sol = temp_sol;
+                // update temp_worst_sol if this subset is worse
+                if (temp_single_solution[0] < temp_worst_sol) {temp_worst_sol = temp_single_solution[0];}
+            }
+
+            if (temp_worst_sol > best_worstcase_solution) {
+                best_worstcase_solution = temp_worst_sol; 
+                sol = temp_sol;
+                best_worstcase_partition = partition;
+            }
+
+            cout << "next: " << next << endl;
+            cout << "[ ";
+            for (int q=0; q<p; ++q){cout << kappa[q] << " ";}
+            cout << "]" << endl;
+            next = nextKappa(kappa, max, k, p);
         }
 
         cout << "next: " << next << endl;
-        cout << "[ ";
-        for (int q=0; q<p; ++q){cout << kappa[q] << " ";}
-        cout << "]" << endl;
-        next = nextKappa(kappa, max, k, p);
+
+        auto final_solution = make_pair(best_worstcase_partition, sol);
+        return final_solution;
+    }
+    catch (GRBException e) {
+        cout << "Gurobi error number [EnumSolve]: " << e.getErrorCode() << endl;
+        cout << e.getMessage() << endl;
+    }
+    catch (...) {
+        cout << "Non Gurobi error during construction of static robust model object" << endl;
     }
 
-    cout << "next: " << next << endl;
-
-    return sol;
+    vector<vector<int> > vec1;
+    vector<vector<double> > vec2;
+    auto dummy_solution = make_pair(vec1, vec2);
+    return dummy_solution;
 }

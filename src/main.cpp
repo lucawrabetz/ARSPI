@@ -182,7 +182,7 @@ int main()
     const LayerGraph G = LayerGraph(filename, n);
     M2ProblemInstance M2 = M2ProblemInstance(G, 30, 80, p, k, r_0, test, test); 
     
-    enumSolve(M2);
+    auto final_solution = enumSolve(M2);
     // M2ModelLinear M_L = M2ModelLinear(&M2);
     // // M2Benders M_B = M2Benders(&M2);
 

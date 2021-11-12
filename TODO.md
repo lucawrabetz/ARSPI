@@ -13,6 +13,7 @@
     * adjacency matrix 
     * dijkstra's 
 - [ ] Better implementation of Dijkstra (priority queue) if it will be used 
+- [ ] return values of solver calls - for dense graphs the interdiction policy is memory intensive, consider revising all of it for a sparse representation
 
 
 ## Low Priority
