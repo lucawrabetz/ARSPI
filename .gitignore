@@ -32,7 +32,8 @@
 *.app
 
 # Model Files
+*.lp
 modelfiles/
 
-# Graph files 
+# Graph files
 dat/

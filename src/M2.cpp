@@ -309,18 +309,17 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         }
 
         // interdiction policy on arcs 'x'
-        x = vector<vector<GRBVar> >(k, vector<GRBVar>(m, M2model->addVar(0, 1, 0, GRB_BINARY)));
-//        for (int w = 0; w < k; ++w) {
-         //   new_vector = {};
-         //   x.push_back(new_vector);
+        // x = vector<vector<GRBVar> >(k, vector<GRBVar>(m, M2model->addVar(0, 1, 0, GRB_BINARY)));
+        for (int w = 0; w < k; ++w) {
+            x.push_back(new_vector);
 
-         //   for (int a = 0; a < m; a++)
-         //   {
-         //       varname = "x_" + to_string(w) + "_" + to_string(a);
-         //       x[w].push_back());
-         //   }
-         //   }
-        //
+           for (int a = 0; a < m; a++)
+           {
+               varname = "x_" + to_string(w) + "_" + to_string(a);
+               x[w].push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
+           }
+        } 
+       
 
         // objective func dummy 'z'
         z = M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
@@ -329,12 +328,10 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         
         // post interdiction flow 'pi'
         for (int w = 0; w<k; ++w){
-            newnew_vector = {};
             pi.push_back(newnew_vector);
 
             for (int q = 0; q < p; q++)
             {
-                new_vector = {};
                 pi[w].push_back(new_vector);
 
                 for (int i = 0; i < n; i++)
@@ -346,12 +343,10 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         }
         // arc variable 'lambda'
         for (int w = 0; w<k; ++w){
-            newnew_vector = {};
             lambda.push_back(newnew_vector);
 
             for (int q = 0; q < p; q++)
             {
-                new_vector = {};
                 lambda[w].push_back(new_vector);
                 
                 for (int a = 0; a < m; a++)
@@ -440,7 +435,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         }
         M2model->update();
 
-        modelname = "modelfiles/" + setname + "/" + instance_name + "-M2Model.lp";
+        modelname = "big_mip_test_vs_enum.lp";
         M2model->write(modelname);
         // cout << modelname << endl;
 
@@ -1016,21 +1011,31 @@ RobustAlgoModel::RobustAlgoModel(M2ProblemInstance& M2) {
     r_0 = M2.r_0;
     AlgoEnv = new GRBEnv();
     AlgoModel = new GRBModel(*AlgoEnv);
+    // AlgoModel->set(GRB_IntParam_OutputFlag, 0);
 
     // Decision Variables
-    z = AlgoModel->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS); // objective function dummy variable
-    for (int a=0; a<m; ++a) {x.push_back(AlgoModel->addVar(0, 1, 0, GRB_BINARY));} // interdiction policy on arcs
+    string varname = "z";
+    z = AlgoModel->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname); // objective function dummy variable
+    for (int a=0; a<m; ++a) {varname = "x_" + to_string(a); x.push_back(AlgoModel->addVar(0, 1, 0, GRB_BINARY, varname));} // interdiction policy on arcs
 
     vector<GRBVar> tempvector;
     for (int q=0; q<p; ++q) {
         pi.push_back(tempvector); // post interdiction s-i best path (for every q)
-        for (int i=0; i<n; ++i) {pi[q].push_back(AlgoModel->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS));}
+        for (int i=0; i<n; ++i) {varname = "pi_" + to_string(q) + "_" + to_string(i); pi[q].push_back(AlgoModel->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));}
     }
 
     for (int q=0; q<p; ++q) {
         lambda.push_back(tempvector); // lambda variable on arcs (for every q)
-        for (int a=0; a<m; ++a) {lambda[q].push_back(AlgoModel->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS));}
+        for (int a=0; a<m; ++a) {varname = "lambda_" + to_string(q) + "_" + to_string(a); lambda[q].push_back(AlgoModel->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));}
     }
+
+    // Add budget Constraint
+    GRBLinExpr linexpr = 0;
+    for (int a = 0; a < m; a++)
+    {
+        linexpr += x[a];
+    }
+    AlgoModel->addConstr(linexpr <= r_0, "budget");
     AlgoModel->update();
 
     // Populate Global Constraints
@@ -1104,8 +1109,10 @@ void RobustAlgoModel::reverse_update(vector<int>& subset) {
     AlgoModel->update();
 }
 
-vector<double> RobustAlgoModel::solve() {
+vector<double> RobustAlgoModel::solve(int counter) {
     // solve static model, return policy and objective value
+    string lp_filename = "static_model_" + to_string(counter) + ".lp";
+    AlgoModel->write(lp_filename);
     AlgoModel->optimize();
     vector<double> sol(m+1, 0);
     
@@ -1114,6 +1121,8 @@ vector<double> RobustAlgoModel::solve() {
     for (int a=1; a<m+1; ++a) {
         sol[a] = x[a-1].get(GRB_DoubleAttr_X);
     }
+
+    AlgoModel->reset();
 
     return sol;
 }
@@ -1198,6 +1207,8 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(M2ProblemInstance
         double best_worstcase_solution = 0;
         vector<vector<int> > best_worstcase_partition; 
 
+        int counter = 0;
+
         // enumerate while not 'failing' to get next partition
         while (next) {
             vector<vector<double> > temp_sol(k, arc_vec);
@@ -1207,8 +1218,9 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(M2ProblemInstance
             for (int w=0; w<k; ++w) {
                 // for every subset in partition, solve M2 for k=1
                 static_robust.update(partition[w]);
-                vector<double> temp_single_solution = static_robust.solve();
+                vector<double> temp_single_solution = static_robust.solve(counter);
                 static_robust.reverse_update(partition[w]);
+                ++counter;
 
                 // update temp_worst_sol if this subset is worse
                 if (temp_single_solution[0] < temp_worst_sol) {temp_worst_sol = temp_single_solution[0];}
@@ -1224,14 +1236,14 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(M2ProblemInstance
             cout << "[ ";
             for (int q=0; q<p; ++q){cout << kappa[q] << " ";}
             cout << "]" << endl;
-            cout << "\nworst case solution (this partition): " << temp_worst_sol << endl;
-            cout << "best worst case solution so far: " << best_worstcase_solution << endl;
+            cout << "\nWORST CASE SOLUTION (THIS PARTITION): " << temp_worst_sol << endl; 
+            cout << "BEST WORST CASE SOLUTION SO FAR: " << best_worstcase_solution << endl;
             next = nextKappa(kappa, max, k, p);
         }
 
 
         auto final_solution = make_pair(best_worstcase_partition, sol);
-        cout << "optimal solution: " << best_worstcase_solution << endl;
+        cout << "OPTIMAL SOLUTION: " << best_worstcase_solution << endl;
         return final_solution;
     }
     catch (GRBException e) {

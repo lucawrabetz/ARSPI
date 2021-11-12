@@ -104,7 +104,7 @@ public:
     RobustAlgoModel(M2ProblemInstance& M2);
     void update(vector<int>& subset);
     void reverse_update(vector<int>& subset);
-    vector<double> solve(); // returns solution value at 0, arc interdiction policy at 1-m
+    vector<double> solve(int counter); // returns solution value at 0, arc interdiction policy at 1-m
 };
 
 
