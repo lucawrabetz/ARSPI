@@ -172,24 +172,26 @@ void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r
 int main()
 {
     // TESTING MODELS
-    int n=6;
-    int p=4;
-    int k=2;
-    int r_0=2;
-    const string filename = "dat/simplegraph3.txt";
+    int n=26;
+    int p=10;
+    int max_k=5;
+    const string filename = "dat/set1_09-17-21/set1_09-17-21_26_0.4.txt";
     string test = "test";
 
     const LayerGraph G = LayerGraph(filename, n);
-    M2ProblemInstance M2 = M2ProblemInstance(G, 30, 80, p, k, r_0, test, test); 
-    M2ModelLinear M2_L = M2ModelLinear(&M2);
+    int r_0=n/2;
+    cout << "p: " << p << ", n: " << n << ", m: " << G.m << ", r_0: " << r_0 << endl;
+    const M2ProblemInstance M2 = M2ProblemInstance(G, 30, 80, p, 1, r_0, test, test); 
+
+    for (int k=1; k<=max_k; ++k) {
+        cout << "\n\nk: " << k << endl;
+        M2ProblemInstance M2_k = M2ProblemInstance(M2, k);
+        M2ModelLinear M2_L = M2ModelLinear(&M2_k);
+        auto final_solution = enumSolve(M2_k);
+        vector<vector<float> > x_MIP = M2_L.solve();
+        cout << "MIP OPTIMAL SOLUTION: " << x_MIP[0][0] << endl;
+    }
     
-    auto final_solution = enumSolve(M2);
-    // M2ModelLinear M_L = M2ModelLinear(&M2);
-    // // M2Benders M_B = M2Benders(&M2);
-
-    vector<vector<float> > x_MIP = M2_L.solve();
-
-    cout << "objective: " << x_MIP[0][0] << endl;
 
     // for (int w=1; w<k+1; ++w){
     //     cout << "policy " << w << ": ";

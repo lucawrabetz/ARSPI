@@ -55,21 +55,14 @@ class M2ProblemInstance
     // Full Instance of an M2 problem (a Layer Graph + arc costs and interdiction costs)
     // EDIT: Will all fit in an M3 instance - just add the k parameter and use k=1 to generate an M2 instance
 public:
-    int n;
-    int k;
-    int m;
-    int p;
-    int r_0;
-    string instance_name;
-    string setname;
+    int scenarios, policies, budget, nodes, arcs;
 
     vector<vector<int> > arc_costs;
     vector<int> interdiction_costs;
 
-    LayerGraph G;
-
-    M2ProblemInstance();
-    M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_k, int the_r0, string& the_instance_name, string& the_setname);
+    M2ProblemInstance(){scenarios=0; policies=0; budget=0;}
+    M2ProblemInstance(int p, int k, int r0, const LayerGraph &G, int min, int max); 
+    M2ProblemInstance(const M2ProblemInstance &M2_1, vector<int>& keep_scenarios, int new_k);
     void printInstance() const;
     vector<int> Dijkstra(int q);
     void updateCosts(vector<float>& x_bar, bool rev=false);
@@ -246,3 +239,5 @@ public:
 };
 
 pair<vector<vector<int> >, vector<vector<double> > > enumSolve(M2ProblemInstance& M2);
+
+vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, M2ProblemInstance& M2);

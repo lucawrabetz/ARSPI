@@ -74,26 +74,15 @@ void LayerGraph::printGraph(vector<vector<int> > costs, vector<int> interdiction
     }
 }
 
-M2ProblemInstance::M2ProblemInstance(){r_0=0;}
-
-M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, int the_p, int the_k, int the_r0, string& the_instance_name, string& the_setname)
+M2ProblemInstance::M2ProblemInstance(int p, int k, int r_0, const LayerGraph& G, int min, int max) :
+    scenarios(p), policies(k), budget(r_0)
 {
-    // ------ Assign graph and random costs ------
-    // ------ Variables and int parameters ------
-    G = the_G;
-    n = G.n;
-    m = G.m;
-    p = the_p;
-    k = the_k;
-    r_0 = the_r0;
-    instance_name = the_instance_name;
-    setname = the_setname;
+    // Retrieve nodes and arcs from G, assign interdiction costs (currently 10) generate arc costs
+    nodes = G.n;
+    arcs = G.m;
 
-    for (int a = 0; a < m; a++)
+    for (int a = 0; a < arcs; a++)
     {
-        // ASSUMING FINITE INTERDICTION COST, A REASONABLE NUMBER IS MAX - MIN
-        // interdiction_costs.push_back((max - min));
-        // ASSUMING INFINITE INTERDICTION COST (REMOVING ARC) ADJUST SO LARGE ENOUGH
         interdiction_costs.push_back(10);
     }
 
@@ -101,31 +90,41 @@ M2ProblemInstance::M2ProblemInstance(const LayerGraph &the_G, int min, int max, 
     std::mt19937 gen(rd());                          // seed the generator
     std::uniform_int_distribution<> distr(min, max); // define the range
 
-    for (int q = 0; q < p; q++)
+    arc_costs = vector<vector<int> >(scenarios, vector<int>(arcs));
+
+    for (int q = 0; q < scenarios; q++)
     {
-        instance_name = the_instance_name;
-        vector<int> new_vector = {};
-        arc_costs.push_back(new_vector);
-        for (int a = 0; a < m; a++)
+        for (int a = 0; a < arcs; a++)
         {
-            arc_costs[q].push_back(distr(gen)); // assign arc cost between min and max
+            arc_costs[q][a] = distr(gen); // assign arc cost between min and max
         }
     }
-
-    // for (int q = 0; q < p; q++)
-    // {
-    //     // cout << "q: " << q << endl;
-    //     for (int a = 0; a < m; a++)
-    //     {
-    //         // cout << "a: " << a << endl;
-    //         // cout << arc_costs[q][a] << "\n";
-    //     }
-    // }
 
     // hardcoded example "simplegraph.txt"
     // vector<int> costs1 = {6, 4, 2, 2, 1, 2, 7, 1, 3};
     // arc_costs.push_back(costs1);
 }
+
+M2ProblemInstance::M2ProblemInstance(const M2ProblemInstance& M2_1, vector<int>& keep_scenarios){
+    // Copy Constructor to reconstruct a modified version of the instance from the main instance
+    // ------ Variables and int parameters ------
+    G = M2_1.G;
+    n = M2_1.n;
+    m = M2_1.m;
+    p = keep_scenarios.size(); // this parameter is changing as we maybe copying less scenarios
+    k = M2_1.k;
+    r_0 = M2_1.r_0;
+    instance_name = M2_1.instance_name;
+    setname = M2_1.setname;
+
+    interdiction_costs = M2_1.interdiction_costs;
+
+    for (int q : keep_scenarios)
+    {
+        arc_costs.push_back(M2_1.arc_costs[q]);
+    }
+}
+
 
 void M2ProblemInstance::printInstance() const {
     // Print Summary of Problem Instance
@@ -290,7 +289,7 @@ M2ModelLinear::M2ModelLinear(M2ProblemInstance *the_M2Instance)
         M2env = new GRBEnv();
         M2model = new GRBModel(*M2env);
 
-        // M2model->set(GRB_IntParam_OutputFlag, 0);
+        M2model->set(GRB_IntParam_OutputFlag, 0);
         M2model->set(GRB_DoubleParam_TimeLimit, 3600);
 
         // ------ Decision variables ------
@@ -463,13 +462,13 @@ vector<vector<float> > M2ModelLinear::solve()
     {
         // cout << "In MIP.solve() method" << endl;
 
-        cout << "in solve" << endl;
+        // cout << "in solve" << endl;
 
         clock_t model_begin = clock();
         M2model->optimize();
         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
 
-        cout << "just optimized" << endl;
+        // cout << "just optimized" << endl;
 
         try {
 
@@ -709,6 +708,7 @@ BendersSeparation::BendersSeparation()
 
 BendersSeparation::BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance)
 {
+
     try
     {
         // ------ Initialize Basic Parameters ------
@@ -1011,7 +1011,7 @@ RobustAlgoModel::RobustAlgoModel(M2ProblemInstance& M2) {
     r_0 = M2.r_0;
     AlgoEnv = new GRBEnv();
     AlgoModel = new GRBModel(*AlgoEnv);
-    // AlgoModel->set(GRB_IntParam_OutputFlag, 0);
+    AlgoModel->set(GRB_IntParam_OutputFlag, 0);
 
     // Decision Variables
     string varname = "z";
@@ -1112,7 +1112,7 @@ void RobustAlgoModel::reverse_update(vector<int>& subset) {
 vector<double> RobustAlgoModel::solve(int counter) {
     // solve static model, return policy and objective value
     string lp_filename = "static_model_" + to_string(counter) + ".lp";
-    AlgoModel->write(lp_filename);
+    // AlgoModel->write(lp_filename);
     AlgoModel->optimize();
     vector<double> sol(m+1, 0);
     
@@ -1232,19 +1232,18 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(M2ProblemInstance
                 best_worstcase_partition = partition;
             }
 
-            cout << "next: " << next << endl;
-            cout << "[ ";
-            for (int q=0; q<p; ++q){cout << kappa[q] << " ";}
-            cout << "]" << endl;
-            cout << "\nWORST CASE SOLUTION (THIS PARTITION): " << temp_worst_sol << endl; 
-            cout << "BEST WORST CASE SOLUTION SO FAR: " << best_worstcase_solution << endl;
+            // cout << "next: " << next << endl;
+            // cout << "[ ";
+            // for (int q=0; q<p; ++q){cout << kappa[q] << " ";}
+            // cout << "]" << endl;
+            // cout << "\nWORST CASE SOLUTION (THIS PARTITION): " << temp_worst_sol << endl; 
+            // cout << "BEST WORST CASE SOLUTION SO FAR: " << best_worstcase_solution << endl;
             next = nextKappa(kappa, max, k, p);
         }
 
 
         auto final_solution = make_pair(best_worstcase_partition, sol);
-        cout << "OPTIMAL SOLUTION: " << best_worstcase_solution << endl;
-        return final_solution;
+        cout << "ENUMERATION OPTIMAL SOLUTION: " << best_worstcase_solution << endl;
     }
     catch (GRBException e) {
         cout << "Gurobi error number [EnumSolve]: " << e.getErrorCode() << endl;
@@ -1258,4 +1257,46 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(M2ProblemInstance
     vector<vector<double> > vec2;
     auto dummy_solution = make_pair(vec1, vec2);
     return dummy_solution;
+}
+
+vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, M2ProblemInstance& M2) {
+    // Use an optimal solution found by the enumerative algorithm for k, to find a good solution for k+1
+    // Take the worst subset in the optimal partition and "split it in 2"
+    // "Split it in two": solve that subset for k = 2
+    
+    int k = M2.k;
+    int p = M2.p;
+    int n = M2.n;
+    int m = M2.m;
+
+    // find worst subset in optimal partition
+    double min_subset_obj = GRB_INFINITY;
+    int min_subset_windex;
+
+    for (int w=0; w<k; ++w){
+
+        if (k_solution.second[k][0] < min_subset_obj) {
+            min_subset_obj = k_solution.second[k][0];
+            min_subset_windex = w;
+        }
+    }
+
+    int p_prime = k_solution.first[min_subset_windex].size(); // the new p - number of scenarios in the subset that we will work on
+
+    if (p_prime == 1) {
+        return k_solution.second; 
+    }
+    else if (p_prime == 2) {
+        // create an M2Instance copy with 1 of the scenarios
+        cout << "placeholder" << endl;
+
+        // create an M2Instance copy with the other
+        
+        // solve each of them for k=1, p=1
+    }
+    else {
+        // create an M2Instance copy with all scenarios in the subset
+        // solve it for k=2
+        cout << "placeholder" << endl;
+    }
 }
