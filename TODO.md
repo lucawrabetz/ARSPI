@@ -22,3 +22,16 @@
 
 - [ ] Integer bitwise representation and updates of a graph's available arc set
 - [ ] Bitwise enumeration code 
+
+## Locking down naming
+* CapitalCase for all types - classes, structs, enums, etc
+* lower_case_with_underscores or lowercase for variables
+* ALLCAPS for consts
+* mixedCaseWithLeadingLowerCase() for functions
+* same_as_variables for accessors and mutators
+* File naming (to be defined when we start writing and defining the scripts for experiments :) ): 
+
+## Scripts
+-
+
+

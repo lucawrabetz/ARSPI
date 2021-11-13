@@ -50,19 +50,24 @@ public:
     void printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs=false) const;
 };
 
-class M2ProblemInstance
+class AdaptiveInstance
 {
-    // Full Instance of an M2 problem (a Layer Graph + arc costs and interdiction costs)
-    // EDIT: Will all fit in an M3 instance - just add the k parameter and use k=1 to generate an M2 instance
+    // Full Adaptive Instance, cost structure data, graph is maintained and passed separately
+    
 public:
     int scenarios, policies, budget, nodes, arcs;
 
     vector<vector<int> > arc_costs;
     vector<int> interdiction_costs;
 
-    M2ProblemInstance(){scenarios=0; policies=0; budget=0;}
-    M2ProblemInstance(int p, int k, int r0, const LayerGraph &G, int min, int max); 
-    M2ProblemInstance(const M2ProblemInstance &M2_1, vector<int>& keep_scenarios, int new_k);
+    AdaptiveInstance(){scenarios=0; policies=0; budget=0;} // default constructor
+    AdaptiveInstance(int p, int k, int r_zero, const LayerGraph &G, int min, int max); // main constructor 
+    AdaptiveInstance(const AdaptiveInstance &M3, vector<int>& keep_scenarios); // copy constructor to change uncertainty set
+
+    // notice no mutator for scenarios - functionality reserved for uncertainty set change copy constructor
+    void set_policies(int k){policies=k;}
+    void set_budget(int r_zero){budget=r_zero;}
+
     void printInstance() const;
     vector<int> Dijkstra(int q);
     void updateCosts(vector<float>& x_bar, bool rev=false);
