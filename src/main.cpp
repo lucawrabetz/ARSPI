@@ -1,4 +1,4 @@
-#include "../inc/M2.h"
+#include "../inc/M3.h"
 
 void comp_exp_M2(vector<int>& sizes, vector<string>& graph_names, vector<int>& r_0s, vector<int>& followers_set, string& setname, string& outfile, string& experiment_logfile) {
     /*

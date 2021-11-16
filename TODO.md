@@ -32,6 +32,6 @@
 * File naming (to be defined when we start writing and defining the scripts for experiments :) ): 
 
 ## Scripts
--
+* Add distribution options in cost generation of AdaptiveInstance
 
 
