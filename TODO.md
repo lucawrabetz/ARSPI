@@ -5,6 +5,7 @@
 - [ ] Use copy constructors for gurobi var vectors (already done in line 313 of M2.cpp with x, check it compiles when solving MIP then do with the rest of them).
 - [ ] Change the copy constructor for M2ProblemInstance to take a const object, and verify the consistency of that usage throughout libraries and scripts - 
 - [ ] Refactor main into scripts that can be called by python or shell scripts for computational experiments
+- [ ] Add destructors to big but temporary classes, like the set partitioning model
 
 ## Optimizing 
 
@@ -33,5 +34,10 @@
 
 ## Scripts
 * Add distribution options in cost generation of AdaptiveInstance
+
+
+## Testing
+* Test Dijkstra
+* Test AdaptiveInstance Constructors
 
 

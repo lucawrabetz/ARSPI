@@ -91,48 +91,29 @@ void AdaptiveInstance::generateCosts(int interdiction, int min, int max) {
 }
 
 
-void AdaptiveInstance::printInstance() const {
+void AdaptiveInstance::printInstance(const LayerGraph& G) const {
     // Print Summary of Problem Instance
-    cout << "k: " << k << endl;
-    cout << "p: " << p << endl;
+    cout << "k: " << policies << endl;
+    cout << "p: " << scenarios << endl;
     G.printGraph(arc_costs, interdiction_costs, true);
 }
 
-vector<int> AdaptiveInstance::dijkstra(int q)
+vector<int> AdaptiveInstance::dijkstra(int q, const LayerGraph& G)
 {
-    vector<int> bar_S;
+    // Compute shortest path 0-n-1
+    vector<int> bar_S(nodes), dist(nodes), pred(nodes), result(arcs+1);
     vector<int> S;
-    vector<int> dist;
-    vector<int> pred;
-    vector<int> result;
-    
-    int min;
-    int node;
-    int j_node;
-    int arc;
-    int final_cost;
+    int min, node, j_node, arc, final_cost;
 
-    // d(s) = 0
-    // pred(s) = 0
-    bar_S.push_back(0);
-    dist.push_back(0);
-    pred.push_back(0);
-
-    for (int a=0; a<m+1; ++a){
-        // result[0] = path objective
-        // result[a+1] = 1 if arc in path
-        result.push_back(0);
-    }
-
-    for (int i=1; i<n; ++i) {
-        // d(i) = inf
+    for (int i=1; i<nodes; ++i) {
+        // d(i) = i
         // pred(s) = -1
-        bar_S.push_back(i);
-        dist.push_back(interdiction_costs[0]*10);
-        pred.push_back(-1);
+        bar_S[i] = i;
+        dist[i] = interdiction_costs[0]*10;
+        pred[i] = -1;
     }
 
-    while (S.size()<n) {
+    while (S.size()<nodes) {
         min = interdiction_costs[0]*10 + 1;
         int erase_index;
 
@@ -167,10 +148,10 @@ vector<int> AdaptiveInstance::dijkstra(int q)
         // cout << "\n\n\n";
     }
 
-    final_cost=dist[n-1];
+    final_cost=dist[nodes-1];
     // cout << "final " << final_cost << endl;
     result[0]=final_cost;
-    j_node=n-1;
+    j_node=nodes-1;
 
     while(j_node!=0){
         // find the arc index for the arc i, j (looping backwards through sp tree using pred to determine i)
@@ -190,12 +171,12 @@ vector<int> AdaptiveInstance::dijkstra(int q)
     return result;
 }
 
-void AdaptiveInstance::updateCosts(vector<float>& x_bar, bool rev){
+void AdaptiveInstance::applyInterdiction(vector<float>& x_bar, bool rev){
     // Receive interdiction policy and update costs for the M3 instance
     // If rev, we are "removing" the interdiction policy and returning the instance to its original state
-    for (int a=0; a<m; ++a){
+    for (int a=0; a<arcs; ++a){
         if (x_bar[a]==1) {
-            for (int q=0; q<p; ++q){
+            for (int q=0; q<scenarios; ++q){
                 if (rev){
                     arc_costs[q][a]-=interdiction_costs[a];
                 }
@@ -207,17 +188,18 @@ void AdaptiveInstance::updateCosts(vector<float>& x_bar, bool rev){
     }
 }
 
-float AdaptiveInstance::validatePolicy(vector<float>& x_bar)
+float AdaptiveInstance::validatePolicy(vector<float>& x_bar, const LayerGraph& G)
 {
+    // Solve shortest path on interdicted graph - check objectives match
     float objective=100000000;
     vector<int> sp_result;
 
     // Update M3 based on x_bar
-    updateCosts(x_bar);
+    applyInterdiction(x_bar);
 
     // run dijstra on graph to get objective 
-    for (int q=0; q<p; ++q){
-        sp_result = dijkstra(q);
+    for (int q=0; q<scenarios; ++q){
+        sp_result = dijkstra(q, G);
         
         if (sp_result[0]<objective){
             objective=sp_result[0];
@@ -225,127 +207,108 @@ float AdaptiveInstance::validatePolicy(vector<float>& x_bar)
     }
     
     // Revert M3 
-    updateCosts(x_bar, true);
+    applyInterdiction(x_bar, true);
 
     return objective;
 }
 
 // ------ MIP Formulations for M3 ------
-SetPartitioningModel::SetPartitioningModel(){n=0; m=0;}
-
-SetPartitioningModel::SetPartitioningModel(AdaptiveInstance *m3) :
-    s(0)
-{
+void SetPartitioningModel::configureModel(const LayerGraph& G, AdaptiveInstance& m3) {
     try
     {
-        // ------ Assign Instance ------
-        M2Instance = the_M3Instance;
-
-        // // ------ Assign graph and random costs ------
-        // ------ Variables and int parameters ------
-        n = M2Instance->G.n;
-        m = M2Instance->G.m;
-        p = M2Instance->p;
-        k = M2Instance->k;
-        r_0 = M2Instance->r_0;
-        instance_name = M2Instance->instance_name;
-        setname = M2Instance->setname;
-
         // ------ Initialize model and environment ------
-        M2env = new GRBEnv();
-        M2model = new GRBModel(*M2env);
+        m3_env = new GRBEnv();
+        m3_model = new GRBModel(*m3_env);
 
-        M2model->set(GRB_IntParam_OutputFlag, 0);
-        M2model->set(GRB_DoubleParam_TimeLimit, 3600);
+        m3_model->set(GRB_IntParam_OutputFlag, 0);
+        m3_model->set(GRB_DoubleParam_TimeLimit, 3600);
 
         // ------ Decision variables ------
-        string varname;
-
         vector<GRBVar> new_vector;
 
         // set partitioning variables
-        for (int w = 0; w < k; ++w){
+        for (int w = 0; w < policies; ++w){
             cout << "in model constructor" << endl;
-            H.push_back(new_vector);
-            for (int q =0; q<p; ++q){
-                varname = "H_" + to_string(w) + "_" + to_string(q);
-                H[w].push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
+            h_matrix.push_back(new_vector);
+            for (int q =0; q<scenarios; ++q){
+                string varname = "H_" + to_string(w) + "_" + to_string(q);
+                h_matrix[w].push_back(m3_model->addVar(0, 1, 0, GRB_BINARY, varname));
             }
         }
 
-        // interdiction policy on arcs 'x'
-        // x = vector<vector<GRBVar> >(k, vector<GRBVar>(m, M2model->addVar(0, 1, 0, GRB_BINARY)));
-        for (int w = 0; w < k; ++w) {
-            x.push_back(new_vector);
+        // interdiction policy on arcs 'x' - REMEMBER to check that this initialization works
+        x = vector<vector<GRBVar> >(policies, vector<GRBVar>(arcs, m3_model->addVar(0, 1, 0, GRB_BINARY)));
+        // for (int w = 0; w < policies; ++w) {
+        //     x.push_back(new_vector);
 
-           for (int a = 0; a < m; a++)
-           {
-               varname = "x_" + to_string(w) + "_" + to_string(a);
-               x[w].push_back(M2model->addVar(0, 1, 0, GRB_BINARY, varname));
-           }
-        } 
+        //    for (int a = 0; a < m; a++)
+        //    {
+        //        varname = "x_" + to_string(w) + "_" + to_string(a);
+        //        x[w].push_back(m3_model->addVar(0, 1, 0, GRB_BINARY, varname));
+        //    }
+        // } 
        
 
         // objective func dummy 'z'
-        z = M2model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
+        z = m3_model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
 
         vector<vector<GRBVar> > newnew_vector;
         
         // post interdiction flow 'pi'
-        for (int w = 0; w<k; ++w){
+        for (int w = 0; w<policies; ++w){
             pi.push_back(newnew_vector);
 
-            for (int q = 0; q < p; q++)
+            for (int q = 0; q < scenarios; q++)
             {
                 pi[w].push_back(new_vector);
 
-                for (int i = 0; i < n; i++)
+                for (int i = 0; i < nodes; i++)
                 {
-                    varname = "pi_" + to_string(w) + "_" + to_string(q) + "_" + to_string(i);
-                    pi[w][q].push_back(M2model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+                    string varname = "pi_" + to_string(w) + "_" + to_string(q) + "_" + to_string(i);
+                    pi[w][q].push_back(m3_model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
                 }
             }
         }
+
         // arc variable 'lambda'
-        for (int w = 0; w<k; ++w){
+        for (int w = 0; w<policies; ++w){
             lambda.push_back(newnew_vector);
 
-            for (int q = 0; q < p; q++)
+            for (int q = 0; q < scenarios; q++)
             {
                 lambda[w].push_back(new_vector);
                 
-                for (int a = 0; a < m; a++)
+                for (int a = 0; a < arcs; a++)
                 {
-                    varname = "lambda_" + to_string(w) + "_"  + to_string(q) + "_" + to_string(a);
-                    lambda[w][q].push_back(M2model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+                    string varname = "lambda_" + to_string(w) + "_"  + to_string(q) + "_" + to_string(a);
+                    lambda[w][q].push_back(m3_model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
                 }
             }
         }
-
         // ------ Constraints ------
         // budget constraint
-        for (int w = 0; w<k; ++w){
-            linexpr = 0;
-            for (int a = 0; a < m; a++)
+        for (int w = 0; w<policies; ++w){
+            GRBLinExpr linexpr = 0;
+            for (int a = 0; a < arcs; a++)
             {
                 linexpr += x[w][a];
             }
-            M2model->addConstr(linexpr <= r_0);
+            m3_model->addConstr(linexpr <= budget);
         }
 
         // z constraints
-        for (int w = 0; w<k; ++w){
-            for (int q = 0; q < p; q++)
+        for (int w = 0; w<policies; ++w){
+            for (int q = 0; q < scenarios; q++)
             {
-                linexpr = 0;
-                linexpr += (pi[w][q][n - 1] - pi[w][q][s]); // b^\top pi (our b is simply a source-sink single unit of flow)
-                for (int a = 0; a < m; ++a)
+                GRBLinExpr linexpr = 0;
+                linexpr += (pi[w][q][nodes - 1] - pi[w][q][0]); // b^\top pi (our b is simply a source-sink single unit of flow)
+                for (int a = 0; a < arcs; ++a)
                 {
                     linexpr += -lambda[w][q][a]; // u^\top \cdot lambda (our u is 1)
                 }
 
-                linexpr += M * (1 - H[w][q]);
-                M2model->addConstr(z <= linexpr);
+                linexpr += M * (1 - h_matrix[w][q]);
+                m3_model->addConstr(z <= linexpr);
             }
         }
 
@@ -355,64 +318,61 @@ SetPartitioningModel::SetPartitioningModel(AdaptiveInstance *m3) :
         int jn; // node j
         int a;
 
-        for (int w = 0; w<k; ++w){
-            for (int q=0; q<p; ++q){
-                for (i=0; i<n; ++i){
-                    for (j=0; j<M2Instance->G.adjacency_list[i].size(); ++j){
-                        jn=M2Instance->G.adjacency_list[i][j];
-                        a=M2Instance->G.arc_index_hash[i][j];
+        for (int w = 0; w<policies; ++w){
+            for (int q=0; q<scenarios; ++q){
+                for (i=0; i<nodes; ++i){
+                    for (j=0; j<G.adjacency_list[i].size(); ++j){
+                        jn=G.adjacency_list[i][j];
+                        a=G.arc_index_hash[i][j];
 
                         // add constraint
-                        M2model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[w][a]));
+                        m3_model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= m3.arc_costs[q][a] + (m3.interdiction_costs[a] * x[w][a]));
                     }
                 }
             }
         }
+        cout << "done with arcs" << endl;
 
         // for (int q = 0; q < p; ++q)
         // {
         //     linexpr = 0;
         //     for (int a = 0; a < m; ++a)
         //     {
-        //         i = M2Instance->G.arcs[a].i;
-        //         j = M2Instance->G.arcs[a].j;
-        //         M2model->addConstr((pi[q][j] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
+        //         i = G.arcs[a].i;
+        //         j = G.arcs[a].j;
+        //         m3_model->addConstr((pi[q][j] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
         //     }
         // }
 
         // set-partitioning constraint
-        for (int q=0; q<p; ++q){
-            linexpr=0;
+        for (int q=0; q<scenarios; ++q){
+            GRBLinExpr linexpr=0;
 
-            for (int w=0; w<k; ++w){
-                linexpr+=H[w][q];
+            for (int w=0; w<policies; ++w){
+                linexpr+=h_matrix[w][q];
             }
 
-            M2model->addConstr(linexpr == 1);
+            m3_model->addConstr(linexpr == 1);
         }
 
         // pi[0] = 0
-        for (int w=0; w<k; ++w) {
-            for (int q = 0; q < p; q++)
+        for (int w=0; w<policies; ++w) {
+            for (int q = 0; q < scenarios; q++)
             {
-                M2model->addConstr(pi[w][q][0] == 0);
+                m3_model->addConstr(pi[w][q][0] == 0);
             }
         }
-        M2model->update();
-
-        modelname = "big_mip_test_vs_enum.lp";
-        M2model->write(modelname);
-        // cout << modelname << endl;
-
+        cout << "done configuremodel" << endl;
+        m3_model->update();
     }
     catch (GRBException e)
     {
-        cout << "Gurobi error number [M2Model, constructor]: " << e.getErrorCode() << "\n";
+        cout << "Gurobi error number [m3_model, constructor]: " << e.getErrorCode() << "\n";
         cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        cout << "Non-gurobi error during optimization [M2Model]"
+        cout << "Non-gurobi error during optimization [m3_model]"
                   << "\n";
     }
 }
@@ -431,28 +391,22 @@ vector<vector<float> > SetPartitioningModel::solve()
         // cout << "in solve" << endl;
 
         clock_t model_begin = clock();
-        M2model->optimize();
-        running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
+        m3_model->optimize();
+        float running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
 
         // cout << "just optimized" << endl;
 
         try {
 
-            vector<float> x_vector; 
-            optimality_gap = M2model->get(GRB_DoubleAttr_MIPGap);
-            // cout << "Objective: " << M2model->get(GRB_DoubleAttr_ObjVal) << "\n";
-            
+            // double optimality_gap = m3_model->get(GRB_DoubleAttr_MIPGap);
             vector<float> objective_vec;
-            objective_vec.push_back(M2model->get(GRB_DoubleAttr_ObjVal));
+            objective_vec.push_back(m3_model->get(GRB_DoubleAttr_ObjVal));
             x_prime.push_back(objective_vec);
 
-            for (int w=0; w<k; ++w){
-                x_vector = {};
-
-                for (int a = 0; a < m; a++)
+            for (int w=0; w<policies; ++w){
+                vector<float> x_vector(arcs);
+                for (int a = 0; a < arcs; a++)
                 {
-                    // cout << "x_" << a << "(" << M2Instance->G.arcs[a].i << "," << M2Instance->G.arcs[a].j << ")"
-                              // << ": " << x[a].get(GRB_DoubleAttr_X) << "\n";
                     x_vector.push_back(x[w][a].get(GRB_DoubleAttr_X));
                 }
                 x_prime.push_back(x_vector);
@@ -466,7 +420,6 @@ vector<vector<float> > SetPartitioningModel::solve()
                 // set the optimality gap to -1 and we'll list as unbounded 
                 // put -infinity as objective value (the objectives are negative, min -z)
                 // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
-                optimality_gap = -1;
                 // cout << "Objective: unbounded" << "\n";
                 vector<float> vec; 
                 vec.push_back(-GRB_INFINITY);
@@ -497,464 +450,463 @@ vector<vector<float> > SetPartitioningModel::solve()
     }
 }
 
-// ------ Bender's Schemes for M2 ------
-BendersSub::BendersSub(){n=0; m=0; p=0;}
-
-BendersSub::BendersSub(AdaptiveInstance *the_M2Instance)
-{
-    // ------ Initialize Basic Parameters ------
-    n = the_M2Instance->n;
-    m = the_M2Instance->m;
-    p = the_M2Instance->p;
-
-    // ------ Initialize d and c costs ------
-    for (int a = 0; a < m; a++)
-    {
-        d.push_back(the_M2Instance->interdiction_costs[a]);
-    }
-
-    for (int q = 0; q < p; q++)
-    {
-        c.push_back(the_M2Instance->arc_costs[q]);
-        c_bar.push_back(the_M2Instance->arc_costs[q]);
-    }
-
-    // ------ Initialize Environment and Model ------
-    for (int q = 0; q < p; ++q)
-    {
-        Subenvs.push_back(new GRBEnv());
-        Submodels.push_back(new GRBModel(*Subenvs[q]));
-        Submodels[q]->set(GRB_IntParam_OutputFlag, 0);
-    }
-
-    // ------ Decision Variables ------
-    for (int q = 0; q < p; ++q)
-    {
-        varname = "zeta_sub_" + to_string(q);
-        zeta_subs.push_back(Submodels[q]->addVar(0, GRB_INFINITY, 1, GRB_CONTINUOUS, varname));
-    }
-    for (int q = 0; q < p; ++q)
-    {
-        y_dummy = {};
-        y.push_back(y_dummy);
-        for (int a = 0; a < m; ++a)
-        {
-            varname = "y_" + to_string(q) + "_" + to_string(a);
-            y[q].push_back(Submodels[q]->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
-        }
-    }
-
-    // ------ Constraints ------
-    // constraints to bound objective value over q
-    obj_constr = new GRBConstr[p];
-    for (int q = 0; q < p; ++q)
-    {
-        linexpr = 0;
-        for (int a = 0; a < m; ++a)
-        {
-            linexpr += c_bar[q][a] * y[q][a];
-        }
-        obj_constr[q] = Submodels[q]->addConstr(zeta_subs[q] >= linexpr);
-    }
-
-    // flow constraints
-    for (int q = 0; q < p; ++q)
-    {
-        for (int i = 0; i < n; ++i)
-        {
-            linexpr = 0;
-            if (i == 0)
-            {
-                rhs = 1;
-            }
-            else if (i == n - 1)
-            {
-                rhs = -1;
-            }
-            else
-            {
-                rhs = 0;
-            }
-            for (int a = 0; a < m; a++)
-            {
-                if (the_M2Instance->G.arcs[a].i == i)
-                {
-                    // this arc is an outgoing arc for i
-                    linexpr += (1) * y[q][a];
-                }
-                else if (the_M2Instance->G.arcs[a].j == i)
-                {
-                    // this arc is an outgoing arc for i
-                    linexpr += (-1) * y[q][a];
-                }
-                else
-                {
-                    // this arc does not include i as an endpoint
-                    continue;
-                }
-            }
-            Submodels[q]->addConstr(linexpr == rhs);
-        }
-        Submodels[q]->update();
-    }
-}
-
-void BendersSub::update(vector<int> &xhat)
-{
-    // cout << "\nsubmodel: updating based on xbar, new interdiction policy: \n";
-    // for (int a = 0; a < m; ++a)
-    // {
-    //     cout << "xbar_" << a << ": " << xhat[a] << "\n";
-    // }
-
-    // update array of constraints instead of only the parameter vector
-    for (int q = 0; q < p; ++q)
-    {
-        for (int a = 0; a < m; ++a)
-        {
-            // model.chgCoeff(obj_constr[q], variable, new cost)
-            if (xhat[a] > 0.5)
-            {
-                Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a] + d[a]));
-            }
-            else
-            {
-                Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a]));
-            }
-        }
-        Submodels[q]->update();
-    }
-}
-
-vector<vector<float> > BendersSub::solve(int counter)
-{
-    try
-    {
-        // yhat has q elements - each one has m+1 elements (first is the objective, rest is the flow)
-        vector<vector<float> > yhat;
-
-        for (int q = 0; q < p; ++q)
-        {
-            y_dummy2 = {};
-            yhat.push_back(y_dummy2);
-            // string modelname = "submodel_" + to_string(counter) + "q=" + to_string(q) + ".lp";
-            // Submodels[q]->write(modelname);
-            Submodels[q]->optimize();
-
-            yhat[q].push_back(Submodels[q]->get(GRB_DoubleAttr_ObjVal));
-            // cout << "\nq = " + to_string(q);
-            // cout << "\nsubmodel obj: " << yhat[q][0];
-            // cout << "\narc values: \n";
-            for (int a = 0; a < m; ++a)
-            {
-                yhat[q].push_back(y[q][a].get(GRB_DoubleAttr_X));
-                // cout << "y_" << q << "_" << a << ": " << y[q][a].get(GRB_DoubleAttr_X) << "\n";
-            }
-        }
-        return yhat;
-    }
-    catch (GRBException e)
-    {
-        cout << "Gurobi error number [BendersSub::solve]: " << e.getErrorCode() << "\n";
-        cout << e.getMessage() << "\n";
-    }
-    catch (...)
-    {
-        cout << "Non-gurobi error during optimization [BendersSub::Solve]"
-                  << "\n";
-    }
-}
-
-BendersSeparation::BendersSeparation()
-{
-    n = 0;
-    m = 0;
-    p = 0;
-}
-
-BendersSeparation::BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, AdaptiveInstance *the_M2Instance)
-{
-
-    try
-    {
-        // ------ Initialize Basic Parameters ------
-        n = the_M2Instance->n;
-        m = the_M2Instance->m;
-        p = the_M2Instance->p;
-
-        // ------ Initialize Submodel ------
-        subproblem = BendersSub(the_M2Instance);
-
-        // ------ Initialize d and c costs ------
-        for (int a = 0; a < m; a++)
-        {
-            d.push_back(the_M2Instance->interdiction_costs[a]);
-        }
-
-        for (int q = 0; q < p; q++)
-        {
-            c.push_back(the_M2Instance->arc_costs[q]);
-        }
-
-        // ------ Initialize Variable containers ------
-        xbar = the_xbar;
-        zetabar = the_zetabar;
-        xprime.push_back(0);
-
-        for (int q = 0; q < p; ++q)
-        {
-            if (q == 0)
-            {
-                for (int a = 0; a < m; ++a)
-                {
-                    xhat.push_back(0);
-                    xprime.push_back(0);
-                }
-            }
-        }
-    }
-    catch (GRBException e)
-    {
-        cout << "Gurobi error number [BendersSeparation, constructor]: " << e.getErrorCode() << "\n";
-        cout << e.getMessage() << "\n";
-    }
-    catch (...)
-    {
-        cout << "Non-gurobi error during optimization [BendersSeparation]"
-                  << "\n";
-    }
-}
-
-void BendersSeparation::callback()
-{
-    if (where == GRB_CB_MIPSOL)
-    {
-        // zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJBST); // ??????? 
-
-        if (zeta_u - zeta_l >= epsilon)
-        {
-            cout << "in callback" << endl;
-            counter++;
-            // xhat = current solution from master problem, then update subproblem
-            for (int a = 0; a < m; ++a)
-            {
-                xhat[a] = getSolution(xbar[a]);
-            }
-            subproblem.update(xhat);
-            // zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJ); // ??????? 
-
-            // cout << "\n\n\n\nsolving sub from callback: \n\n\n\n";
-            yhat = subproblem.solve(counter);
-            zeta_temp = GRB_INFINITY;
-
-            for (int q = 0; q < p; ++q)
-            {
-                cout << "sub q=" << q << ": " << yhat[q][0] << endl;
-                if (zeta_temp > yhat[q][0])
-                {
-                    zeta_temp = yhat[q][0]; // first element of yhat[q] is the objective
-                }
-            }
-            cout << "zeta_temp: " << zeta_temp << endl;
-
-            // use yhat[(q-l)+1][1-m] to create new cut from LinExpr
-            for (int q = 0; q < p; ++q)
-            {
-                new_cut = 0;
-                for (int a = 0; a < m; ++a)
-                {
-                    new_cut += (c[q][a] + d[a] * xbar[a]) * yhat[q][a + 1];
-                }
-                // add lazy cut to main model
-                try
-                {
-                    addLazy(zetabar <= new_cut);
-                    // cout << "\nadded cut: "
-                         // << "zetabar"
-                         // << "<=" << new_cut << "\n";
-                    ++cut_count;
-                }
-                catch (GRBException e)
-                {
-                    cout << "Gurobi error number [BendersSeparation, addLazy]: " << e.getErrorCode() << "\n";
-                    cout << e.getMessage() << "\n";
-                }
-            }
-
-            if (zeta_l < zeta_temp)
-            {
-                zeta_l = zeta_temp;
-            }
-            cout << "zeta_l: " << zeta_l << endl;
-            zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJBND); // ??????? 
-            cout << "zeta_u: " << zeta_u << endl;
-        }
-    }
-}
-
-M2Benders::M2Benders(){int n, m=0;}
-
-M2Benders::M2Benders(AdaptiveInstance *the_M2Instance)
-{
-    try
-    {
-        // ------ Assign Instance ------
-        M2Instance = the_M2Instance;
-
-        // ------ Initialize model and environment ------
-        M2Bendersenv = new GRBEnv();
-        M2Bendersmodel = new GRBModel(*M2Bendersenv);
-
-        M2Bendersmodel->getEnv().set(GRB_IntParam_LazyConstraints, 1);
-        M2Bendersmodel->set(GRB_IntParam_OutputFlag, 0);
-        M2Bendersmodel->set(GRB_DoubleParam_TimeLimit, 3600);
-
-        // ------ Variables and int parameters ------
-        n = M2Instance->n;
-        m = M2Instance->m;
-        p = M2Instance->p;
-        r_0 = M2Instance->r_0;
-        instance_name = M2Instance->instance_name;
-        setname = M2Instance->setname;
-
-        // ------ Decision variables ------
-        string varname;
-
-        // interdiction variable 'x'
-        for (int a = 0; a < m; a++)
-        {
-            varname = "x_" + to_string(a);
-            x.push_back(M2Bendersmodel->addVar(0, 1, 0, GRB_BINARY, varname));
-        }
-
-        // objective function variable 'zeta'
-        varname = "zeta";
-        zeta = M2Bendersmodel->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
-
-        // ------ Initialize separation/callback object ------
-        sep = BendersSeparation(zeta, x, M2Instance);
-
-        // ------ Only Budget Constraints Initially! ------
-        linexpr = 0;
-        for (int a = 0; a < m; a++)
-        {
-            linexpr += x[a];
-        }
-        M2Bendersmodel->addConstr(linexpr <= r_0);
-
-        // ------ Trying to add the first lazy contraint ------
-        // cout << "\n\n\n\nsolving sub from constructor: \n\n\n\n";
-        sep.yhat = sep.subproblem.solve(0);
-        for (int q = 0; q < p; ++q)
-        {
-            linexpr = 0;
-            for (int a = 0; a < m; ++a)
-            {
-                linexpr += (sep.c[q][a] + (sep.d[a] * x[a])) * sep.yhat[q][a + 1];
-            }
-            M2Bendersmodel->addConstr(zeta <= linexpr);
-        }
-
-        modelname = "modelfiles/" + setname + "/" + instance_name + "-M2BendersModel.lp";
-        M2Bendersmodel->write(modelname);
-
-    }
-    catch (GRBException e)
-    {
-        cout << "Gurobi error number [M2Benders, constructor]: " << e.getErrorCode() << "\n";
-        cout << e.getMessage() << "\n";
-    }
-    catch (...)
-    {
-        cout << "Non-gurobi error during optimization [BendersSPSub]"
-                  << "\n";
-    }
-}
-
-vector<float> M2Benders::solve()
-{
-    /*
-     * Return vector returns the objective value [0] and interdiction policy [1-m+1]
-     * Again for computational experiments this can be ignored and not assigned as run stats are class vars
-     */ 
-
-    // ------ Set Callback on Master Model
-    M2Bendersmodel->setCallback(&sep);
-
-
-    // ------ Optimize Inside Benders Scheme -------
-
-    try
-    {
-        clock_t model_begin = clock();
-        M2Bendersmodel->optimize();
-        running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
-
-        try {
-            optimality_gap = M2Bendersmodel->get(GRB_DoubleAttr_MIPGap);
-            sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
-
-            for (int a = 0; a < m; ++a)
-            {
-                sep.xprime[a + 1] = x[a].get(GRB_DoubleAttr_X);
-            }
-
-        }
-
-        catch (GRBException e) {
-
-            if (e.getErrorCode() == 10005 || e.getErrorCode() == 10013) {
-                // in this case the error is because the model was unbounded
-                // set the optimality gap to -1 and we'll list as unbounded 
-                // put objective value as -infinity (objectives are negated min -z)
-                // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
-                optimality_gap = -1;
-                sep.xprime[0] = -GRB_INFINITY;
-
-                for (int a = 0; a < m; ++a)
-                {
-                    sep.xprime[a + 1] = -1;
-                }
-            }
-
-            else {
-                cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
-                cout << e.getMessage() << "\n";
-            }
-
-        }
-        
-        cut_count = sep.cut_count;
-    }
-
-    catch (GRBException e)
-    {
-        cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
-        cout << e.getMessage() << "\n";
-    }
-    catch (...)
-    {
-        cout << "Non-gurobi error during optimization [M2Benders.optimize()]"
-                  << "\n";
-    }
-
-
-    // for submodel testing and stuff
-    // vector<int> test_xhat = {1, 1, 0};
-
-    // sep.subproblem.Submodel->write("spmodel.lp");
-    // sep.yhat = sep.subproblem.solve(0);
-    // sep.subproblem.update(test_xhat);
-    // sep.subproblem.Submodel->write("spmodelupdated.lp");
-
-    delete sep.subproblem.obj_constr;
-    for (int q = 0; q < p; ++q)
-    {
-        delete sep.subproblem.Subenvs[q];
-        delete sep.subproblem.Submodels[q];
-    }
-    return sep.xprime;
-}
+// // ------ Bender's Schemes for M2 ------
+// BendersSub::BendersSub(){n=0; m=0; p=0;}
+// 
+// BendersSub::BendersSub(AdaptiveInstance *the_M2Instance)
+// {
+//     // ------ Initialize Basic Parameters ------
+//     n = the_M2Instance->n;
+//     m = the_M2Instance->m;
+//     p = the_M2Instance->p;
+// 
+//     // ------ Initialize d and c costs ------
+//     for (int a = 0; a < m; a++)
+//     {
+//         d.push_back(the_M2Instance->interdiction_costs[a]);
+//     }
+// 
+//     for (int q = 0; q < p; q++)
+//     {
+//         c.push_back(the_M2Instance->arc_costs[q]);
+//         c_bar.push_back(the_M2Instance->arc_costs[q]);
+//     }
+// 
+//     // ------ Initialize Environment and Model ------
+//     for (int q = 0; q < p; ++q)
+//     {
+//         Subenvs.push_back(new GRBEnv());
+//         Submodels.push_back(new GRBModel(*Subenvs[q]));
+//         Submodels[q]->set(GRB_IntParam_OutputFlag, 0);
+//     }
+// 
+//     // ------ Decision Variables ------
+//     for (int q = 0; q < p; ++q)
+//     {
+//         varname = "zeta_sub_" + to_string(q);
+//         zeta_subs.push_back(Submodels[q]->addVar(0, GRB_INFINITY, 1, GRB_CONTINUOUS, varname));
+//     }
+//     for (int q = 0; q < p; ++q)
+//     {
+//         y_dummy = {};
+//         y.push_back(y_dummy);
+//         for (int a = 0; a < m; ++a)
+//         {
+//             varname = "y_" + to_string(q) + "_" + to_string(a);
+//             y[q].push_back(Submodels[q]->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
+//         }
+//     }
+// 
+//     // ------ Constraints ------
+//     // constraints to bound objective value over q
+//     obj_constr = new GRBConstr[p];
+//     for (int q = 0; q < p; ++q)
+//     {
+//         linexpr = 0;
+//         for (int a = 0; a < m; ++a)
+//         {
+//             linexpr += c_bar[q][a] * y[q][a];
+//         }
+//         obj_constr[q] = Submodels[q]->addConstr(zeta_subs[q] >= linexpr);
+//     }
+// 
+//     // flow constraints
+//     for (int q = 0; q < p; ++q)
+//     {
+//         for (int i = 0; i < n; ++i)
+//         {
+//             linexpr = 0;
+//             if (i == 0)
+//             {
+//                 rhs = 1;
+//             }
+//             else if (i == n - 1)
+//             {
+//                 rhs = -1;
+//             }
+//             else
+//             {
+//                 rhs = 0;
+//             }
+//             for (int a = 0; a < m; a++)
+//             {
+//                 if (the_M2Instance->G.arcs[a].i == i)
+//                 {
+//                     // this arc is an outgoing arc for i
+//                     linexpr += (1) * y[q][a];
+//                 }
+//                 else if (the_M2Instance->G.arcs[a].j == i)
+//                 {
+//                     // this arc is an outgoing arc for i
+//                     linexpr += (-1) * y[q][a];
+//                 }
+//                 else
+//                 {
+//                     // this arc does not include i as an endpoint
+//                     continue;
+//                 }
+//             }
+//             Submodels[q]->addConstr(linexpr == rhs);
+//         }
+//         Submodels[q]->update();
+//     }
+// }
+// 
+// void BendersSub::update(vector<int> &xhat)
+// {
+//     // cout << "\nsubmodel: updating based on xbar, new interdiction policy: \n";
+//     // for (int a = 0; a < m; ++a)
+//     // {
+//     //     cout << "xbar_" << a << ": " << xhat[a] << "\n";
+//     // }
+// 
+//     // update array of constraints instead of only the parameter vector
+//     for (int q = 0; q < p; ++q)
+//     {
+//         for (int a = 0; a < m; ++a)
+//         {
+//             // model.chgCoeff(obj_constr[q], variable, new cost)
+//             if (xhat[a] > 0.5)
+//             {
+//                 Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a] + d[a]));
+//             }
+//             else
+//             {
+//                 Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a]));
+//             }
+//         }
+//         Submodels[q]->update();
+//     }
+// }
+// 
+// vector<vector<float> > BendersSub::solve(int counter)
+// {
+//     try
+//     {
+//         // yhat has q elements - each one has m+1 elements (first is the objective, rest is the flow)
+//         vector<vector<float> > yhat;
+// 
+//         for (int q = 0; q < p; ++q)
+//         {
+//             y_dummy2 = {};
+//             yhat.push_back(y_dummy2);
+//             // string modelname = "submodel_" + to_string(counter) + "q=" + to_string(q) + ".lp";
+//             // Submodels[q]->write(modelname);
+//             Submodels[q]->optimize();
+// 
+//             yhat[q].push_back(Submodels[q]->get(GRB_DoubleAttr_ObjVal));
+//             // cout << "\nq = " + to_string(q);
+//             // cout << "\nsubmodel obj: " << yhat[q][0];
+//             // cout << "\narc values: \n";
+//             for (int a = 0; a < m; ++a)
+//             {
+//                 yhat[q].push_back(y[q][a].get(GRB_DoubleAttr_X));
+//                 // cout << "y_" << q << "_" << a << ": " << y[q][a].get(GRB_DoubleAttr_X) << "\n";
+//             }
+//         }
+//         return yhat;
+//     }
+//     catch (GRBException e)
+//     {
+//         cout << "Gurobi error number [BendersSub::solve]: " << e.getErrorCode() << "\n";
+//         cout << e.getMessage() << "\n";
+//     }
+//     catch (...)
+//     {
+//         cout << "Non-gurobi error during optimization [BendersSub::Solve]"
+//                   << "\n";
+//     }
+// }
+// 
+// BendersSeparation::BendersSeparation()
+// {
+//     n = 0;
+//     m = 0;
+//     p = 0;
+// }
+// 
+// BendersSeparation::BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, AdaptiveInstance *the_M2Instance)
+// {
+//     try
+//     {
+//         // ------ Initialize Basic Parameters ------
+//         n = the_M2Instance->n;
+//         m = the_M2Instance->m;
+//         p = the_M2Instance->p;
+// 
+//         // ------ Initialize Submodel ------
+//         subproblem = BendersSub(the_M2Instance);
+// 
+//         // ------ Initialize d and c costs ------
+//         for (int a = 0; a < m; a++)
+//         {
+//             d.push_back(the_M2Instance->interdiction_costs[a]);
+//         }
+// 
+//         for (int q = 0; q < p; q++)
+//         {
+//             c.push_back(the_M2Instance->arc_costs[q]);
+//         }
+// 
+//         // ------ Initialize Variable containers ------
+//         xbar = the_xbar;
+//         zetabar = the_zetabar;
+//         xprime.push_back(0);
+// 
+//         for (int q = 0; q < p; ++q)
+//         {
+//             if (q == 0)
+//             {
+//                 for (int a = 0; a < m; ++a)
+//                 {
+//                     xhat.push_back(0);
+//                     xprime.push_back(0);
+//                 }
+//             }
+//         }
+//     }
+//     catch (GRBException e)
+//     {
+//         cout << "Gurobi error number [BendersSeparation, constructor]: " << e.getErrorCode() << "\n";
+//         cout << e.getMessage() << "\n";
+//     }
+//     catch (...)
+//     {
+//         cout << "Non-gurobi error during optimization [BendersSeparation]"
+//                   << "\n";
+//     }
+// }
+// 
+// void BendersSeparation::callback()
+// {
+//     if (where == GRB_CB_MIPSOL)
+//     {
+//         // zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJBST); // ??????? 
+// 
+//         if (zeta_u - zeta_l >= epsilon)
+//         {
+//             cout << "in callback" << endl;
+//             counter++;
+//             // xhat = current solution from master problem, then update subproblem
+//             for (int a = 0; a < m; ++a)
+//             {
+//                 xhat[a] = getSolution(xbar[a]);
+//             }
+//             subproblem.update(xhat);
+//             // zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJ); // ??????? 
+// 
+//             // cout << "\n\n\n\nsolving sub from callback: \n\n\n\n";
+//             yhat = subproblem.solve(counter);
+//             zeta_temp = GRB_INFINITY;
+// 
+//             for (int q = 0; q < p; ++q)
+//             {
+//                 cout << "sub q=" << q << ": " << yhat[q][0] << endl;
+//                 if (zeta_temp > yhat[q][0])
+//                 {
+//                     zeta_temp = yhat[q][0]; // first element of yhat[q] is the objective
+//                 }
+//             }
+//             cout << "zeta_temp: " << zeta_temp << endl;
+// 
+//             // use yhat[(q-l)+1][1-m] to create new cut from LinExpr
+//             for (int q = 0; q < p; ++q)
+//             {
+//                 new_cut = 0;
+//                 for (int a = 0; a < m; ++a)
+//                 {
+//                     new_cut += (c[q][a] + d[a] * xbar[a]) * yhat[q][a + 1];
+//                 }
+//                 // add lazy cut to main model
+//                 try
+//                 {
+//                     addLazy(zetabar <= new_cut);
+//                     // cout << "\nadded cut: "
+//                          // << "zetabar"
+//                          // << "<=" << new_cut << "\n";
+//                     ++cut_count;
+//                 }
+//                 catch (GRBException e)
+//                 {
+//                     cout << "Gurobi error number [BendersSeparation, addLazy]: " << e.getErrorCode() << "\n";
+//                     cout << e.getMessage() << "\n";
+//                 }
+//             }
+// 
+//             if (zeta_l < zeta_temp)
+//             {
+//                 zeta_l = zeta_temp;
+//             }
+//             cout << "zeta_l: " << zeta_l << endl;
+//             zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJBND); // ??????? 
+//             cout << "zeta_u: " << zeta_u << endl;
+//         }
+//     }
+// }
+// 
+// M2Benders::M2Benders(){int n, m=0;}
+// 
+// M2Benders::M2Benders(AdaptiveInstance *the_M2Instance)
+// {
+//     try
+//     {
+//         // ------ Assign Instance ------
+//         M2Instance = the_M2Instance;
+// 
+//         // ------ Initialize model and environment ------
+//         M2Bendersenv = new GRBEnv();
+//         M2Bendersmodel = new GRBModel(*M2Bendersenv);
+// 
+//         M2Bendersmodel->getEnv().set(GRB_IntParam_LazyConstraints, 1);
+//         M2Bendersmodel->set(GRB_IntParam_OutputFlag, 0);
+//         M2Bendersmodel->set(GRB_DoubleParam_TimeLimit, 3600);
+// 
+//         // ------ Variables and int parameters ------
+//         n = M2Instance->n;
+//         m = M2Instance->m;
+//         p = M2Instance->p;
+//         r_0 = M2Instance->r_0;
+//         instance_name = M2Instance->instance_name;
+//         setname = M2Instance->setname;
+// 
+//         // ------ Decision variables ------
+//         string varname;
+// 
+//         // interdiction variable 'x'
+//         for (int a = 0; a < m; a++)
+//         {
+//             varname = "x_" + to_string(a);
+//             x.push_back(M2Bendersmodel->addVar(0, 1, 0, GRB_BINARY, varname));
+//         }
+// 
+//         // objective function variable 'zeta'
+//         varname = "zeta";
+//         zeta = M2Bendersmodel->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
+// 
+//         // ------ Initialize separation/callback object ------
+//         sep = BendersSeparation(zeta, x, M2Instance);
+// 
+//         // ------ Only Budget Constraints Initially! ------
+//         linexpr = 0;
+//         for (int a = 0; a < m; a++)
+//         {
+//             linexpr += x[a];
+//         }
+//         M2Bendersmodel->addConstr(linexpr <= r_0);
+// 
+//         // ------ Trying to add the first lazy contraint ------
+//         // cout << "\n\n\n\nsolving sub from constructor: \n\n\n\n";
+//         sep.yhat = sep.subproblem.solve(0);
+//         for (int q = 0; q < p; ++q)
+//         {
+//             linexpr = 0;
+//             for (int a = 0; a < m; ++a)
+//             {
+//                 linexpr += (sep.c[q][a] + (sep.d[a] * x[a])) * sep.yhat[q][a + 1];
+//             }
+//             M2Bendersmodel->addConstr(zeta <= linexpr);
+//         }
+// 
+//         modelname = "modelfiles/" + setname + "/" + instance_name + "-M2BendersModel.lp";
+//         M2Bendersmodel->write(modelname);
+// 
+//     }
+//     catch (GRBException e)
+//     {
+//         cout << "Gurobi error number [M2Benders, constructor]: " << e.getErrorCode() << "\n";
+//         cout << e.getMessage() << "\n";
+//     }
+//     catch (...)
+//     {
+//         cout << "Non-gurobi error during optimization [BendersSPSub]"
+//                   << "\n";
+//     }
+// }
+// 
+// vector<float> M2Benders::solve()
+// {
+//     /*
+//      * Return vector returns the objective value [0] and interdiction policy [1-m+1]
+//      * Again for computational experiments this can be ignored and not assigned as run stats are class vars
+//      */ 
+// 
+//     // ------ Set Callback on Master Model
+//     M2Bendersmodel->setCallback(&sep);
+// 
+// 
+//     // ------ Optimize Inside Benders Scheme -------
+// 
+//     try
+//     {
+//         clock_t model_begin = clock();
+//         M2Bendersmodel->optimize();
+//         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
+// 
+//         try {
+//             optimality_gap = M2Bendersmodel->get(GRB_DoubleAttr_MIPGap);
+//             sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
+// 
+//             for (int a = 0; a < m; ++a)
+//             {
+//                 sep.xprime[a + 1] = x[a].get(GRB_DoubleAttr_X);
+//             }
+// 
+//         }
+// 
+//         catch (GRBException e) {
+// 
+//             if (e.getErrorCode() == 10005 || e.getErrorCode() == 10013) {
+//                 // in this case the error is because the model was unbounded
+//                 // set the optimality gap to -1 and we'll list as unbounded 
+//                 // put objective value as -infinity (objectives are negated min -z)
+//                 // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
+//                 optimality_gap = -1;
+//                 sep.xprime[0] = -GRB_INFINITY;
+// 
+//                 for (int a = 0; a < m; ++a)
+//                 {
+//                     sep.xprime[a + 1] = -1;
+//                 }
+//             }
+// 
+//             else {
+//                 cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
+//                 cout << e.getMessage() << "\n";
+//             }
+// 
+//         }
+//         
+//         cut_count = sep.cut_count;
+//     }
+// 
+//     catch (GRBException e)
+//     {
+//         cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
+//         cout << e.getMessage() << "\n";
+//     }
+//     catch (...)
+//     {
+//         cout << "Non-gurobi error during optimization [M2Benders.optimize()]"
+//                   << "\n";
+//     }
+// 
+// 
+//     // for submodel testing and stuff
+//     // vector<int> test_xhat = {1, 1, 0};
+// 
+//     // sep.subproblem.Submodel->write("spmodel.lp");
+//     // sep.yhat = sep.subproblem.solve(0);
+//     // sep.subproblem.update(test_xhat);
+//     // sep.subproblem.Submodel->write("spmodelupdated.lp");
+// 
+//     delete sep.subproblem.obj_constr;
+//     for (int q = 0; q < p; ++q)
+//     {
+//         delete sep.subproblem.Subenvs[q];
+//         delete sep.subproblem.Submodels[q];
+//     }
+//     return sep.xprime;
+// }
 
 vector<int> initKappa(int p, int k) {
     // initialize partition vector based on total number in set (p) and exact number of partitions required
@@ -967,65 +919,60 @@ vector<int> initKappa(int p, int k) {
     return kappa;
 }
 
-RobustAlgoModel::RobustAlgoModel(){int n, m=0;}
 
-RobustAlgoModel::RobustAlgoModel(AdaptiveInstance& M2) {
+void RobustAlgoModel::configureModel(const LayerGraph& G, AdaptiveInstance& m3) {
     // Construct baseline model with no constraints
-    n = M2.n;
-    m = M2.m;
-    p = M2.p;
-    r_0 = M2.r_0;
-    AlgoEnv = new GRBEnv();
-    AlgoModel = new GRBModel(*AlgoEnv);
-    AlgoModel->set(GRB_IntParam_OutputFlag, 0);
+    algo_env = new GRBEnv();
+    algo_model = new GRBModel(*algo_env);
+    algo_model->set(GRB_IntParam_OutputFlag, 0);
 
     // Decision Variables
     string varname = "z";
-    z = AlgoModel->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname); // objective function dummy variable
-    for (int a=0; a<m; ++a) {varname = "x_" + to_string(a); x.push_back(AlgoModel->addVar(0, 1, 0, GRB_BINARY, varname));} // interdiction policy on arcs
+    z = algo_model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname); // objective function dummy variable
+    for (int a=0; a<arcs; ++a) {varname = "x_" + to_string(a); x.push_back(algo_model->addVar(0, 1, 0, GRB_BINARY, varname));} // interdiction policy on arcs
 
     vector<GRBVar> tempvector;
-    for (int q=0; q<p; ++q) {
+    for (int q=0; q<scenarios; ++q) {
         pi.push_back(tempvector); // post interdiction s-i best path (for every q)
-        for (int i=0; i<n; ++i) {varname = "pi_" + to_string(q) + "_" + to_string(i); pi[q].push_back(AlgoModel->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));}
+        for (int i=0; i<nodes; ++i) {varname = "pi_" + to_string(q) + "_" + to_string(i); pi[q].push_back(algo_model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));}
     }
 
-    for (int q=0; q<p; ++q) {
+    for (int q=0; q<scenarios; ++q) {
         lambda.push_back(tempvector); // lambda variable on arcs (for every q)
-        for (int a=0; a<m; ++a) {varname = "lambda_" + to_string(q) + "_" + to_string(a); lambda[q].push_back(AlgoModel->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));}
+        for (int a=0; a<arcs; ++a) {varname = "lambda_" + to_string(q) + "_" + to_string(a); lambda[q].push_back(algo_model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));}
     }
 
     // Add budget Constraint
     GRBLinExpr linexpr = 0;
-    for (int a = 0; a < m; a++)
+    for (int a = 0; a < arcs; a++)
     {
         linexpr += x[a];
     }
-    AlgoModel->addConstr(linexpr <= r_0, "budget");
-    AlgoModel->update();
+    algo_model->addConstr(linexpr <= budget, "budget");
+    algo_model->update();
 
     // Populate Global Constraints
     // Arc/Dual Constraints
-    for (int q=0; q<p; ++q){
+    for (int q=0; q<scenarios; ++q){
         dual_constraints.push_back(vector<GRBTempConstr>());
 
-        for (int i=0; i<n; ++i) {
-            for (int j=0; j<M2.G.adjacency_list[i].size(); ++j){
-                int next = M2.G.adjacency_list[i][j];
-                int a = M2.G.arc_index_hash[i][j];
+        for (int i=0; i<nodes; ++i) {
+            for (int j=0; j<G.adjacency_list[i].size(); ++j){
+                int next = G.adjacency_list[i][j];
+                int a = G.arc_index_hash[i][j];
 
-                GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= M2.arc_costs[q][a] + (M2.interdiction_costs[a]*x[a]);
+                GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= m3.arc_costs[q][a] + (m3.interdiction_costs[a]*x[a]);
                 dual_constraints[q].push_back(constraint);
             }
         }
     }
 
     // Objective Constraints
-    for (int q=0; q<p; ++q) {
+    for (int q=0; q<scenarios; ++q) {
         GRBLinExpr linexpr = 0;
-        linexpr += (pi[q][n-1] - pi[q][s]); // b^\top pi
+        linexpr += (pi[q][nodes-1] - pi[q][0]); // b^\top pi
 
-        for (int a=0; a<m; ++a){
+        for (int a=0; a<arcs; ++a){
             linexpr += -lambda[q][a]; // u^\top \cdot lambda
         }
 
@@ -1038,18 +985,18 @@ void RobustAlgoModel::update(vector<int>& subset) {
     for (int q : subset) {
         string zero_name = "zero_" + to_string(q);
         string z_name = "z_" + to_string(q);
-        AlgoModel->addConstr(pi[q][0]==0, zero_name);
-        AlgoModel->addConstr(z_constraints[q], z_name);
+        algo_model->addConstr(pi[q][0]==0, zero_name);
+        algo_model->addConstr(z_constraints[q], z_name);
 
         int a = 0;
         for (GRBTempConstr constraint : dual_constraints[q]) {
             string dual_name = "dual_" + to_string(q) + "_" + to_string(a);
-            AlgoModel->addConstr(constraint, dual_name);
+            algo_model->addConstr(constraint, dual_name);
             ++a;
         }
     }
     
-    AlgoModel->update();
+    algo_model->update();
 }
 
 void RobustAlgoModel::reverse_update(vector<int>& subset) {
@@ -1058,37 +1005,37 @@ void RobustAlgoModel::reverse_update(vector<int>& subset) {
         string zero_name = "zero_" + to_string(q);
         string z_name = "z_" + to_string(q);
 
-        GRBConstr zero_constraint = AlgoModel->getConstrByName(zero_name);
-        GRBConstr z_constraint = AlgoModel->getConstrByName(z_name);
-        AlgoModel->remove(zero_constraint);
-        AlgoModel->remove(z_constraint);
+        GRBConstr zero_constraint = algo_model->getConstrByName(zero_name);
+        GRBConstr z_constraint = algo_model->getConstrByName(z_name);
+        algo_model->remove(zero_constraint);
+        algo_model->remove(z_constraint);
 
         int a = 0;
         for (GRBTempConstr constraint : dual_constraints[q]) {
             string dual_name = "dual_" + to_string(q) + "_" + to_string(a);
-            GRBConstr dual_constraint = AlgoModel->getConstrByName(dual_name);
-            AlgoModel->remove(dual_constraint);
+            GRBConstr dual_constraint = algo_model->getConstrByName(dual_name);
+            algo_model->remove(dual_constraint);
             ++a;
         }
     }
 
-    AlgoModel->update();
+    algo_model->update();
 }
 
 vector<double> RobustAlgoModel::solve(int counter) {
     // solve static model, return policy and objective value
     string lp_filename = "static_model_" + to_string(counter) + ".lp";
-    // AlgoModel->write(lp_filename);
-    AlgoModel->optimize();
-    vector<double> sol(m+1, 0);
+    algo_model->write(lp_filename);
+    algo_model->optimize();
+    vector<double> sol(arcs+1, 0);
     
-    sol[0] = AlgoModel->get(GRB_DoubleAttr_ObjVal);
+    sol[0] = algo_model->get(GRB_DoubleAttr_ObjVal);
     sol[0] = -sol[0];
-    for (int a=1; a<m+1; ++a) {
+    for (int a=1; a<arcs+1; ++a) {
         sol[a] = x[a-1].get(GRB_DoubleAttr_X);
     }
 
-    AlgoModel->reset();
+    algo_model->reset();
 
     return sol;
 }
@@ -1141,7 +1088,7 @@ vector<vector<int> > kappa_to_partition(vector<int>& kappa, int k, int p){
     return partition;
 }
 
-pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance& M2){
+pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance& m3, const LayerGraph& G){
     // Pass a AdaptiveInstance and solve using enumeration algorithm
     // Initialize and maintain an H matrix representing partitioning 
     // Enumerate all possible partitions by enumerating H matrix
@@ -1151,10 +1098,10 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
     //      second: doubles - k interdiction policies
 
     // ints and bool
-    int k = M2.k;
-    int p = M2.p;
-    int m = M2.G.m;
     bool next = true;
+    int p = m3.scenarios;
+    int k = m3.policies;
+    int m = m3.arcs;
     
     // initialize partitioning 'string' vector as in Orlov Paper 
     // initialize corresponding max vector 
@@ -1167,7 +1114,9 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
 
     // initialize static robust model
     try {
-        RobustAlgoModel static_robust = RobustAlgoModel(M2);
+        RobustAlgoModel static_robust = RobustAlgoModel(m3);
+        static_robust.configureModel(G, m3);
+
 
         // objective value maintained here (and optimal partition)
         double best_worstcase_solution = 0;
@@ -1225,22 +1174,19 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
     return dummy_solution;
 }
 
-vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, AdaptiveInstance& M2) {
+vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, AdaptiveInstance& m3) {
     // Use an optimal solution found by the enumerative algorithm for k, to find a good solution for k+1
     // Take the worst subset in the optimal partition and "split it in 2"
     // "Split it in two": solve that subset for k = 2
     
-    int k = M2.k;
-    int p = M2.p;
-    int n = M2.n;
-    int m = M2.m;
-
+    // int values
+    int k = m3.policies;
+    
     // find worst subset in optimal partition
     double min_subset_obj = GRB_INFINITY;
     int min_subset_windex;
 
     for (int w=0; w<k; ++w){
-
         if (k_solution.second[k][0] < min_subset_obj) {
             min_subset_obj = k_solution.second[k][0];
             min_subset_windex = w;
@@ -1253,15 +1199,15 @@ vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<dou
         return k_solution.second; 
     }
     else if (p_prime == 2) {
-        // create an M2Instance copy with 1 of the scenarios
+        // create an m3Instance copy with 1 of the scenarios
         cout << "placeholder" << endl;
 
-        // create an M2Instance copy with the other
+        // create an m3Instance copy with the other
         
         // solve each of them for k=1, p=1
     }
     else {
-        // create an M2Instance copy with all scenarios in the subset
+        // create an m3Instance copy with all scenarios in the subset
         // solve it for k=2
         cout << "placeholder" << endl;
     }

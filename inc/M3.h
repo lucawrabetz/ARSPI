@@ -80,11 +80,11 @@ public:
     void set_costs(vector<int>& interdiction_costs, vector<vector<int> >& arc_costs) 
     {interdiction_costs=interdiction_costs; arc_costs=arc_costs;}
 
-    void printInstance() const;
-    vector<int> dijkstra(int q);
+    void printInstance(const LayerGraph&G) const;
+    vector<int> dijkstra(int q, const LayerGraph &G);
     void generateCosts(int interdiction, int min, int max);
-    void updateCosts(vector<float>& x_bar, bool rev=false);
-    float validatePolicy(vector<float>& x_bar);
+    void applyInterdiction(vector<float>& x_bar, bool rev=false);
+    float validatePolicy(vector<float>& x_bar, const LayerGraph& G);
 };
  
 class RobustAlgoModel
@@ -92,14 +92,10 @@ class RobustAlgoModel
     // Special Purpose Model for the Enumerative Algorithm - Static Robust Dual Reformulation
 public:
     // This data will stay throughout the algorithm (all decision variables and non-negativity constraints):
-    const int s = 0; 
-    int n; 
-    int m;
-    int p;
-    int r_0;
+    int scenarios, budget, nodes, arcs; 
 
-    GRBEnv *AlgoEnv;
-    GRBModel *AlgoModel;
+    GRBEnv *algo_env;
+    GRBModel *algo_model;
 
     GRBVar z;
     vector<vector<GRBVar> > pi; // decision variable (for every q, i)
@@ -111,8 +107,12 @@ public:
     vector<GRBTempConstr> z_constraints; 
     vector<vector<GRBTempConstr> > dual_constraints;
 
-    RobustAlgoModel();
-    RobustAlgoModel(M2ProblemInstance& M2);
+    RobustAlgoModel() : 
+        scenarios(0), budget(0), nodes(0), arcs(0) {};
+    RobustAlgoModel(AdaptiveInstance& m3) : 
+        scenarios(m3.scenarios), budget(m3.budget), nodes(m3.nodes), arcs(m3.arcs) {};
+
+    void configureModel(const LayerGraph& G, AdaptiveInstance& m3);
     void update(vector<int>& subset);
     void reverse_update(vector<int>& subset);
     vector<double> solve(int counter); // returns solution value at 0, arc interdiction policy at 1-m
@@ -125,13 +125,9 @@ class SetPartitioningModel
 public:
     const int M; // set to 500 before initializing in constructor
     int scenarios, policies, budget, nodes, arcs;
-    float running_time, optimality_gap;
-    string model_name;
 
-    AdaptiveInstance *m3;
     GRBEnv *m3_env;
     GRBModel *m3_model;
-    GRBLinExpr linexpr;
     GRBVar z; // objective dummy
     vector<vector<GRBVar> > h_matrix; // set partitioning variables H[q][w]==1 if q in subset k 
     vector<vector<vector<GRBVar> > > pi;     // decision variable (for every w, q, i)
@@ -139,113 +135,115 @@ public:
     vector<vector<GRBVar> > x;                   // interdiction variable (for every w, a)
     vector<vector<float> > x_prime; // final solution, [0] is objective (for every w, a)
 
-    SetPartitioningModel() : M(0) {};
-    SetPartitioningModel(int M, const LayerGraph& G, AdaptiveInstance& m3);
+    SetPartitioningModel() : M(0), scenarios(0), policies(0), budget(0), nodes(0), arcs(0) {};
+    SetPartitioningModel(int M, AdaptiveInstance& m3) : 
+        M(M), scenarios(m3.scenarios), policies(m3.policies), budget(m3.budget), nodes(m3.nodes), arcs(m3.arcs) {};
 
+    void configureModel(const LayerGraph& G, AdaptiveInstance& m3);
     vector<vector<float> > solve();
 };
 
-class BendersSub
-{
-public:
-    int n;
-    int m;
-    int p;
-    vector<GRBEnv *> Subenvs;
-    vector<GRBModel *> Submodels;
+// class BendersSub
+// {
+// public:
+//     int n;
+//     int m;
+//     int p;
+//     vector<GRBEnv *> Subenvs;
+//     vector<GRBModel *> Submodels;
+// 
+//     vector<vector<int> > c_bar; // this is the current objective function cost vector
+//     // i.e. - the objective function is c_bar \cdot y
+//     // computed during solution tree based on graph costs (c^q and d) and the current
+//     // x_bar from the master problem
+// 
+//     vector<vector<int> > c; // base costs
+//     vector<int> d;              // interdiction costs
+// 
+//     GRBConstr *obj_constr;              // array of constraints for the objective lower bounding constraints over the qs
+//                                         // need this as an array to update it
+//     vector<GRBVar> zeta_subs;      // dummy objective function variable because we have to argmin over q
+//     vector<vector<GRBVar> > y; // main decision variable - arc path selection/flow (one y vector for every q)
+//     vector<GRBVar> y_dummy;        // just to construct and push_back y
+//     vector<float> y_dummy2;        // just to construct and push_back yhat
+//     GRBLinExpr linexpr;                 // when adding the flow constraints, we use this one for outgoing arcs
+//     GRBLinExpr linexpr2;                // when adding the flow constraints, we use this one for incoming arcs
+//     int rhs;                            // use this also for generating flow constraints
+//     string varname;
+// 
+//     BendersSub();
+//     BendersSub(M2ProblemInstance *the_M2Instance);
+//     vector<vector<float> > solve(int counter); // now returns a vector of vectors of size p+1, where the first is a singleton with the obj value
+//     void update(vector<int> &xhat);
+// };
+// 
+// class BendersSeparation : public GRBCallback
+// {
+// public:
+//     int n;
+//     int m;
+//     int p;
+//     int counter = 0;
+//     int cut_count = 0;
+// 
+//     vector<vector<int> > c; // base costs
+//     vector<int> d;              // interdiction costs
+// 
+//     // a hat vector is numbers, a bar vector is GRBVars
+//     GRBLinExpr new_cut;                   // linexpr object for new cut to add to master formulation
+//     GRBVar zetabar;                       // 'connecting' GRBVar for zeta
+//     vector<GRBVar> xbar;             // 'connecting' GRBVars for x
+//     vector<int> xhat;                // current xhat to solve with, i.e. interdiction policy we are subject to
+//     vector<float> xprime;            // current best interdiction policy (includes extra x[0] for obj)
+//     vector<vector<float> > yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[q][0] for objective for each q), it is of size p (vectors), first element of each flow is the objective
+// 
+//     BendersSub subproblem;
+// 
+//     // upper and lower bounds and epsilon
+//     float zeta_u = GRB_INFINITY;
+//     float zeta_l = -GRB_INFINITY;
+//     float zeta_temp;
+//     float epsilon = 0.000001;
+// 
+//     BendersSeparation();
+//     BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance);
+// 
+// protected:
+//     void callback();
+//     void printSep();
+// };
+// 
+// class AdaptiveBenders
+// {
+// public:
+//     int s = 0;
+//     int n;
+//     int m;
+//     int p;
+//     int r_0;
+//     string instance_name;
+//     string setname;
+//     string modelname;
+// 
+//     float running_time;
+//     float optimality_gap;
+//     int cut_count;
+// 
+//     M2ProblemInstance *M2Instance;
+//     BendersSeparation sep;
+// 
+//     GRBEnv *M2Bendersenv;
+//     GRBModel *M2Bendersmodel;
+// 
+//     vector<GRBVar> x; // decision variable - shortest path solution
+//     GRBVar zeta;           // objective function
+//     GRBLinExpr linexpr;
+// 
+//     M2Benders();
+//     M2Benders(M2ProblemInstance *the_M2Instance);
+//     vector<float> solve();
+// };
 
-    vector<vector<int> > c_bar; // this is the current objective function cost vector
-    // i.e. - the objective function is c_bar \cdot y
-    // computed during solution tree based on graph costs (c^q and d) and the current
-    // x_bar from the master problem
+pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance& m3, const LayerGraph& G);
 
-    vector<vector<int> > c; // base costs
-    vector<int> d;              // interdiction costs
-
-    GRBConstr *obj_constr;              // array of constraints for the objective lower bounding constraints over the qs
-                                        // need this as an array to update it
-    vector<GRBVar> zeta_subs;      // dummy objective function variable because we have to argmin over q
-    vector<vector<GRBVar> > y; // main decision variable - arc path selection/flow (one y vector for every q)
-    vector<GRBVar> y_dummy;        // just to construct and push_back y
-    vector<float> y_dummy2;        // just to construct and push_back yhat
-    GRBLinExpr linexpr;                 // when adding the flow constraints, we use this one for outgoing arcs
-    GRBLinExpr linexpr2;                // when adding the flow constraints, we use this one for incoming arcs
-    int rhs;                            // use this also for generating flow constraints
-    string varname;
-
-    BendersSub();
-    BendersSub(M2ProblemInstance *the_M2Instance);
-    vector<vector<float> > solve(int counter); // now returns a vector of vectors of size p+1, where the first is a singleton with the obj value
-    void update(vector<int> &xhat);
-};
-
-class BendersSeparation : public GRBCallback
-{
-public:
-    int n;
-    int m;
-    int p;
-    int counter = 0;
-    int cut_count = 0;
-
-    vector<vector<int> > c; // base costs
-    vector<int> d;              // interdiction costs
-
-    // a hat vector is numbers, a bar vector is GRBVars
-    GRBLinExpr new_cut;                   // linexpr object for new cut to add to master formulation
-    GRBVar zetabar;                       // 'connecting' GRBVar for zeta
-    vector<GRBVar> xbar;             // 'connecting' GRBVars for x
-    vector<int> xhat;                // current xhat to solve with, i.e. interdiction policy we are subject to
-    vector<float> xprime;            // current best interdiction policy (includes extra x[0] for obj)
-    vector<vector<float> > yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[q][0] for objective for each q), it is of size p (vectors), first element of each flow is the objective
-
-    BendersSub subproblem;
-
-    // upper and lower bounds and epsilon
-    float zeta_u = GRB_INFINITY;
-    float zeta_l = -GRB_INFINITY;
-    float zeta_temp;
-    float epsilon = 0.000001;
-
-    BendersSeparation();
-    BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, M2ProblemInstance *the_M2Instance);
-
-protected:
-    void callback();
-    void printSep();
-};
-
-class AdaptiveBenders
-{
-public:
-    int s = 0;
-    int n;
-    int m;
-    int p;
-    int r_0;
-    string instance_name;
-    string setname;
-    string modelname;
-
-    float running_time;
-    float optimality_gap;
-    int cut_count;
-
-    M2ProblemInstance *M2Instance;
-    BendersSeparation sep;
-
-    GRBEnv *M2Bendersenv;
-    GRBModel *M2Bendersmodel;
-
-    vector<GRBVar> x; // decision variable - shortest path solution
-    GRBVar zeta;           // objective function
-    GRBLinExpr linexpr;
-
-    M2Benders();
-    M2Benders(M2ProblemInstance *the_M2Instance);
-    vector<float> solve();
-};
-
-pair<vector<vector<int> >, vector<vector<double> > > enumSolve(M2ProblemInstance& M2);
-
-vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, M2ProblemInstance& M2);
+vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, AdaptiveInstance& m3);
