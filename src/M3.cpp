@@ -74,6 +74,35 @@ void LayerGraph::printGraph(vector<vector<int> > costs, vector<int> interdiction
     }
 }
 
+void AdaptiveInstance::writeCosts() {
+    // Write a costs file for the instance
+    // Costs file has (p+1) lines - p sets of arc costs plus interdiction costs
+    string filename = directory + name + "-costs.csv";
+    ofstream myfile(filename);
+
+    for (int q=0; q<scenarios; ++q) {
+        stringstream ss;
+        for (int a=0; a<arcs; ++a) {
+            if (a!=0) {
+                ss << ",";
+            }
+            ss << arc_costs[q][a];
+        }
+
+        string line = ss.str() + "\n";
+        myfile << line;
+    }
+
+    stringstream ss;
+    for (int a=0; a<arcs; ++a) {
+        if (a!=0) {
+            ss << ",";
+        }
+        ss << interdiction_costs[a];
+    }
+    string line = ss.str() + "\n";
+    myfile << line;
+}
 
 void AdaptiveInstance::generateCosts(int interdiction, int min, int max) {
     /* 
@@ -87,9 +116,75 @@ void AdaptiveInstance::generateCosts(int interdiction, int min, int max) {
     mt19937 gen(rd());                          // seed the generator
     uniform_int_distribution<> distr(min, max); // define the range
 
-    arc_costs = vector<vector<int> >(scenarios, vector<int>(arcs, distr(gen)));
+    arc_costs = vector<vector<int> >(scenarios, vector<int>(arcs));
+
+    for (int q=0; q<scenarios; ++q) {
+        for (int a=0; a<arcs; ++a) {
+            arc_costs[q][a] = distr(gen);
+        }
+    }
 }
 
+void AdaptiveInstance::readCosts() {
+    // Read arc and interdiction costs from a file
+    string line;
+    string filename = directory + name + "-costs.csv";
+    ifstream myfile(filename);
+    int q = 0;
+
+    while(getline(myfile, line)) {
+        
+        vector<int> v;
+        int i=0;
+        
+        while (true) {
+            int cost = 0;
+            int power = 0;
+            vector<int> nums;
+
+            while (line[i] >= 48 && line[i] <= 57){
+                cout << line[i] << " ";
+                nums.push_back(line[i]-'0');
+                power++;
+                i++;
+            }
+
+            for (int j=0; j<power; ++j) {
+                cost += nums[j] * pow(10, power-j-1);
+            }
+
+            v.push_back(cost);
+
+            if (line[i] == '\n') {
+                break;
+            }
+            ++i;
+        }
+
+        if (q < scenarios) {
+            arc_costs.push_back(v);
+        }
+
+        else {
+            interdiction_costs = v;
+        }
+        
+        ++q;
+        cout << endl;
+        cout << endl;
+    }
+}
+
+void AdaptiveInstance::initCosts(int interdiction, int min, int max) {
+    // If interdiction is not passed (<0), then read from file
+    if (interdiction < 0) {
+        readCosts();
+    }
+    else {
+        generateCosts(interdiction, min, max);
+        writeCosts();
+    }
+}
 
 void AdaptiveInstance::printInstance(const LayerGraph& G) const {
     // Print Summary of Problem Instance
