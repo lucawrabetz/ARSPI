@@ -174,16 +174,16 @@ int main()
     // TESTING MODELS
     int n=26;
     int p=5;
-    int max_k=1;
+    int max_k=5;
     int M = 500;
     int interdiction_cost = 10;
     int min = 30;
     int max = 80;
     const string filename = "dat/set1_09-17-21/set1_09-17-21_26_0.4.txt";
-    string test = "test";
+    // const string filename = "dat/simplegraph3.txt";
 
     const LayerGraph G = LayerGraph(filename, n);
-    int r_0=n/2;
+    int r_0=n/6;
     cout << "p: " << p << ", n: " << n << ", m: " << G.m << ", r_0: " << r_0 << endl;
     AdaptiveInstance m3 = AdaptiveInstance(p, 1, r_0, G); 
     m3.generateCosts(interdiction_cost, min, max);

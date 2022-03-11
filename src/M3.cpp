@@ -237,16 +237,15 @@ void SetPartitioningModel::configureModel(const LayerGraph& G, AdaptiveInstance&
         }
 
         // interdiction policy on arcs 'x' - REMEMBER to check that this initialization works
-        x = vector<vector<GRBVar> >(policies, vector<GRBVar>(arcs, m3_model->addVar(0, 1, 0, GRB_BINARY)));
-        // for (int w = 0; w < policies; ++w) {
-        //     x.push_back(new_vector);
+        for (int w = 0; w < policies; ++w) {
+            x.push_back(new_vector);
 
-        //    for (int a = 0; a < m; a++)
-        //    {
-        //        varname = "x_" + to_string(w) + "_" + to_string(a);
-        //        x[w].push_back(m3_model->addVar(0, 1, 0, GRB_BINARY, varname));
-        //    }
-        // } 
+            for (int a = 0; a < arcs; a++)
+            {
+                string varname = "x_" + to_string(w) + "_" + to_string(a);
+                x[w].push_back(m3_model->addVar(0, 1, 0, GRB_BINARY, varname));
+            }
+        } 
        
 
         // objective func dummy 'z'
