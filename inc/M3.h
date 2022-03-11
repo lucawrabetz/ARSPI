@@ -1,4 +1,6 @@
-#pragma once
+#ifndef M3_H
+#define M3_H
+
 #include <utility>
 #include <time.h>
 #include <float.h>
@@ -247,3 +249,5 @@ public:
 pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance& m3, const LayerGraph& G);
 
 vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, AdaptiveInstance& m3);
+
+#endif
