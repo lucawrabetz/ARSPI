@@ -1306,3 +1306,9 @@ vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<dou
         cout << "placeholder" << endl;
     }
 }
+
+long getCurrentTime() {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}

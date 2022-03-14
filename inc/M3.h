@@ -2,6 +2,8 @@
 #define M3_H
 
 #include <utility>
+#include <unistd.h>
+#include <sys/time.h>
 #include <time.h>
 #include <float.h>
 #include <fstream>
@@ -254,5 +256,7 @@ public:
 pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance& m3, const LayerGraph& G);
 
 vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, AdaptiveInstance& m3);
+
+long getCurrentTime();
 
 #endif

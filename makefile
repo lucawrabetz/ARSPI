@@ -26,5 +26,11 @@ CXXFLAGSMAC = -Wall -g -std=c++11
 all:
 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)main $(SRCPATH)main.cpp -I$(INCPATHMAC) $(CPPLIBMAC) 
 
+sp:
+	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)sp $(SRCPATH)sp.cpp -I$(INCPATHMAC) $(CPPLIBMAC) 
+
+enum:
+	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)enum $(SRCPATH)enum.cpp -I$(INCPATHMAC) $(CPPLIBMAC) 
+
 clean:
 	rm -rf *.o $(BINPATH)*.dSYM $(BINPATH)main
