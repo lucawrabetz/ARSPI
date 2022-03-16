@@ -1,5 +1,9 @@
-#pragma once
+#ifndef M3_H
+#define M3_H
+
 #include <utility>
+#include <unistd.h>
+#include <sys/time.h>
 #include <time.h>
 #include <float.h>
 #include <fstream>
@@ -60,13 +64,15 @@ public:
     int scenarios, policies, budget, nodes, arcs;
     vector<int> interdiction_costs;
     vector<vector<int> > arc_costs;
+    const string directory;
+    const string name;
 
     // default
     AdaptiveInstance() : scenarios(0), policies(0), budget(0) {}; 
 
     // main constructor
-    AdaptiveInstance(int p, int k, int r_zero, const LayerGraph &G) :
-        scenarios(p), policies(k), budget(r_zero), nodes(G.n), arcs(G.m) {};
+    AdaptiveInstance(int p, int k, int r_zero, const LayerGraph &G, const string &directory, const string &name) :
+        scenarios(p), policies(k), budget(r_zero), nodes(G.n), arcs(G.m), directory(directory), name(name) {};
 
     // change U constructor
     AdaptiveInstance(const AdaptiveInstance &m3, vector<int>& keep_scenarios) :
@@ -82,7 +88,10 @@ public:
 
     void printInstance(const LayerGraph&G) const;
     vector<int> dijkstra(int q, const LayerGraph &G);
+    void writeCosts();
     void generateCosts(int interdiction, int min, int max);
+    void readCosts();
+    void initCosts(int interdiction=-1, int min=0, int max=0);
     void applyInterdiction(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar, const LayerGraph& G);
 };
@@ -247,3 +256,7 @@ public:
 pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance& m3, const LayerGraph& G);
 
 vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, AdaptiveInstance& m3);
+
+long getCurrentTime();
+
+#endif

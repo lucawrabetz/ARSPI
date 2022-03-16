@@ -2,7 +2,7 @@
 
 This repository contains the source code to solve the adaptive network interdiction problem (adaptive shortest-path interdiction). The code to generate test instances and handle experiments can be found in [scripts](https://github.com/lucawrabetz/ARSPI/tree/master/scripts).
 
-## Key Classes
+## Classes
 
 ### LayerGraph
 
@@ -11,3 +11,12 @@ This repository contains the source code to solve the adaptive network interdict
     * A vector of vectors of ints, outer vector indexed 0-(n-1), of adjacency list for each node. Each inner vector is a list of adjacent nodes;
 
 ### AdaptiveInstance
+
+* Instance files:
+    * AdaptiveInstance.name is the name of the instance, i.e. a base_name + graph_info(i.e. size, density). You can always construct appropriate filenames as /dat/base_name/AdaptiveInstance.name""
+* Costs 
+    * see AdaptiveInstance::initCosts() - pass interdiction = -1 to read from existing costs, or a positive interdiction value to generate arc costs and set interdiction costs to interdiction
+
+## Experiment Scripts
+
+* Experimental scripts are written in python files in scripts, found in [scripts](https://github.com/lucawrabetz/ARSPI/tree/master/scripts). These python files will call executeables compiled from C++. 

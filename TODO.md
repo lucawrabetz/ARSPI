@@ -5,6 +5,9 @@
 - [ ] Use copy constructors for gurobi var vectors (already done in line 313 of M2.cpp with x, check it compiles when solving MIP then do with the rest of them).
 - [ ] Change the copy constructor for M2ProblemInstance to take a const object, and verify the consistency of that usage throughout libraries and scripts - 
 - [ ] Refactor main into scripts that can be called by python or shell scripts for computational experiments
+    * Each executeable should stay as small as possible, ideally completing a single action (solving a single instance with a single algorithm). The structure for any of these is simple: 
+        * (IN) instance file 
+        * (OUT) data for python to include in results row
 - [ ] Add destructors to big but temporary classes, like the set partitioning model
 
 ## Optimizing 
@@ -39,5 +42,7 @@
 ## Testing
 * Test Dijkstra
 * Test AdaptiveInstance Constructors
+
+## March 2022
 
 
