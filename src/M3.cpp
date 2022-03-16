@@ -177,6 +177,7 @@ void AdaptiveInstance::readCosts() {
 
 void AdaptiveInstance::initCosts(int interdiction, int min, int max) {
     // If interdiction is not passed (<0), then read from file
+    cout << interdiction << " " << min << " " << max << endl;
     if (interdiction < 0) {
         readCosts();
     }
@@ -1188,7 +1189,7 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
     // Enumerate all possible partitions by enumerating H matrix
     // Enumeration is done through the 'string' method, and then the H matrix/problem instance are updated (??)
     // Return: pair of nested vectors:
-    //      first: ints - optimal partition
+    //      first: ints - optimal partition - obj value singleton at pos 0
     //      second: doubles - k interdiction policies
 
     // ints and bool
@@ -1220,6 +1221,7 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
 
         // enumerate while not 'failing' to get next partition
         while (next) {
+            cout << "new iteration" << endl;
             vector<vector<double> > temp_sol(k, arc_vec);
             double temp_worst_sol = DBL_MAX;
             vector<vector<int> > partition = kappa_to_partition(kappa, k, p);
@@ -1227,6 +1229,7 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
             for (int w=0; w<k; ++w) {
                 // for every subset in partition, solve M2 for k=1
                 static_robust.update(partition[w]);
+                cout << "solving a static robust model" << endl;
                 vector<double> temp_single_solution = static_robust.solve(counter);
                 static_robust.reverse_update(partition[w]);
                 ++counter;
@@ -1249,10 +1252,12 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
             // cout << "BEST WORST CASE SOLUTION SO FAR: " << best_worstcase_solution << endl;
             next = nextKappa(kappa, max, k, p);
         }
+        
 
-
+        vector<int> final_obj(1, best_worstcase_solution);
+        best_worstcase_partition.insert(best_worstcase_partition.begin(), final_obj);
         auto final_solution = make_pair(best_worstcase_partition, sol);
-        cout << "ENUMERATION OPTIMAL SOLUTION: " << best_worstcase_solution << endl;
+        return final_solution;
     }
     catch (GRBException e) {
         cout << "Gurobi error number [EnumSolve]: " << e.getErrorCode() << endl;
@@ -1262,8 +1267,8 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
         cout << "Non Gurobi error during construction of static robust model object" << endl;
     }
 
-    vector<vector<int> > vec1;
-    vector<vector<double> > vec2;
+    vector<vector<int>> vec1;
+    vector<vector<double>> vec2;
     auto dummy_solution = make_pair(vec1, vec2);
     return dummy_solution;
 }

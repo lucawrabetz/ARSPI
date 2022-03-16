@@ -3,7 +3,7 @@
 // solve instance with enumeration algorithm
 // example call:
 // ./bin/enum set1_09-17-21 set1_09-17-21_26_0.4 26 5 1 6 500 30 80 10 1
-// output: <objective> <runtime(ms)> (need to find objective)
+// output: <objective> <runtime(ms)> 
 
 int main(int argc, char* argv[]) {
     const string base_name = argv[1];
@@ -33,5 +33,5 @@ int main(int argc, char* argv[]) {
     auto solution = enumSolve(m3, G);
     long runtime = getCurrentTime() - begin;
 
-    cout << runtime << endl;
+    cout << solution.first[0][0] << " " << runtime << endl;
 }
