@@ -143,7 +143,6 @@ void AdaptiveInstance::readCosts() {
             vector<int> nums;
 
             while (line[i] >= 48 && line[i] <= 57){
-                cout << line[i] << " ";
                 nums.push_back(line[i]-'0');
                 power++;
                 i++;
@@ -170,14 +169,11 @@ void AdaptiveInstance::readCosts() {
         }
         
         ++q;
-        cout << endl;
-        cout << endl;
     }
 }
 
 void AdaptiveInstance::initCosts(int interdiction, int min, int max) {
     // If interdiction is not passed (<0), then read from file
-    cout << interdiction << " " << min << " " << max << endl;
     if (interdiction < 0) {
         readCosts();
     }
@@ -324,7 +320,7 @@ void SetPartitioningModel::configureModel(const LayerGraph& G, AdaptiveInstance&
 
         // set partitioning variables
         for (int w = 0; w < policies; ++w){
-            cout << "in model constructor" << endl;
+            // cout << "in model constructor" << endl;
             h_matrix.push_back(new_vector);
             for (int q =0; q<scenarios; ++q){
                 string varname = "H_" + to_string(w) + "_" + to_string(q);
@@ -426,7 +422,6 @@ void SetPartitioningModel::configureModel(const LayerGraph& G, AdaptiveInstance&
                 }
             }
         }
-        cout << "done with arcs" << endl;
 
         // for (int q = 0; q < p; ++q)
         // {
@@ -457,7 +452,6 @@ void SetPartitioningModel::configureModel(const LayerGraph& G, AdaptiveInstance&
                 m3_model->addConstr(pi[w][q][0] == 0);
             }
         }
-        cout << "done configuremodel" << endl;
         m3_model->update();
     }
     catch (GRBException e)
@@ -481,18 +475,9 @@ vector<vector<float> > SetPartitioningModel::solve()
 
     try
     {
-        // cout << "In MIP.solve() method" << endl;
-
-        // cout << "in solve" << endl;
-
-        clock_t model_begin = clock();
         m3_model->optimize();
-        float running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
-
-        // cout << "just optimized" << endl;
 
         try {
-
             // double optimality_gap = m3_model->get(GRB_DoubleAttr_MIPGap);
             vector<float> objective_vec;
             objective_vec.push_back(m3_model->get(GRB_DoubleAttr_ObjVal));
@@ -515,7 +500,6 @@ vector<vector<float> > SetPartitioningModel::solve()
                 // set the optimality gap to -1 and we'll list as unbounded 
                 // put -infinity as objective value (the objectives are negative, min -z)
                 // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
-                // cout << "Objective: unbounded" << "\n";
                 vector<float> vec; 
                 vec.push_back(-GRB_INFINITY);
                 x_prime.push_back(vec);
@@ -526,9 +510,6 @@ vector<vector<float> > SetPartitioningModel::solve()
                 cout << e.getMessage() << "\n";
             }
         }
-
-        // cout << "Running time: " << running_time << "\n";
-
 
         return x_prime;
 
@@ -1147,13 +1128,9 @@ bool nextKappa(vector<int>& kappa, vector<int>& max, int k, int p){
     for (int q=(p-1); q>0; --q){
         if ((kappa[q] < k-1) && (kappa[q] <= max[q-1])){
             
-            //cout << "q = " << q << endl; 
-
             ++kappa[q]; max[q] = max_int(max[q], kappa[q]);
 
             for (int u=q+1; u<=(p-(k-max[q])); ++u){
-                //cout << "first half pass loop" << endl;
-                //cout << "u: " << u << endl;
                 kappa[u]=0; max[u]=max[q];
             }
 
@@ -1221,7 +1198,6 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
 
         // enumerate while not 'failing' to get next partition
         while (next) {
-            cout << "new iteration" << endl;
             vector<vector<double> > temp_sol(k, arc_vec);
             double temp_worst_sol = DBL_MAX;
             vector<vector<int> > partition = kappa_to_partition(kappa, k, p);
@@ -1229,7 +1205,6 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
             for (int w=0; w<k; ++w) {
                 // for every subset in partition, solve M2 for k=1
                 static_robust.update(partition[w]);
-                cout << "solving a static robust model" << endl;
                 vector<double> temp_single_solution = static_robust.solve(counter);
                 static_robust.reverse_update(partition[w]);
                 ++counter;
@@ -1244,12 +1219,6 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
                 best_worstcase_partition = partition;
             }
 
-            // cout << "next: " << next << endl;
-            // cout << "[ ";
-            // for (int q=0; q<p; ++q){cout << kappa[q] << " ";}
-            // cout << "]" << endl;
-            // cout << "\nWORST CASE SOLUTION (THIS PARTITION): " << temp_worst_sol << endl; 
-            // cout << "BEST WORST CASE SOLUTION SO FAR: " << best_worstcase_solution << endl;
             next = nextKappa(kappa, max, k, p);
         }
         
