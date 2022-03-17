@@ -30,18 +30,6 @@ def arcs_for_current_layer(current_layer, next_layer, p):
 
     return new_arcs
 
-
-def cost_generation(num_evaders, m, mu, sigma):
-    # defines a [discrete] uncertainty set of costs for some number of policies/evaders
-    # samples from a normal dist.
-    costs = []
-    for i in range(num_evaders):
-        this_evader = []
-        for j in range(m):
-            this_evader.append(int(abs(random.gauss(mu, sigma))))
-        costs.append(this_evader)
-    return costs
-
 class LayerGraph:
     s = 0
     num_layers = 0
@@ -116,48 +104,6 @@ class LayerGraph:
         nx.write_edgelist(G, filename, data=False)
 
         return path
-
-
-class TestBed:
-    '''
-    - adding costs to a layerGraph to create a full testbed
-    - as of right now, not being used as I do this directly in the cpp code
-    '''
-    G = None
-    l = 0
-    samples = 0
-    mu = 0
-    sigma = 0
-    cc = {}
-    d = 0
-    r_0 = 0
-
-    def __init__(self, num_layerss, num_per_layerr, arcs_per_nodee, ll, sampless, muu, sigmaa, r_00):
-        self.G = LayerGraph(num_layerss, num_per_layerr, arcs_per_nodee)
-        self.l = ll
-        self.samples = sampless
-        self.mu = muu
-        self.sigma = sigmaa
-        self.d = self.sigma*2
-        self.r_0 = r_00
-
-        for evaders in range(1, self.l+1):
-            current_evader_num = {}
-            for i in range(1, self.samples+1):
-                current_evader_num[i] = cost_generation(
-                    evaders, self.G.m, self.mu, self.sigma)
-            self.cc[evaders] = current_evader_num
-
-    def writeBed(self, filename):
-        with open(filename, "w") as file:
-            file.write("n: " + str(self.G.n) + "\n")
-            file.write("m: " + str(self.G.m) + "\n")
-            file.write("R0: " + str(self.r_0) + "\n")
-            file.write("max evaders: " + str(self.l) + "\n")
-            file.write("samples: " + str(self.samples) + "\n")
-            file.write("mu: " + str(self.mu) + "\n")
-            file.write("sigma: " + str(self.sigma) + "\n")
-
 
 if __name__ == "__main__":
 
