@@ -1,6 +1,7 @@
 import random
 import math
 import networkx as nx
+import pdb
 
 def arcs_for_current_layer(current_layer, next_layer, p):
     '''
@@ -29,18 +30,6 @@ def arcs_for_current_layer(current_layer, next_layer, p):
             new_arcs.append(new_arc)
 
     return new_arcs
-
-
-def cost_generation(num_evaders, m, mu, sigma):
-    # defines a [discrete] uncertainty set of costs for some number of policies/evaders
-    # samples from a normal dist.
-    costs = []
-    for i in range(num_evaders):
-        this_evader = []
-        for j in range(m):
-            this_evader.append(int(abs(random.gauss(mu, sigma))))
-        costs.append(this_evader)
-    return costs
 
 class LayerGraph:
     s = 0
@@ -117,59 +106,65 @@ class LayerGraph:
 
         return path
 
+class ErdosRenyi:
+    s = -1
+    t = -1
+    n = -1
+    pr = -1
+    G = -1
 
-class TestBed:
-    '''
-    - adding costs to a layerGraph to create a full testbed
-    - as of right now, not being used as I do this directly in the cpp code
-    '''
-    G = None
-    l = 0
-    samples = 0
-    mu = 0
-    sigma = 0
-    cc = {}
-    d = 0
-    r_0 = 0
+    def __init__(self, nodes, probability):
+        '''
+        Generate graph topology using networkx erdos-renyi graph
+        '''
+        self.n = nodes
+        self.pr = probability
+        self.s = 0
+        self.t = self.n-1
 
-    def __init__(self, num_layerss, num_per_layerr, arcs_per_nodee, ll, sampless, muu, sigmaa, r_00):
-        self.G = LayerGraph(num_layerss, num_per_layerr, arcs_per_nodee)
-        self.l = ll
-        self.samples = sampless
-        self.mu = muu
-        self.sigma = sigmaa
-        self.d = self.sigma*2
-        self.r_0 = r_00
+        diameter = -1
+        st_shortest_path = -1
+        counter = 0
 
-        for evaders in range(1, self.l+1):
-            current_evader_num = {}
-            for i in range(1, self.samples+1):
-                current_evader_num[i] = cost_generation(
-                    evaders, self.G.m, self.mu, self.sigma)
-            self.cc[evaders] = current_evader_num
+        while st_shortest_path < (diameter / 2) or st_shortest_path < 0 or diameter < 0:
+            counter += 1
+            self.G = nx.erdos_renyi_graph(self.n, self.pr, directed=True)
 
-    def writeBed(self, filename):
-        with open(filename, "w") as file:
-            file.write("n: " + str(self.G.n) + "\n")
-            file.write("m: " + str(self.G.m) + "\n")
-            file.write("R0: " + str(self.r_0) + "\n")
-            file.write("max evaders: " + str(self.l) + "\n")
-            file.write("samples: " + str(self.samples) + "\n")
-            file.write("mu: " + str(self.mu) + "\n")
-            file.write("sigma: " + str(self.sigma) + "\n")
+            try:
+                diameter = nx.diameter(self.G)
+            except:
+                if (not nx.is_strongly_connected(self.G)):
+                    diameter = -1
 
+            try:
+                st_shortest_path = len(nx.shortest_path(self.G, source=self.s, target=self.t)) - 1
+            except:
+                st_shortest_path = -1
+
+            if counter > 10: break
+
+    def printGraph(self, edge_list=True):
+        '''
+        - print out the graph
+        '''
+        print("n: " + str(self.n) + " - " + str([i for i in range(self.n)]))
+        print("m: " + str(self.m))
+        if edge_list:
+            print("arcs: ")
+            # import pdb; pdb.set_trace()
+
+            for i in range(self.m):
+                print("     " + str(self.arcs[i]))
+
+    def checksNX(self, filename):
+        '''
+        - check anything you want - connectivity, parallel edges, etc
+        - also writes graph to a file in standard edge list style
+        '''
+        nx.write_edgelist(self.G, filename, data=False)
 
 if __name__ == "__main__":
+    nodes = 10
+    probability = 0.5
 
-    num_layers = 4
-    num_per_layer = 8
-    p = 0.7
-    ll = 2
-    samples = 2
-    mu = 100
-    sigma = 10
-    r_0 = 1
-
-    lG = LayerGraph(num_layers, num_per_layer, p)
-    lG.printGraph()
-    lG.checksNX('graph1.graph')
+    G = ErdosRenyi(nodes, probability)
