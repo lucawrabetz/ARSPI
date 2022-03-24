@@ -10,7 +10,7 @@
 #include <string>
 #include <sstream>
 #include <random>
-#include "/Library/gurobi902/mac64/include/gurobi_c++.h"
+#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
 
 using std::random_device;
 using std::mt19937;
