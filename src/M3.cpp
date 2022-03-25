@@ -127,48 +127,35 @@ void AdaptiveInstance::generateCosts(int interdiction, int min, int max) {
 
 void AdaptiveInstance::readCosts() {
     // Read arc and interdiction costs from a file
-    string line;
+    string line, word;
     string filename = directory + name + "-costs.csv";
     ifstream myfile(filename);
     int q = 0;
+    vector<int> v;
+    int cost;
 
-    while(getline(myfile, line)) {
-        
-        vector<int> v;
-        int i=0;
-        
-        while (true) {
-            int cost = 0;
-            int power = 0;
-            vector<int> nums;
+    if (myfile.is_open())
+    {
+        while(getline(myfile, line)) {
 
-            while (line[i] >= 48 && line[i] <= 57){
-                nums.push_back(line[i]-'0');
-                power++;
-                i++;
+            v.clear();
+            stringstream str(line);
+
+            while(getline(str, word, ',')) {
+                cost = stoi(word);
+                v.push_back(cost);
             }
 
-            for (int j=0; j<power; ++j) {
-                cost += nums[j] * pow(10, power-j-1);
+            if (q < scenarios) {
+                arc_costs.push_back(v);
             }
 
-            v.push_back(cost);
-
-            if (line[i] == '\n') {
-                break;
+            else {
+                interdiction_costs = v;
             }
-            ++i;
+            
+            ++q;
         }
-
-        if (q < scenarios) {
-            arc_costs.push_back(v);
-        }
-
-        else {
-            interdiction_costs = v;
-        }
-        
-        ++q;
     }
 }
 

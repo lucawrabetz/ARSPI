@@ -4,11 +4,11 @@ import os
 def main():
     # PRACTITIONER DEFINED EXPERIMENTAL INPUTS
     # REMEMBER TO CHANGE SETNAME OR YOU WILL OVERWRITE THE RESULTS!!!
-    N_VALUES = [10, 15, 20, 50, 100, 200, 1000]
+    N_VALUES = [10, 15, 20, 50, 100, 200]
     PR_VALUES = [0.4, 0.6]
     DATNAME = "dat"
     MODELSNAME = "modelfiles"
-    SETNAME = "set1_03-21-22"
+    SETNAME = "set3_03-24-22"
 
     # PATHS
     LOGNAME = SETNAME + ".log"
@@ -30,7 +30,6 @@ def main():
     with open (LOGPATH, "w") as logfile:
         for n in N_VALUES:
             for pr in PR_VALUES:
-
                 G = graphclasses.ErdosRenyi(n, pr)
                 filename = SETNAME + "_" + str(n) + "_" + str(pr) + ".txt"
                 filepath = os.path.join(DATAPATH, filename)
