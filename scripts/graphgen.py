@@ -42,14 +42,20 @@ def check_make_dir(path, i):
 
 def main():
     """
-        - Pass one arg - the desired "basename" (e.g. "luca_graph")
+        - Args
+            - (1) the desired "basename" (e.g. "luca_graph")
+            - (2) max n
+            - (3) max pr
             - do not use the char '-' use different delimeter such as '_'
     """
     # PRACTITIONER DEFINED EXPERIMENTAL INPUTS
-    N_VALUES = [10, 15, 20, 50, 100, 200]
-    PR_VALUES = [0.4, 0.6]
+    N_VALUES = [10, 15, 20, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000]
+    PR_VALUES = [0.4, 0.5, 0.6, 0.7]
 
     BASENAME = sys.argv[1]
+    MAX_N = int(sys.argv[2])
+    MAX_PR = float(sys.argv[3])
+
     setname = append_date(BASENAME)
     dat_temppath = os.path.join(DAT, setname)
     models_temppath = os.path.join(MODELS, setname)
@@ -67,7 +73,9 @@ def main():
 
     with open (LOGPATH, "w") as logfile:
         for n in N_VALUES:
+            if n > MAX_N: break
             for pr in PR_VALUES:
+                if pr > MAX_PR: break
                 G = graphclasses.ErdosRenyi(n, pr)
                 fullname = SETNAME + "_" + str(n) + "_" + str(pr)
                 filename = fullname + ".txt"

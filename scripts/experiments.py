@@ -1,5 +1,6 @@
 import os
 import sys
+import subprocess
 import math
 import pandas as pd
 
@@ -11,20 +12,25 @@ import pandas as pd
 # Global namespace 
 DAT = "dat"
 MODELS = "modelfiles"
+M = 500
+LB_COST = 30
+UB_COST = 80
+INT_COST = 10
 
 def single_run(setname, name, n, p, k, costs=1):
     """
     Please pass costs as int 0 or 1, not a bool
     """
     r_0 = math.floor(n/4)
-    sp_call = "./bin/sp " + setname + " " + name + " " + str(n) + " " + str(p) + " " + str(k) + " " + str(r_0) + " 500 30 80 10 " + str(costs)
+    sp_call = ["./bin/sp", setname, name, str(n), str(p), str(k), str(r_0), str(M), str(LB_COST), str(UB_COST), str(INT_COST), str(costs)]
     # no costs in enum_call because definitely generated in sp_call
-    enum_call = "./bin/sp " + setname + " " + name + " " + str(n) + " " + str(p) + " " + str(k) + " " + str(r_0) + " 500 30 80 10 0"
+    enum_call = ["./bin/enum", setname, name, str(n), str(p), str(k), str(r_0), str(M), str(LB_COST), str(UB_COST), str(INT_COST), '0']
 
-    print(sp_call)
-    os.system(sp_call)
-    print(enum_call)
-    os.system(enum_call)
+    # .run(<executable>, <saves stdout>).<more options to encode stdout>.<throw out gurobi prints>
+    sp_result = subprocess.run(sp_call, stdout=subprocess.PIPE).stdout.decode('utf-8').split('\n')[-2]
+    print(sp_result)
+    enum_result = subprocess.run(enum_call, stdout=subprocess.PIPE).stdout.decode('utf-8').split('\n')[-2]
+    print(enum_result)
 
 def enum_vs_mip(setname):
     logfile = setname + ".log"
