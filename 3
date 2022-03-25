@@ -18,16 +18,14 @@ def single_run(setname, name, n, p, k, costs=1):
     """
     r_0 = math.floor(n/4)
     sp_call = "./bin/sp " + setname + " " + name + " " + str(n) + " " + str(p) + " " + str(k) + " " + str(r_0) + " 500 30 80 10 " + str(costs)
+    print(sp_call)
     # no costs in enum_call because definitely generated in sp_call
     enum_call = "./bin/sp " + setname + " " + name + " " + str(n) + " " + str(p) + " " + str(k) + " " + str(r_0) + " 500 30 80 10 0"
-
-    print(sp_call)
     os.system(sp_call)
-    print(enum_call)
     os.system(enum_call)
 
 def enum_vs_mip(setname):
-    logfile = setname + ".log"
+    logfile = setname + ".lo"
     logpath = os.path.join(DAT, setname, logfile)
     k = 2
     p = 5
@@ -35,10 +33,12 @@ def enum_vs_mip(setname):
     with open (logpath, "r") as file:
         lines = file.readlines()
         n_list = lines[0].split(" ")
-        name_list = lines[1].split(" ")
+        name_list = lines[0].split(" ")
 
     for i in range(len(n_list)):
-        single_run(setname, name_list[i].strip(), int(n_list[i].strip()), p, k)
+        single_run(setname, name_list[i], n_list[i], p, k)
+
+
 
 
 def main():
