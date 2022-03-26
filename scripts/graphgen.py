@@ -48,13 +48,27 @@ def main():
             - (3) max pr
             - do not use the char '-' use different delimeter such as '_'
     """
-    # PRACTITIONER DEFINED EXPERIMENTAL INPUTS
-    N_VALUES = [10, 15, 20, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000]
-    PR_VALUES = [0.4, 0.5, 0.6, 0.7]
+    N_VALUES = [10, 15, 20, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000, 500000, 1000000]
+    PR_VALUES = [0.3, 0.4, 0.5, 0.6, 0.7]
 
-    BASENAME = sys.argv[1]
-    MAX_N = int(sys.argv[2])
-    MAX_PR = float(sys.argv[3])
+    # will set some default args if you don't pass them right
+    if len(sys.argv) == 4:
+        MAX_PR = float(sys.argv[3])
+        MAX_N = int(sys.argv[2])
+        BASENAME = sys.argv[1]
+    elif len(sys.argv) == 3:
+        MAX_PR = 0.5
+        MAX_N = int(sys.argv[2])
+        BASENAME = sys.argv[1]
+    elif len(sys.argv) == 2:
+        MAX_PR = 0.5
+        MAX_N = 1000
+        BASENAME = sys.argv[1]
+    else:
+        MAX_PR = 0.5
+        MAX_N = 1000
+        BASENAME = "graphs"
+
 
     setname = append_date(BASENAME)
     dat_temppath = os.path.join(DAT, setname)
