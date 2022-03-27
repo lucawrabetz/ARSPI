@@ -82,8 +82,12 @@ def main():
     LOGNAME = SETNAME + ".log"
     LOGPATH = os.path.join(DATPATH, LOGNAME)
 
-    fullname_list = [] # append through the loop to ensure it matches the order
-    n_list = [] # append through the loop to ensure it matches the order
+    # append through the loop to ensure it matches the order
+    fullname_list = []
+    n_list = []
+    m_list = []
+    pr_list = []
+    density_list = []
 
     with open (LOGPATH, "w") as logfile:
         for n in N_VALUES:
@@ -91,19 +95,29 @@ def main():
             for pr in PR_VALUES:
                 if pr > MAX_PR: break
                 G = graphclasses.ErdosRenyi(n, pr)
-                fullname = SETNAME + "_" + str(n) + "_" + str(pr)
+                fullname = SETNAME + "-" + str(n) + "_" + str(int(10*pr))
                 filename = fullname + ".txt"
                 filepath = os.path.join(DATPATH, filename)
                 G.checksNX(filepath)
+
                 n_list.append(n)
+                m_list.append(G.m)
+                pr_list.append(pr)
+                density_list.append(G.density)
                 fullname_list.append(fullname)
 
         # instances_string = str(number_of_instances) + "\n"
         n_list_string = " ".join([str(i) for i in n_list]) + "\n"
+        m_list_string = " ".join([str(i) for i in m_list]) + "\n"
+        pr_list_string = " ".join([str(i) for i in pr_list]) + "\n"
+        density_list_string = " ".join([str(i) for i in density_list]) + "\n"
         fullname_list_string = " ".join(fullname_list) + "\n"
 
         # logfile.write(instances_string)
         logfile.write(n_list_string)
+        logfile.write(m_list_string)
+        logfile.write(pr_list_string)
+        logfile.write(density_list_string)
         logfile.write(fullname_list_string)
 
 if __name__ == "__main__":
