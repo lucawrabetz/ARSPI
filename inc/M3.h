@@ -37,6 +37,31 @@ public:
     Arc(int the_i, int the_j);
 };
 
+int binaryToDeca(vector<int>& vec);
+
+vector<int> decaToBinary(int val);
+
+struct Policy
+{
+    // Interdiction Policy
+    // NOTE: the vector is a full description of a policy, the integer value is only complete when it comes
+    // with the number of arcs, because of leading 0s
+public:
+    int size, deca_policy;
+    vector<int> binary_policy;
+
+    // default
+    Policy() : size(0), deca_policy(0) {};
+
+    // main constructor - accept vector or binary policy
+    Policy(int m, vector<int>& policy);
+    Policy(int m, int policy);
+
+    // mutators - accept vector or binary new policy
+    void set_policy(int policy);
+    void set_policy(vector<int>& policy);
+};
+
 class LayerGraph
 {
     // Layer Graph class (to be read from Arc list)
@@ -258,5 +283,6 @@ pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance&
 vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, AdaptiveInstance& m3);
 
 long getCurrentTime();
+
 
 #endif

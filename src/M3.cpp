@@ -1,8 +1,70 @@
 #include "../inc/M3.h"
 
+int binaryToDeca(vector<int>& vec){
+    // Convert a vector and 0s and 1s to its decimal representation
+
+    int result = 0;
+    int power = 0;
+
+    for (int i=vec.size(); i>0; --i){
+        result += vec[i-1] * pow(2, power);
+        ++power;
+    }
+
+    return result;
+
+}
+
+vector<int> decaToBinary(int val){
+    // Convert an integer number to its binary representation as a vector
+
+    vector<int> result;
+    int temp;
+
+    while (val > 0) {
+        temp = val % 2;
+        val = val / 2;
+        result.insert(result.begin(), temp);
+    }
+
+    return result;
+}
+
 Arc::Arc(){i=0; j=0;}
 
 Arc::Arc(int the_i, int the_j){i=the_i; j=the_j;}
+
+Policy::Policy(int m, int policy) {
+    size = m;
+    deca_policy = policy;
+    binary_policy = decaToBinary(policy);
+
+    // insert leading 0s
+    while (binary_policy.size() < size) {
+        binary_policy.insert(binary_policy.begin(), 0);
+    }
+}
+
+Policy::Policy(int m, vector<int>& policy) {
+    size = m;
+    binary_policy = policy;
+    deca_policy = binaryToDeca(policy);
+}
+
+void Policy::set_policy(int policy) {
+    deca_policy = policy;
+    binary_policy = decaToBinary(policy);
+
+    // insert leading 0s
+    while (binary_policy.size() < size) {
+        binary_policy.insert(binary_policy.begin(), 0);
+    }
+}
+
+void Policy::set_policy(vector<int>& policy) {
+    binary_policy = policy;
+    deca_policy = binaryToDeca(policy);
+}
 
 LayerGraph::LayerGraph(){n=0; m=0;}
 

@@ -157,7 +157,7 @@ def main():
             - full names are in the log file
     """
     # SET = sys.argv[1]
-    setlist = ["first-03_27_22-0"]
+    setlist = ["first-03_27_22-0", "first-03_27_22-1", "first-03_27_22-2"]
     p_list1 = [2, 3]
     p_list2 = [4, 5]
 

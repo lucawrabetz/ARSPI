@@ -5,38 +5,54 @@
 
 int main()
 {
-    int n=26;
-    int p=5;
-    int max_k=5;
-    int M = 500;
-    int interdiction_cost = 11;
-    int min = 30;
-    int max = 80;
-    const string base_name = "set1_09-17-21";
-    const string name = "set1_09-17-21_26_0.4";
-    const string directory = "dat/" + base_name + "/";
-    const string filename = directory + name + ".txt";
-    // const string filename = "dat/simplegraph3.txt";
+    int m = 6;
+    vector<int> policy;
+    policy.push_back(0);
+    policy.push_back(1);
+    policy.push_back(0);
+    policy.push_back(1);
+    policy.push_back(0);
+    policy.push_back(0);
+    Policy interdiction = Policy(m, policy);
 
-    const LayerGraph G = LayerGraph(filename, n);
-    int r_0=n/6;
-    cout << "p: " << p << ", n: " << n << ", m: " << G.m << ", r_0: " << r_0 << endl;
-    AdaptiveInstance m3 = AdaptiveInstance(p, 1, r_0, G, directory, name); 
-    m3.initCosts();
+    // for (int a=0; a<m; ++a) {
+    //     cout << interdiction.binary_policy[a] << " ";
+    // }
+    // cout << endl;
+    cout << interdiction.deca_policy << endl;
 
-    for (int a=0; a<m3.arcs; ++a) {
-        cout << m3.interdiction_costs[a] << " ";
-    }
-    cout << endl;
-    cout << endl;
+    // int n=26;
+    // int p=5;
+    // int max_k=5;
+    // int M = 500;
+    // int interdiction_cost = 11;
+    // int min = 30;
+    // int max = 80;
+    // const string base_name = "set1_09-17-21";
+    // const string name = "set1_09-17-21_26_0.4";
+    // const string directory = "dat/" + base_name + "/";
+    // const string filename = directory + name + ".txt";
+    // // const string filename = "dat/simplegraph3.txt";
 
-    for (int q=0; q<m3.scenarios; ++q) {
-        for (int a=0; a<m3.arcs; ++a) {
-            cout << m3.arc_costs[q][a] << " ";
-        }
-        cout << endl;
-        cout << endl;
-    }
+    // const LayerGraph G = LayerGraph(filename, n);
+    // int r_0=n/6;
+    // cout << "p: " << p << ", n: " << n << ", m: " << G.m << ", r_0: " << r_0 << endl;
+    // AdaptiveInstance m3 = AdaptiveInstance(p, 1, r_0, G, directory, name); 
+    // m3.initCosts();
+
+    // for (int a=0; a<m3.arcs; ++a) {
+    //     cout << m3.interdiction_costs[a] << " ";
+    // }
+    // cout << endl;
+    // cout << endl;
+
+    // for (int q=0; q<m3.scenarios; ++q) {
+    //     for (int a=0; a<m3.arcs; ++a) {
+    //         cout << m3.arc_costs[q][a] << " ";
+    //     }
+    //     cout << endl;
+    //     cout << endl;
+    // }
     // G.printGraph(m3.arc_costs, m3.interdiction_costs);
 
     // for (int k=1; k<=max_k; ++k) {
