@@ -6,7 +6,7 @@
 // output: <objective> <runtime(ms)> 
 
 int main(int argc, char* argv[]) {
-    const string base_name = argv[1];
+    const string set_name = argv[1];
     const string name = argv[2];
 
     int n = stoi(argv[3]);
@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
     int interdiction_cost = stoi(argv[10]);
     int costs = stoi(argv[11]); // 1 if costs must be generated
 
-    const string directory = "dat/" + base_name + "/";
+    const string directory = "dat/" + set_name + "/";
     const string filename = directory + name + ".txt";
 
     const LayerGraph G = LayerGraph(filename, n);

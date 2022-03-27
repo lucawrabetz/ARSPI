@@ -111,6 +111,8 @@ class ErdosRenyi:
     t = -1
     n = -1
     pr = -1
+    density = -1
+    m = -1
     G = -1
 
     def __init__(self, nodes, probability):
@@ -142,6 +144,10 @@ class ErdosRenyi:
                 st_shortest_path = -1
 
             if counter > 10: break
+
+        edge_list = [e for e in self.G.edges]
+        self.m = len(edge_list)
+        self.density = nx.density(self.G)
 
     def printGraph(self, edge_list=True):
         '''

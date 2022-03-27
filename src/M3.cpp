@@ -77,7 +77,7 @@ void LayerGraph::printGraph(vector<vector<int> > costs, vector<int> interdiction
 void AdaptiveInstance::writeCosts() {
     // Write a costs file for the instance
     // Costs file has (p+1) lines - p sets of arc costs plus interdiction costs
-    string filename = directory + name + "-costs.csv";
+    string filename = directory + name + "-costs_" + to_string(scenarios) + ".csv";
     ofstream myfile(filename);
 
     for (int q=0; q<scenarios; ++q) {
@@ -127,48 +127,35 @@ void AdaptiveInstance::generateCosts(int interdiction, int min, int max) {
 
 void AdaptiveInstance::readCosts() {
     // Read arc and interdiction costs from a file
-    string line;
-    string filename = directory + name + "-costs.csv";
+    string line, word;
+    string filename = directory + name + "-costs_" + to_string(scenarios) + ".csv";
     ifstream myfile(filename);
     int q = 0;
+    vector<int> v;
+    int cost;
 
-    while(getline(myfile, line)) {
-        
-        vector<int> v;
-        int i=0;
-        
-        while (true) {
-            int cost = 0;
-            int power = 0;
-            vector<int> nums;
+    if (myfile.is_open())
+    {
+        while(getline(myfile, line)) {
 
-            while (line[i] >= 48 && line[i] <= 57){
-                nums.push_back(line[i]-'0');
-                power++;
-                i++;
+            v.clear();
+            stringstream str(line);
+
+            while(getline(str, word, ',')) {
+                cost = stoi(word);
+                v.push_back(cost);
             }
 
-            for (int j=0; j<power; ++j) {
-                cost += nums[j] * pow(10, power-j-1);
+            if (q < scenarios) {
+                arc_costs.push_back(v);
             }
 
-            v.push_back(cost);
-
-            if (line[i] == '\n') {
-                break;
+            else {
+                interdiction_costs = v;
             }
-            ++i;
+            
+            ++q;
         }
-
-        if (q < scenarios) {
-            arc_costs.push_back(v);
-        }
-
-        else {
-            interdiction_costs = v;
-        }
-        
-        ++q;
     }
 }
 
@@ -311,9 +298,8 @@ void SetPartitioningModel::configureModel(const LayerGraph& G, AdaptiveInstance&
         // ------ Initialize model and environment ------
         m3_env = new GRBEnv();
         m3_model = new GRBModel(*m3_env);
-
+        m3_model->getEnv().set(GRB_DoubleParam_TimeLimit, 3600); // set time limit to 1 hour
         m3_model->set(GRB_IntParam_OutputFlag, 0);
-        m3_model->set(GRB_DoubleParam_TimeLimit, 3600);
 
         // ------ Decision variables ------
         vector<GRBVar> new_vector;
@@ -469,7 +455,7 @@ void SetPartitioningModel::configureModel(const LayerGraph& G, AdaptiveInstance&
 vector<vector<float> > SetPartitioningModel::solve()
 {
     /*
-     * Returns vector of interdiction policy [0-m] (for every (w) for M3, plus an extra singleton as first element for the objective value)
+     * Returns vector of interdiction policy [0-m] (for every (w) for M3, plus an extra vector of size 2 as first element - [objective value, MIPGap])
      * Note: the return values are stored in class variables so unassigned in some compexp runs 
      */
 
@@ -478,9 +464,9 @@ vector<vector<float> > SetPartitioningModel::solve()
         m3_model->optimize();
 
         try {
-            // double optimality_gap = m3_model->get(GRB_DoubleAttr_MIPGap);
             vector<float> objective_vec;
             objective_vec.push_back(m3_model->get(GRB_DoubleAttr_ObjVal));
+            objective_vec.push_back(m3_model->get(GRB_DoubleAttr_MIPGap));
             x_prime.push_back(objective_vec);
 
             for (int w=0; w<policies; ++w){
