@@ -37,29 +37,27 @@ public:
     Arc(int the_i, int the_j);
 };
 
-int binaryToDeca(vector<int>& vec);
-
-vector<int> decaToBinary(int val);
-
 struct Policy
 {
     // Interdiction Policy
-    // NOTE: the vector is a full description of a policy, the integer value is only complete when it comes
-    // with the number of arcs, because of leading 0s
 public:
-    int size, deca_policy;
-    vector<int> binary_policy;
+    int size;
+    double objective;
+    vector<double> binary_policy;
 
     // default
-    Policy() : size(0), deca_policy(0) {};
+    Policy() : size(0), objective(0), binary_policy(vector<double>(0)) {};
 
-    // main constructor - accept vector or binary policy
-    Policy(int m, vector<int>& policy);
-    Policy(int m, int policy);
+    // just m but no policy 
+    Policy(int m) : size(m), objective(0), binary_policy(vector<double>(m)) {};
+
+    // full constructor
+    Policy(int m, vector<double>& policy, double value) : size(m), binary_policy(policy), objective(value) {};
 
     // mutators - accept vector or binary new policy
-    void set_policy(int policy);
-    void set_policy(vector<int>& policy);
+    void set_size(int m) {size=m;}
+    void set_policy(vector<double>& policy) {binary_policy=policy;}
+    void set_objective(double value) {objective=value;}
 };
 
 class LayerGraph
@@ -100,10 +98,10 @@ public:
         scenarios(p), policies(k), budget(r_zero), nodes(G.n), arcs(G.m), directory(directory), name(name) {};
 
     // change U constructor
-    AdaptiveInstance(const AdaptiveInstance &m3, vector<int>& keep_scenarios) :
-        scenarios(keep_scenarios.size()), policies(m3.policies), budget(m3.budget), nodes(m3.nodes), arcs(m3.arcs), interdiction_costs(m3.interdiction_costs) 
+    AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios) :
+        scenarios(keep_scenarios.size()), policies(m3->policies), budget(m3->budget), nodes(m3->nodes), arcs(m3->arcs), interdiction_costs(m3->interdiction_costs) 
     {arc_costs=vector<vector<int> >(scenarios, vector<int>(arcs)); 
-        for (int q : keep_scenarios) {arc_costs[q] = m3.arc_costs[q];}}
+        for (int q=0; q<scenarios; ++q) {arc_costs[q] = m3->arc_costs[keep_scenarios[q]];}}
 
     // no mutator for scenarios - functionality reserved for change copy constructor
     void set_policies(int k){policies=k;}
@@ -278,11 +276,15 @@ public:
 //     vector<float> solve();
 // };
 
-pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance& m3, const LayerGraph& G);
+pair<vector<vector<int> >, vector<Policy> > mergeEnumSols(pair<vector<vector<int> >, vector<Policy> >& sol1, pair<vector<vector<int> >, vector<Policy> >& sol2, int w_index);
 
-vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, AdaptiveInstance& m3);
+pair<vector<vector<int> >, vector<Policy> > enumSolve(AdaptiveInstance& m3, const LayerGraph& G);
+
+pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const LayerGraph& G);
 
 long getCurrentTime();
+
+void printSolution(pair<vector<vector<int> >, vector<Policy> >& sol, string solname="");
 
 
 #endif

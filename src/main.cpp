@@ -5,40 +5,33 @@
 
 int main()
 {
-    int m = 6;
-    vector<int> policy;
-    policy.push_back(0);
-    policy.push_back(1);
-    policy.push_back(0);
-    policy.push_back(1);
-    policy.push_back(0);
-    policy.push_back(0);
-    Policy interdiction = Policy(m, policy);
+    int n=10;
+    int p=5;
+    int k=2;
+    int M = 500;
+    int interdiction_cost = 10;
+    int min = 30;
+    int max = 80;
+    const string setname = "test-03_28_22-0";
+    const string name = setname + "-" + to_string(n) + "_3";
+    const string directory = "dat/" + setname + "/";
+    const string filename = directory + name + ".txt";
 
-    // for (int a=0; a<m; ++a) {
-    //     cout << interdiction.binary_policy[a] << " ";
-    // }
-    // cout << endl;
-    cout << interdiction.deca_policy << endl;
+    const LayerGraph G = LayerGraph(filename, n);
+    int r_0=n/4;
+    AdaptiveInstance m3 = AdaptiveInstance(p, k, r_0, G, directory, name); 
+    m3.initCosts(interdiction_cost, min, max);
 
-    // int n=26;
-    // int p=5;
-    // int max_k=5;
-    // int M = 500;
-    // int interdiction_cost = 11;
-    // int min = 30;
-    // int max = 80;
-    // const string base_name = "set1_09-17-21";
-    // const string name = "set1_09-17-21_26_0.4";
-    // const string directory = "dat/" + base_name + "/";
-    // const string filename = directory + name + ".txt";
-    // // const string filename = "dat/simplegraph3.txt";
+    auto k_solution = enumSolve(m3, G);
+    printSolution(k_solution, "k solution");
 
-    // const LayerGraph G = LayerGraph(filename, n);
-    // int r_0=n/6;
-    // cout << "p: " << p << ", n: " << n << ", m: " << G.m << ", r_0: " << r_0 << endl;
-    // AdaptiveInstance m3 = AdaptiveInstance(p, 1, r_0, G, directory, name); 
-    // m3.initCosts();
+    auto kprime_solution = extendByOne(k_solution, m3, G);
+    printSolution(kprime_solution, "k+1 solution (heuristic)");
+
+    m3.set_policies(k+1);
+    auto kk_solution = enumSolve(m3, G);
+    printSolution(kk_solution, "k+1 solution (exact)");
+
 
     // for (int a=0; a<m3.arcs; ++a) {
     //     cout << m3.interdiction_costs[a] << " ";

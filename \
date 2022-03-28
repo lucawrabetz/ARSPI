@@ -1118,7 +1118,6 @@ int max_int(int a, int b){
 
 void printSolution(pair<vector<vector<int> >, vector<Policy> >& sol, string solname){
     // print adaptive solution
-    cout << endl;
     if (solname == ""){cout << "solution:" << endl;}
     else {cout << solname << ":" << endl;} 
     int k = sol.first.size();
@@ -1130,7 +1129,6 @@ void printSolution(pair<vector<vector<int> >, vector<Policy> >& sol, string soln
         }
         cout << "- objective: " << sol.second[w].objective << endl;
     }
-    cout << endl;
 }
 
 bool nextKappa(vector<int>& kappa, vector<int>& max, int k, int p){
