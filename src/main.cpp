@@ -12,6 +12,8 @@ int main()
     int interdiction_cost = 10;
     int min = 30;
     int max = 80;
+    int mean = 50;
+    int stddev = 10;
     const string setname = "test-03_28_22-0";
     const string name = setname + "-" + to_string(n) + "_3";
     const string directory = "dat/" + setname + "/";
@@ -20,7 +22,7 @@ int main()
     const LayerGraph G = LayerGraph(filename, n);
     int r_0=n/4;
     AdaptiveInstance m3 = AdaptiveInstance(p, k, r_0, G, directory, name); 
-    m3.initCosts(interdiction_cost, min, max);
+    m3.initCosts(interdiction_cost, mean, stddev, 1);
 
     auto k_solution = enumSolve(m3, G);
     printSolution(k_solution, "k solution");

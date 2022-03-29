@@ -113,23 +113,28 @@ void AdaptiveInstance::writeCosts() {
     myfile << line;
 }
 
-void AdaptiveInstance::generateCosts(int interdiction, int min, int max) {
+void AdaptiveInstance::generateCosts(int interdiction, int a, int b, int dist) {
     /* 
      * Randomly Generate and set cost structure:
      * interdiction will populate interdiction_costs for every arc
-     * min and max will bound uniform distribution to generate costs
+     * a and b are distribution parameters
      */
     interdiction_costs = vector<int>(arcs, interdiction);
 
-    random_device rd;                           // obtain a random number from hardware
-    mt19937 gen(rd());                          // seed the generator
-    uniform_int_distribution<> distr(min, max); // define the range
+    random_device rd;                           
+    mt19937 gen(rd());                          
+    
+    // define the distribution
+    uniform_int_distribution<> unif(a, b); 
+    normal_distribution<> norm(a, b);
+    
 
     arc_costs = vector<vector<int> >(scenarios, vector<int>(arcs));
 
     for (int q=0; q<scenarios; ++q) {
         for (int a=0; a<arcs; ++a) {
-            arc_costs[q][a] = distr(gen);
+            if (dist==0) {arc_costs[q][a] = unif(gen);}
+            else if (dist==1) {arc_costs[q][a] = round(norm(gen));}
         }
     }
 }
@@ -168,13 +173,16 @@ void AdaptiveInstance::readCosts() {
     }
 }
 
-void AdaptiveInstance::initCosts(int interdiction, int min, int max) {
+void AdaptiveInstance::initCosts(int interdiction, int a, int b, int dist) {
     // If interdiction is not passed (<0), then read from file
+    // Distributions:
+    //  - dist = 0: uniform, a = min, b = max
+    //  - dist = 1: normal, a = mean, b = stddev
     if (interdiction < 0) {
         readCosts();
     }
     else {
-        generateCosts(interdiction, min, max);
+        generateCosts(interdiction, a, b, dist);
         writeCosts();
     }
 }

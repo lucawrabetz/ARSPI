@@ -15,6 +15,7 @@
 using std::random_device;
 using std::mt19937;
 using std::uniform_int_distribution;
+using std::normal_distribution;
 using std::pair;
 using std::make_pair;
 using std::stringstream;
@@ -26,6 +27,7 @@ using std::to_string;
 using std::stoi;
 using std::ifstream;
 using std::ofstream;
+using std::round;
 
 struct Arc
 {
@@ -39,7 +41,7 @@ public:
 
 struct Policy
 {
-    // Interdiction Policy
+    // Interdiction Policy with Objective Value
 public:
     int size;
     double objective;
@@ -47,10 +49,8 @@ public:
 
     // default
     Policy() : size(0), objective(0), binary_policy(vector<double>(0)) {};
-
     // just m but no policy 
     Policy(int m) : size(m), objective(0), binary_policy(vector<double>(m)) {};
-
     // full constructor
     Policy(int m, vector<double>& policy, double value) : size(m), binary_policy(policy), objective(value) {};
 
@@ -112,9 +112,9 @@ public:
     void printInstance(const LayerGraph&G) const;
     vector<int> dijkstra(int q, const LayerGraph &G);
     void writeCosts();
-    void generateCosts(int interdiction, int min, int max);
+    void generateCosts(int interdiction, int a, int b, int dist);
     void readCosts();
-    void initCosts(int interdiction=-1, int min=0, int max=0);
+    void initCosts(int interdiction=-1, int a=0, int b=0, int dist=0);
     void applyInterdiction(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar, const LayerGraph& G);
 };
