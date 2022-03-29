@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
     const LayerGraph G = LayerGraph(filename, n);
     AdaptiveInstance m3 = AdaptiveInstance(p, k, budget, G, directory, name);
     if (costs == 1) {
-        m3.initCosts(interdiction_cost, min, max);
+        m3.initCosts(interdiction_cost, min, max, 1);
     }
     else {m3.initCosts();}
 
@@ -33,5 +33,12 @@ int main(int argc, char* argv[]) {
     auto solution = enumSolve(m3, G);
     long runtime = getCurrentTime() - begin;
 
-    cout << solution.first[0][0] << " " << runtime << endl;
+    double objective = DBL_MAX;
+    for (int w=0; w<k; ++w) {
+        if (solution.second[w].objective < objective) {
+            objective = solution.second[w].objective;
+        }
+    }
+
+    cout << objective << " " << runtime << endl;
 }

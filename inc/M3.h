@@ -114,7 +114,7 @@ public:
     void writeCosts();
     void generateCosts(int interdiction, int a, int b, int dist);
     void readCosts();
-    void initCosts(int interdiction=-1, int a=0, int b=0, int dist=0);
+    void initCosts(int interdiction=-1, int a=0, int b=0, int dist=1);
     void applyInterdiction(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar, const LayerGraph& G);
 };

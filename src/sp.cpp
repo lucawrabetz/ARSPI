@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
     const LayerGraph G = LayerGraph(filename, n);
     AdaptiveInstance m3 = AdaptiveInstance(p, k, budget, G, directory, name);
     if (costs == 1) {
-        m3.initCosts(interdiction_cost, min, max);
+        m3.initCosts(interdiction_cost, min, max, 1);
     }
     else {m3.initCosts();}
 
