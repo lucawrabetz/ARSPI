@@ -48,8 +48,8 @@ def main():
             - (3) max pr
             - do not use the char '-' use different delimeter such as '_'
     """
-    N_VALUES = [10, 15, 20, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000, 500000, 1000000]
-    PR_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    N_VALUES = [20, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000, 500000, 1000000]
+    PR_VALUES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
 
     # will set some default args if you don't pass them right
     if len(sys.argv) == 4:

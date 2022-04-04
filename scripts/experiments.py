@@ -18,6 +18,8 @@ MODELS = "modelfiles"
 M = 500
 LB_COST = 30 # cost distribution lower bound
 UB_COST = 80 # cost distribution upper bound
+MEAN_COST = 50 # cost distribution lower bound
+STD_COST = 10 # cost distribution upper bound
 INT_COST = 10 # interdiction cost increase
 COLUMNS = ["setname", "name", "n", "m", "pr", "density", "k", "p", "r_0", "mip_time", "mip_obj", "mip_gap", "enum_time", "enum_obj"]
 # for any given p (number of scenarios/followers) that you'd like to experiment with
@@ -78,7 +80,7 @@ def check_make_dir(path, i):
         return path + "-" + str(i)
 
 
-def single_run(setname, name, n, p, k, r_0):
+def single_run(setname, name, n, p, k, r_0, dist):
     """
     Perform a run of MIP set partitioning formulation, and enumeration algorithm on instance
     Return objective and time for both
@@ -89,9 +91,16 @@ def single_run(setname, name, n, p, k, r_0):
     costs_filepath = os.path.join(DAT, setname, costs_filename)
     costs = int(not os.path.exists(costs_filepath))
 
-    sp_call = ["./bin/sp", setname, name, str(n), str(p), str(k), str(r_0), str(M), str(LB_COST), str(UB_COST), str(INT_COST), str(costs)]
+    if dist==0:
+        cost_a = LB_COST
+        cost_b = UB_COST
+    if dist==1:
+        cost_a = MEAN_COST
+        cost_b = STD_COST
+
+    sp_call = ["./bin/sp", setname, name, str(n), str(p), str(k), str(r_0), str(M), str(cost_a), str(cost_b), str(INT_COST), str(costs), str(dist)]
     # no costs in enum_call because definitely generated in sp_call
-    enum_call = ["./bin/enum", setname, name, str(n), str(p), str(k), str(r_0), str(M), str(LB_COST), str(UB_COST), str(INT_COST), '0']
+    enum_call = ["./bin/enum", setname, name, str(n), str(p), str(k), str(r_0), str(M), str(cost_a), str(cost_b), str(INT_COST), '0', str(dist)]
 
     # .run(<executable>, <saves stdout>).<more options to encode stdout>.<throw out gurobi prints>
     sp_result = subprocess.run(sp_call, stdout=subprocess.PIPE).stdout.decode('utf-8').split('\n')[-2]
@@ -112,6 +121,7 @@ def single_run(setname, name, n, p, k, r_0):
 def enum_vs_mip(setname, p_list):
     logfile = setname + ".log"
     logpath = os.path.join(DAT, setname, logfile)
+    dist = 1
 
     results = []
 
@@ -131,10 +141,10 @@ def enum_vs_mip(setname, p_list):
                 pr = float(pr_list[i].strip())
                 density = float(density_list[i].strip())
                 name = name_list[i].strip()
-                r_0 = math.floor(n/4)
+                r_0 = math.floor(n * density)
 
                 single_result = [setname, name, n, m, pr, density, k, p, r_0]
-                run_result = single_run(setname, name, n, p, k, r_0)
+                run_result = single_run(setname, name, n, p, k, r_0, dist)
                 single_result.extend(run_result)
                 results.append(single_result)
 
@@ -156,15 +166,10 @@ def main():
             - set name passed as arg to this script
             - full names are in the log file
     """
-    # SET = sys.argv[1]
-    setlist = ["first-03_27_22-0", "first-03_27_22-1", "first-03_27_22-2"]
-    p_list1 = [2, 3]
-    p_list2 = [4, 5]
+    SET = sys.argv[1]
+    p_list = [7]
 
-    for SET in setlist:
-        enum_vs_mip(SET, p_list1)
-    for SET in setlist:
-        enum_vs_mip(SET, p_list2)
+    enum_vs_mip(SET, p_list)
 
 if __name__ == "__main__":
     main()

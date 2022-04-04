@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
+#include <cmath>
 #include <float.h>
 #include <fstream>
 #include <string>
@@ -12,10 +13,12 @@
 #include <random>
 #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
 
+using std::abs;
 using std::random_device;
 using std::mt19937;
 using std::uniform_int_distribution;
 using std::normal_distribution;
+using std::bernoulli_distribution;
 using std::pair;
 using std::make_pair;
 using std::stringstream;
@@ -58,6 +61,30 @@ public:
     void set_size(int m) {size=m;}
     void set_policy(vector<double>& policy) {binary_policy=policy;}
     void set_objective(double value) {objective=value;}
+};
+
+struct AdaptiveSolution
+{
+    // Full Solution for Instance
+public:
+    int policies, scenarios;
+    double worst_case_objective;
+    double average_objective;
+    vector<vector<int> > partition;
+    vector<Policy> solutions;
+
+    // default
+    AdaptiveSolution() : policies(0), scenarios(0), partition(vector<vector<int>>(0)), solutions(vector<Policy>(0)){};
+    // just k and p
+    AdaptiveSolution(int k, int p) : policies(k), scenarios(p), partition(vector<vector<int>>(k)), solutions(vector<Policy>(k)) {};
+    // full
+    AdaptiveSolution(int k, int p, vector<vector<int>> parts, vector<Policy> sols) : policies(k), scenarios(p), partition(parts), solutions(sols) {};
+
+    // void compute_objectives() {
+    //     for (int w=0; w<policies; ++w){
+    //         value = solutions[w].objective;
+    //     }
+    // }
 };
 
 class LayerGraph

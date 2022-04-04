@@ -128,7 +128,7 @@ class ErdosRenyi:
         st_shortest_path = -1
         counter = 0
 
-        while st_shortest_path < (diameter / 2) or st_shortest_path < 0 or diameter < 0:
+        while st_shortest_path < (diameter) or st_shortest_path < 0 or diameter < 0:
             counter += 1
             self.G = nx.erdos_renyi_graph(self.n, self.pr, directed=True)
 

@@ -85,7 +85,6 @@ void AdaptiveInstance::writeCosts() {
     // Costs file has (p+1) lines - p sets of arc costs plus interdiction costs
     string filename = directory + name + "-costs_" + to_string(scenarios) + ".csv";
     ofstream myfile(filename);
-    cout << "hello" << endl;
 
     for (int q=0; q<scenarios; ++q) {
         stringstream ss;
@@ -100,7 +99,6 @@ void AdaptiveInstance::writeCosts() {
         myfile << line;
     }
 
-    cout << "hello" << endl;
     stringstream ss;
     for (int a=0; a<arcs; ++a) {
         if (a!=0) {
@@ -108,7 +106,7 @@ void AdaptiveInstance::writeCosts() {
         }
         ss << interdiction_costs[a];
     }
-    cout << "hello" << endl;
+
     string line = ss.str() + "\n";
     myfile << line;
 }
@@ -124,17 +122,49 @@ void AdaptiveInstance::generateCosts(int interdiction, int a, int b, int dist) {
     random_device rd;                           
     mt19937 gen(rd());                          
     
-    // define the distribution
-    uniform_int_distribution<> unif(a, b); 
-    normal_distribution<> norm(a, b);
-    
-
     arc_costs = vector<vector<int> >(scenarios, vector<int>(arcs));
 
-    for (int q=0; q<scenarios; ++q) {
+    if (dist==2) {
+        bernoulli_distribution binary(0.5);
+
+        // define the distribution for q=0
+        normal_distribution<> norm_high(b, 50);
+        normal_distribution<> norm_low(a, 50);
+
         for (int a=0; a<arcs; ++a) {
-            if (dist==0) {arc_costs[q][a] = unif(gen);}
-            else if (dist==1) {arc_costs[q][a] = round(norm(gen));}
+
+            bool ind = binary(gen);
+
+            for (int q=0; q<scenarios; ++q) {
+                if (ind) {
+                    if (q==0) {
+                        arc_costs[q][a] = abs (norm_low(gen)); 
+                    } 
+                    else {
+                        arc_costs[q][a] = abs (norm_high(gen));
+                    }
+                }
+                else {
+                    if (q==0) {
+                        arc_costs[q][a] = abs (norm_high(gen));
+                    } 
+                    else {
+                        arc_costs[q][a] = abs (norm_low(gen));
+                    }
+                }
+            }
+        }
+    }
+
+    else {
+        for (int q=0; q<scenarios; ++q) {
+            // define the distribution
+            uniform_int_distribution<> unif(a+10, b+10); 
+            normal_distribution<> norm(a+10, b);
+            for (int a=0; a<arcs; ++a) {
+                if (dist==0) {arc_costs[q][a] = unif(gen);}
+                else if (dist==1) {arc_costs[q][a] = round(norm(gen));}
+            }
         }
     }
 }
