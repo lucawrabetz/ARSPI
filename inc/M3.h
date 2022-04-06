@@ -139,9 +139,9 @@ public:
     void printInstance(const LayerGraph&G) const;
     vector<int> dijkstra(int q, const LayerGraph &G);
     void writeCosts();
-    void generateCosts(int interdiction, int a, int b, int dist);
+    void generateCosts(float interdiction, int a, int b, int dist);
     void readCosts();
-    void initCosts(int interdiction=-1, int a=0, int b=0, int dist=1);
+    void initCosts(float interdiction=-1, int a=0, int b=0, int dist=1);
     void applyInterdiction(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar, const LayerGraph& G);
 };

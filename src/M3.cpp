@@ -111,13 +111,13 @@ void AdaptiveInstance::writeCosts() {
     myfile << line;
 }
 
-void AdaptiveInstance::generateCosts(int interdiction, int a, int b, int dist) {
+void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist) {
     /* 
      * Randomly Generate and set cost structure:
      * interdiction will populate interdiction_costs for every arc
+     *  - first attempt at proportional - interdiction is the fractional multiplier on average cost
      * a and b are distribution parameters
      */
-    interdiction_costs = vector<int>(arcs, interdiction);
 
     random_device rd;                           
     mt19937 gen(rd());                          
@@ -137,7 +137,7 @@ void AdaptiveInstance::generateCosts(int interdiction, int a, int b, int dist) {
 
             for (int q=0; q<scenarios; ++q) {
                 if (ind) {
-                    if (q==0) {
+                    if (q==0 || q==1) {
                         arc_costs[q][a] = abs (norm_low(gen)); 
                     } 
                     else {
@@ -145,7 +145,7 @@ void AdaptiveInstance::generateCosts(int interdiction, int a, int b, int dist) {
                     }
                 }
                 else {
-                    if (q==0) {
+                    if (q==0 || q==1) {
                         arc_costs[q][a] = abs (norm_high(gen));
                     } 
                     else {
@@ -167,6 +167,28 @@ void AdaptiveInstance::generateCosts(int interdiction, int a, int b, int dist) {
             }
         }
     }
+
+    interdiction_costs = vector<int>(arcs);
+    int interdiction_baseline = ((a + b) / 2);
+
+    for (int a=0; a<arcs; ++a) {
+        cout << "arc: " << a << endl;
+        int average = 0;
+        cout << average << " ";
+        for (int q=0; q<scenarios; ++q) {
+            average += arc_costs[q][a];
+            cout << average << " ";
+        }
+        average = average / scenarios;
+        cout << average << " " << endl;
+
+
+        interdiction_costs[a] = (interdiction_baseline + (interdiction_baseline - average)) * interdiction ;
+        cout << "final cost: " << interdiction_costs[a] << endl;
+    }
+
+    cout << "doing interdiction costs" << endl;
+    cout << "fraction: " << interdiction << endl;
 }
 
 void AdaptiveInstance::readCosts() {
@@ -203,7 +225,7 @@ void AdaptiveInstance::readCosts() {
     }
 }
 
-void AdaptiveInstance::initCosts(int interdiction, int a, int b, int dist) {
+void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist) {
     // If interdiction is not passed (<0), then read from file
     // Distributions:
     //  - dist = 0: uniform, a = min, b = max

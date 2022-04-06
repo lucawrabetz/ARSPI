@@ -6,7 +6,7 @@
 int main()
 {
     int n=100;
-    int p=3;
+    int p=4;
     int k=1;
     int M = 500;
     int interdiction_cost = 5;
@@ -16,6 +16,8 @@ int main()
     int stddev = 10;
     int a = 50;
     int b = 200;
+    float fraction = 0.1;
+
     const string setname = "newdist-04_04_22-1";
     const string name = setname + "-" + to_string(n) + "_3";
     const string directory = "dat/" + setname + "/";
@@ -24,7 +26,7 @@ int main()
     const LayerGraph G = LayerGraph(filename, n);
     int r_0=5;
     AdaptiveInstance m3 = AdaptiveInstance(p, k, r_0, G, directory, name); 
-    m3.initCosts(interdiction_cost, a, b, 2);
+    m3.initCosts(fraction, a, b, 2);
 
     auto k_solution = enumSolve(m3, G);
     printSolution(k_solution, "k solution");
