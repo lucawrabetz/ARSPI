@@ -11,8 +11,15 @@
 #include <string>
 #include <sstream>
 #include <random>
+#include <vector>
+#include <algorithm>
+#include <array>
+#include <chrono>
 #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
 
+using std::array;
+using std::shuffle;
+using std::default_random_engine;
 using std::abs;
 using std::random_device;
 using std::mt19937;
@@ -139,9 +146,9 @@ public:
     void printInstance(const LayerGraph&G) const;
     vector<int> dijkstra(int q, const LayerGraph &G);
     void writeCosts();
-    void generateCosts(float interdiction, int a, int b, int dist);
+    void generateCosts(float interdiction, int a, int b, int dist, int max_k);
     void readCosts();
-    void initCosts(float interdiction=-1, int a=0, int b=0, int dist=1);
+    void initCosts(float interdiction=-1, int a=0, int b=0, int dist=1, int max_k=0);
     void applyInterdiction(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar, const LayerGraph& G);
 };

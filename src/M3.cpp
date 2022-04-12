@@ -111,47 +111,70 @@ void AdaptiveInstance::writeCosts() {
     myfile << line;
 }
 
-void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist) {
+void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist, int max_k) {
     /* 
      * Randomly Generate and set cost structure:
-     * interdiction will populate interdiction_costs for every arc
-     *  - first attempt at proportional - interdiction is the fractional multiplier on average cost
-     * a and b are distribution parameters
+     * interdiction is the fractional multiplier on average cost used for (anti)-proportional interdiction costs
+     * a and b are distribution parameters:
+     *  a is the lowest mean
+     *  b is the increase in every next mean
      */
 
     random_device rd;                           
-    mt19937 gen(rd());                          
+    mt19937 gen(rd());
     
     arc_costs = vector<vector<int> >(scenarios, vector<int>(arcs));
 
     if (dist==2) {
-        bernoulli_distribution binary(0.5);
+        // bernoulli_distribution binary(0.5);
 
         // define the distribution for q=0
-        normal_distribution<> norm_high(b, 50);
-        normal_distribution<> norm_low(a, 50);
+        // normal_distribution<> norm_high(b, 50);
+        // normal_distribution<> norm_low(a, 50);
+
+        // define vector of p normal distributions
+        // define random indexing map
+        vector<normal_distribution<>> normals;
+        vector<int> indices;
+        uniform_int_distribution<> unif(1, max_k);
+
+        for (int q=0; q<max_k; ++q) {
+            normal_distribution<> norm(a + b*q, 50);
+            normals.push_back(norm);
+            indices.push_back(q);
+        }
+        for (int q=max_k; q < scenarios; ++q) {
+            int index = unif(gen);
+            indices.push_back(index);
+        }
+
 
         for (int a=0; a<arcs; ++a) {
 
-            bool ind = binary(gen);
+            // obtain seed and shuffle indices
+            unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+            shuffle (indices.begin(), indices.end(), default_random_engine(seed));
 
             for (int q=0; q<scenarios; ++q) {
-                if (ind) {
-                    if (q==0 || q==1) {
-                        arc_costs[q][a] = abs (norm_low(gen)); 
-                    } 
-                    else {
-                        arc_costs[q][a] = abs (norm_high(gen));
-                    }
-                }
-                else {
-                    if (q==0 || q==1) {
-                        arc_costs[q][a] = abs (norm_high(gen));
-                    } 
-                    else {
-                        arc_costs[q][a] = abs (norm_low(gen));
-                    }
-                }
+
+                arc_costs[q][a] = abs(normals[indices[q]](gen));
+
+                // if (ind) {
+                //     if (q==0 || q==1) {
+                //         arc_costs[q][a] = abs (norm_low(gen)); 
+                //     } 
+                //     else {
+                //         arc_costs[q][a] = abs (norm_high(gen));
+                //     }
+                // }
+                // else {
+                //     if (q==0 || q==1) {
+                //         arc_costs[q][a] = abs (norm_high(gen));
+                //     } 
+                //     else {
+                //         arc_costs[q][a] = abs (norm_low(gen));
+                //     }
+                // }
             }
         }
     }
@@ -169,21 +192,28 @@ void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist)
     }
 
     interdiction_costs = vector<int>(arcs);
-    int interdiction_baseline = ((a + b) / 2);
+    int total = 0;
+
+    for (int q=0; q<scenarios; ++q) {
+        total += (a + q*b);
+    }
+
+    int interdiction_baseline = total / scenarios;
 
     for (int a=0; a<arcs; ++a) {
         cout << "arc: " << a << endl;
         int average = 0;
-        cout << average << " ";
         for (int q=0; q<scenarios; ++q) {
             average += arc_costs[q][a];
-            cout << average << " ";
+            cout << arc_costs[q][a] << " ";
         }
         average = average / scenarios;
-        cout << average << " " << endl;
+        cout << "average: " << average << endl;
+        cout << "baseline: " << interdiction_baseline << endl;
+        cout << "difference: " << interdiction_baseline - average << endl;
 
 
-        interdiction_costs[a] = (interdiction_baseline + (interdiction_baseline - average)) * interdiction ;
+        interdiction_costs[a] = (interdiction_baseline * interdiction) + (interdiction_baseline - average) * interdiction;
         cout << "final cost: " << interdiction_costs[a] << endl;
     }
 
@@ -225,7 +255,7 @@ void AdaptiveInstance::readCosts() {
     }
 }
 
-void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist) {
+void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist, int max_k) {
     // If interdiction is not passed (<0), then read from file
     // Distributions:
     //  - dist = 0: uniform, a = min, b = max
@@ -234,7 +264,7 @@ void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist) {
         readCosts();
     }
     else {
-        generateCosts(interdiction, a, b, dist);
+        generateCosts(interdiction, a, b, dist, max_k);
         writeCosts();
     }
 }

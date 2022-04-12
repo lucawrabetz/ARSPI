@@ -6,7 +6,7 @@
 int main()
 {
     int n=100;
-    int p=4;
+    int p=10;
     int k=1;
     int M = 500;
     int interdiction_cost = 5;
@@ -15,7 +15,7 @@ int main()
     int mean = 50;
     int stddev = 10;
     int a = 50;
-    int b = 200;
+    int b = 100;
     float fraction = 0.1;
 
     const string setname = "newdist-04_04_22-1";
@@ -24,9 +24,10 @@ int main()
     const string filename = directory + name + ".txt";
 
     const LayerGraph G = LayerGraph(filename, n);
-    int r_0=5;
+    int r_0=3;
     AdaptiveInstance m3 = AdaptiveInstance(p, k, r_0, G, directory, name); 
-    m3.initCosts(fraction, a, b, 2);
+    m3.initCosts();
+    // m3.initCosts(fraction, a, b, 2, 10);
 
     auto k_solution = enumSolve(m3, G);
     printSolution(k_solution, "k solution");
@@ -38,6 +39,12 @@ int main()
     auto kk_solution = enumSolve(m3, G);
     printSolution(kk_solution, "k+1 solution (exact)");
 
+    auto kprimeprime_solution = extendByOne(kprime_solution, m3, G);
+    printSolution(kprimeprime_solution, "k+2 solution (heuristic)");
+
+    m3.set_policies(k+2);
+    auto kkprime_solution = enumSolve(m3, G);
+    printSolution(kkprime_solution, "k+2 solution (exact)");
 
     // int n=20;
     // int p=3;
