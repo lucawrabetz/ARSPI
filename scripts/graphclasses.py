@@ -169,8 +169,50 @@ class ErdosRenyi:
         '''
         nx.write_edgelist(self.G, filename, data=False)
 
+class CompoundGraph:
+    s = -1
+    t = -1
+    n = -1
+    density = -1
+    m = -1
+    G = -1
+
+    def __init__(self, graphs):
+        '''
+        Join graphs at source and sink nodes
+            - graphs - list of erdos-renyi graph objects
+        '''
+        # assume all graphs in graphs have same n
+        self.n = graphs[0].n * len(graphs) + 2
+        self.s = 0
+        self.t = self.n - 1
+
+        # create source and sink networkx graphs
+        sourceG = nx.Graph()
+        sourceG.add_node(0)
+        sinkG = nx.Graph()
+        sinkG.add_node(self.t)
+        temp_graphs = [0 for G in graphs]
+
+        # loop through every graph in graphs and perform disjoint unions sequentially
+        pdb.set_trace()
+        for i in range(len(graphs)):
+            if i == 0:
+                temp_graphs[0] = nx.disjoint_union(sourceG, graphs[0].G)
+            else:
+                temp_graphs[i] = nx.disjoint_union(temp_graphs[i-1], graphs[i].G)
+
+        self.G = nx.disjoint_union(temp_graphs[-1], sinkG)
+        print("hello")
+
+
+
 if __name__ == "__main__":
     nodes = 10
-    probability = 0.5
+    probability = 0.1
 
-    G = ErdosRenyi(nodes, probability)
+    G1 = ErdosRenyi(nodes, probability)
+    G2 = ErdosRenyi(nodes, probability)
+
+    G3 = CompoundGraph([G1, G2])
+
