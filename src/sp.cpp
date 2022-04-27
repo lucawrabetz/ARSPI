@@ -2,7 +2,7 @@
 
 // solve instance with set partitioning model
 // example call:
-// ./bin/sp set1_09-17-21 set1_09-17-21_26_0.4 26 5 1 6 500 30 80 10 1
+// ./bin/sp set1_09-17-21 set1_09-17-21_26_0.4 26 5 1 6 500 30 80 10 1 1
 // output: <objective> <runtime(ms)> <MIPGap>
 
 int main(int argc, char* argv[]) {
@@ -18,6 +18,7 @@ int main(int argc, char* argv[]) {
     int max = stoi(argv[9]);
     int interdiction_cost = stoi(argv[10]);
     int costs = stoi(argv[11]); // 1 if costs must be generated
+    int dist = stoi(argv[12]);
 
     const string directory = "dat/" + set_name + "/";
     const string filename = directory + name + ".txt";
@@ -25,7 +26,7 @@ int main(int argc, char* argv[]) {
     const LayerGraph G = LayerGraph(filename, n);
     AdaptiveInstance m3 = AdaptiveInstance(p, k, budget, G, directory, name);
     if (costs == 1) {
-        m3.initCosts(interdiction_cost, min, max);
+        m3.initCosts(interdiction_cost, min, max, dist);
     }
     else {m3.initCosts();}
 

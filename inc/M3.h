@@ -5,16 +5,27 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
+#include <cmath>
 #include <float.h>
 #include <fstream>
 #include <string>
 #include <sstream>
 #include <random>
+#include <vector>
+#include <algorithm>
+#include <array>
+#include <chrono>
 #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
 
+using std::array;
+using std::shuffle;
+using std::default_random_engine;
+using std::abs;
 using std::random_device;
 using std::mt19937;
 using std::uniform_int_distribution;
+using std::normal_distribution;
+using std::bernoulli_distribution;
 using std::pair;
 using std::make_pair;
 using std::stringstream;
@@ -26,6 +37,7 @@ using std::to_string;
 using std::stoi;
 using std::ifstream;
 using std::ofstream;
+using std::round;
 
 struct Arc
 {
@@ -35,6 +47,51 @@ public:
     int j;
     Arc();
     Arc(int the_i, int the_j);
+};
+
+struct Policy
+{
+    // Interdiction Policy with Objective Value
+public:
+    int size;
+    double objective;
+    vector<double> binary_policy;
+
+    // default
+    Policy() : size(0), objective(0), binary_policy(vector<double>(0)) {};
+    // just m but no policy 
+    Policy(int m) : size(m), objective(0), binary_policy(vector<double>(m)) {};
+    // full constructor
+    Policy(int m, vector<double>& policy, double value) : size(m), binary_policy(policy), objective(value) {};
+
+    // mutators - accept vector or binary new policy
+    void set_size(int m) {size=m;}
+    void set_policy(vector<double>& policy) {binary_policy=policy;}
+    void set_objective(double value) {objective=value;}
+};
+
+struct AdaptiveSolution
+{
+    // Full Solution for Instance
+public:
+    int policies, scenarios;
+    double worst_case_objective;
+    double average_objective;
+    vector<vector<int> > partition;
+    vector<Policy> solutions;
+
+    // default
+    AdaptiveSolution() : policies(0), scenarios(0), partition(vector<vector<int>>(0)), solutions(vector<Policy>(0)){};
+    // just k and p
+    AdaptiveSolution(int k, int p) : policies(k), scenarios(p), partition(vector<vector<int>>(k)), solutions(vector<Policy>(k)) {};
+    // full
+    AdaptiveSolution(int k, int p, vector<vector<int>> parts, vector<Policy> sols) : policies(k), scenarios(p), partition(parts), solutions(sols) {};
+
+    // void compute_objectives() {
+    //     for (int w=0; w<policies; ++w){
+    //         value = solutions[w].objective;
+    //     }
+    // }
 };
 
 class LayerGraph
@@ -75,10 +132,10 @@ public:
         scenarios(p), policies(k), budget(r_zero), nodes(G.n), arcs(G.m), directory(directory), name(name) {};
 
     // change U constructor
-    AdaptiveInstance(const AdaptiveInstance &m3, vector<int>& keep_scenarios) :
-        scenarios(keep_scenarios.size()), policies(m3.policies), budget(m3.budget), nodes(m3.nodes), arcs(m3.arcs), interdiction_costs(m3.interdiction_costs) 
+    AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios) :
+        scenarios(keep_scenarios.size()), policies(m3->policies), budget(m3->budget), nodes(m3->nodes), arcs(m3->arcs), interdiction_costs(m3->interdiction_costs) 
     {arc_costs=vector<vector<int> >(scenarios, vector<int>(arcs)); 
-        for (int q : keep_scenarios) {arc_costs[q] = m3.arc_costs[q];}}
+        for (int q=0; q<scenarios; ++q) {arc_costs[q] = m3->arc_costs[keep_scenarios[q]];}}
 
     // no mutator for scenarios - functionality reserved for change copy constructor
     void set_policies(int k){policies=k;}
@@ -89,9 +146,9 @@ public:
     void printInstance(const LayerGraph&G) const;
     vector<int> dijkstra(int q, const LayerGraph &G);
     void writeCosts();
-    void generateCosts(int interdiction, int min, int max);
+    void generateCosts(float interdiction, int a, int b, int dist, int max_k);
     void readCosts();
-    void initCosts(int interdiction=-1, int min=0, int max=0);
+    void initCosts(float interdiction=-1, int a=0, int b=0, int dist=1, int max_k=0);
     void applyInterdiction(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar, const LayerGraph& G);
 };
@@ -253,10 +310,15 @@ public:
 //     vector<float> solve();
 // };
 
-pair<vector<vector<int> >, vector<vector<double> > > enumSolve(AdaptiveInstance& m3, const LayerGraph& G);
+pair<vector<vector<int> >, vector<Policy> > mergeEnumSols(pair<vector<vector<int> >, vector<Policy> >& sol1, pair<vector<vector<int> >, vector<Policy> >& sol2, int w_index);
 
-vector<vector<double> > extendByOne(pair<vector<vector<int> >, vector<vector<double> > >& k_solution, AdaptiveInstance& m3);
+pair<vector<vector<int> >, vector<Policy> > enumSolve(AdaptiveInstance& m3, const LayerGraph& G);
+
+pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const LayerGraph& G);
 
 long getCurrentTime();
+
+void printSolution(pair<vector<vector<int> >, vector<Policy> >& sol, string solname="");
+
 
 #endif

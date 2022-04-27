@@ -85,6 +85,7 @@ void AdaptiveInstance::writeCosts() {
     // Costs file has (p+1) lines - p sets of arc costs plus interdiction costs
     string filename = directory + name + "-costs_" + to_string(scenarios) + ".csv";
     ofstream myfile(filename);
+    cout << "hello" << endl;
 
     for (int q=0; q<scenarios; ++q) {
         stringstream ss;
@@ -99,6 +100,7 @@ void AdaptiveInstance::writeCosts() {
         myfile << line;
     }
 
+    cout << "hello" << endl;
     stringstream ss;
     for (int a=0; a<arcs; ++a) {
         if (a!=0) {
@@ -106,119 +108,30 @@ void AdaptiveInstance::writeCosts() {
         }
         ss << interdiction_costs[a];
     }
-
+    cout << "hello" << endl;
     string line = ss.str() + "\n";
     myfile << line;
 }
 
-void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist, int max_k) {
+void AdaptiveInstance::generateCosts(int interdiction, int min, int max) {
     /* 
      * Randomly Generate and set cost structure:
-     * interdiction is the fractional multiplier on average cost used for (anti)-proportional interdiction costs
-     * a and b are distribution parameters:
-     *  a is the lowest mean
-     *  b is the increase in every next mean
+     * interdiction will populate interdiction_costs for every arc
+     * min and max will bound uniform distribution to generate costs
      */
+    interdiction_costs = vector<int>(arcs, interdiction);
 
-    random_device rd;                           
-    mt19937 gen(rd());
-    
+    random_device rd;                           // obtain a random number from hardware
+    mt19937 gen(rd());                          // seed the generator
+    uniform_int_distribution<> distr(min, max); // define the range
+
     arc_costs = vector<vector<int> >(scenarios, vector<int>(arcs));
 
-    if (dist==2) {
-        // bernoulli_distribution binary(0.5);
-
-        // define the distribution for q=0
-        // normal_distribution<> norm_high(b, 50);
-        // normal_distribution<> norm_low(a, 50);
-
-        // define vector of p normal distributions
-        // define random indexing map
-        vector<normal_distribution<>> normals;
-        vector<int> indices;
-        uniform_int_distribution<> unif(1, max_k);
-
-        for (int q=0; q<max_k; ++q) {
-            normal_distribution<> norm(a + b*q, 50);
-            normals.push_back(norm);
-            indices.push_back(q);
-        }
-        for (int q=max_k; q < scenarios; ++q) {
-            int index = unif(gen);
-            indices.push_back(index);
-        }
-
-
-        for (int a=0; a<arcs; ++a) {
-
-            // obtain seed and shuffle indices
-            unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-            shuffle (indices.begin(), indices.end(), default_random_engine(seed));
-
-            for (int q=0; q<scenarios; ++q) {
-
-                arc_costs[q][a] = abs(normals[indices[q]](gen));
-
-                // if (ind) {
-                //     if (q==0 || q==1) {
-                //         arc_costs[q][a] = abs (norm_low(gen)); 
-                //     } 
-                //     else {
-                //         arc_costs[q][a] = abs (norm_high(gen));
-                //     }
-                // }
-                // else {
-                //     if (q==0 || q==1) {
-                //         arc_costs[q][a] = abs (norm_high(gen));
-                //     } 
-                //     else {
-                //         arc_costs[q][a] = abs (norm_low(gen));
-                //     }
-                // }
-            }
-        }
-    }
-
-    else {
-        for (int q=0; q<scenarios; ++q) {
-            // define the distribution
-            uniform_int_distribution<> unif(a+10, b+10); 
-            normal_distribution<> norm(a+10, b);
-            for (int a=0; a<arcs; ++a) {
-                if (dist==0) {arc_costs[q][a] = unif(gen);}
-                else if (dist==1) {arc_costs[q][a] = round(norm(gen));}
-            }
-        }
-    }
-
-    interdiction_costs = vector<int>(arcs);
-    int total = 0;
-
     for (int q=0; q<scenarios; ++q) {
-        total += (a + q*b);
-    }
-
-    int interdiction_baseline = total / scenarios;
-
-    for (int a=0; a<arcs; ++a) {
-        cout << "arc: " << a << endl;
-        int average = 0;
-        for (int q=0; q<scenarios; ++q) {
-            average += arc_costs[q][a];
-            cout << arc_costs[q][a] << " ";
+        for (int a=0; a<arcs; ++a) {
+            arc_costs[q][a] = distr(gen);
         }
-        average = average / scenarios;
-        cout << "average: " << average << endl;
-        cout << "baseline: " << interdiction_baseline << endl;
-        cout << "difference: " << interdiction_baseline - average << endl;
-
-
-        interdiction_costs[a] = (interdiction_baseline * interdiction) + (interdiction_baseline - average) * interdiction;
-        cout << "final cost: " << interdiction_costs[a] << endl;
     }
-
-    cout << "doing interdiction costs" << endl;
-    cout << "fraction: " << interdiction << endl;
 }
 
 void AdaptiveInstance::readCosts() {
@@ -255,16 +168,13 @@ void AdaptiveInstance::readCosts() {
     }
 }
 
-void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist, int max_k) {
+void AdaptiveInstance::initCosts(int interdiction, int min, int max) {
     // If interdiction is not passed (<0), then read from file
-    // Distributions:
-    //  - dist = 0: uniform, a = min, b = max
-    //  - dist = 1: normal, a = mean, b = stddev
     if (interdiction < 0) {
         readCosts();
     }
     else {
-        generateCosts(interdiction, a, b, dist, max_k);
+        generateCosts(interdiction, min, max);
         writeCosts();
     }
 }
@@ -1208,7 +1118,6 @@ int max_int(int a, int b){
 
 void printSolution(pair<vector<vector<int> >, vector<Policy> >& sol, string solname){
     // print adaptive solution
-    cout << endl;
     if (solname == ""){cout << "solution:" << endl;}
     else {cout << solname << ":" << endl;} 
     int k = sol.first.size();
@@ -1220,7 +1129,6 @@ void printSolution(pair<vector<vector<int> >, vector<Policy> >& sol, string soln
         }
         cout << "- objective: " << sol.second[w].objective << endl;
     }
-    cout << endl;
 }
 
 bool nextKappa(vector<int>& kappa, vector<int>& max, int k, int p){

@@ -2,6 +2,7 @@ import os
 import sys
 import graphclasses
 from datetime import date
+import pdb
 
 # Globale namespace
 DAT = "dat"
@@ -48,8 +49,8 @@ def main():
             - (3) max pr
             - do not use the char '-' use different delimeter such as '_'
     """
-    N_VALUES = [10, 15, 20, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000, 500000, 1000000]
-    PR_VALUES = [0.3, 0.4, 0.5, 0.6, 0.7]
+    N_VALUES = [20, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000, 500000, 1000000]
+    PR_VALUES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
 
     # will set some default args if you don't pass them right
     if len(sys.argv) == 4:
@@ -83,42 +84,45 @@ def main():
     LOGPATH = os.path.join(DATPATH, LOGNAME)
 
     # append through the loop to ensure it matches the order
-    fullname_list = []
-    n_list = []
-    m_list = []
-    pr_list = []
-    density_list = []
+    # fullname_list = []
+    # n_list = []
+    # m_list = []
+    # pr_list = []
+    # density_list = []
 
-    with open (LOGPATH, "w") as logfile:
-        for n in N_VALUES:
-            if n > MAX_N: break
-            for pr in PR_VALUES:
-                if pr > MAX_PR: break
-                G = graphclasses.ErdosRenyi(n, pr)
-                fullname = SETNAME + "-" + str(n) + "_" + str(int(10*pr))
-                filename = fullname + ".txt"
-                filepath = os.path.join(DATPATH, filename)
-                G.checksNX(filepath)
+    # with open (LOGPATH, "w") as logfile:
+    #     for n in N_VALUES:
+    #         if n > MAX_N: break
+    #         for pr in PR_VALUES:
+    #             if pr > MAX_PR: break
+    #             G = graphclasses.ErdosRenyi(n, pr)
+    #             fullname = SETNAME + "-" + str(n) + "_" + str(int(10*pr))
+    #             filename = fullname + ".txt"
+    #             filepath = os.path.join(DATPATH, filename)
+    #             G.checksNX(filepath)
 
-                n_list.append(n)
-                m_list.append(G.m)
-                pr_list.append(pr)
-                density_list.append(G.density)
-                fullname_list.append(fullname)
+    #             n_list.append(n)
+    #             m_list.append(G.m)
+    #             pr_list.append(pr)
+    #             density_list.append(G.density)
+    #             fullname_list.append(fullname)
 
-        # instances_string = str(number_of_instances) + "\n"
-        n_list_string = " ".join([str(i) for i in n_list]) + "\n"
-        m_list_string = " ".join([str(i) for i in m_list]) + "\n"
-        pr_list_string = " ".join([str(i) for i in pr_list]) + "\n"
-        density_list_string = " ".join([str(i) for i in density_list]) + "\n"
-        fullname_list_string = " ".join(fullname_list) + "\n"
+    #     # instances_string = str(number_of_instances) + "\n"
+    #     n_list_string = " ".join([str(i) for i in n_list]) + "\n"
+    #     m_list_string = " ".join([str(i) for i in m_list]) + "\n"
+    #     pr_list_string = " ".join([str(i) for i in pr_list]) + "\n"
+    #     density_list_string = " ".join([str(i) for i in density_list]) + "\n"
+    #     fullname_list_string = " ".join(fullname_list) + "\n"
 
-        # logfile.write(instances_string)
-        logfile.write(n_list_string)
-        logfile.write(m_list_string)
-        logfile.write(pr_list_string)
-        logfile.write(density_list_string)
-        logfile.write(fullname_list_string)
+    #     # logfile.write(instances_string)
+    #     logfile.write(n_list_string)
+    #     logfile.write(m_list_string)
+    #     logfile.write(pr_list_string)
+    #     logfile.write(density_list_string)
+    #     logfile.write(fullname_list_string)
+
+    pdb.set_trace()
+
 
 if __name__ == "__main__":
     main()
