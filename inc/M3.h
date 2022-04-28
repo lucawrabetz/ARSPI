@@ -15,7 +15,8 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+// #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+#include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
 using std::array;
 using std::shuffle;
@@ -45,8 +46,9 @@ struct Arc
 public:
     int i;
     int j;
+    int sub;
     Arc();
-    Arc(int the_i, int the_j);
+    Arc(int the_i, int the_j, int the_sub);
 };
 
 struct Policy
@@ -94,22 +96,26 @@ public:
     // }
 };
 
-class LayerGraph
+class Graph
 {
-    // Layer Graph class (to be read from Arc list)
+    // Graph class (to be read from Arc list)
 public:
     int n, m;
-    vector<Arc> arcs;
 
-    // arc_index_hash maintains a linked list representation with indexes 
-    // to the corresponding arc in the 0-(m-1) vectors, for example the cost
-    // or arc object vectors
+    // arc vectors are contiguous 0-(m-1) vectors
+    // this will also apply for cost vectors and weights on arcs that are held in instance classes
+    vector<Arc> arcs;
+    vector<int> subgraph;
+
+    // linking vectors: when you need the index of an arc from adjacency information:
+    // arc_index_hash maintains a linked list representation 
+    // of indexes in the corresponding 0-(m-1) contiguous arc vectors
     vector<vector<int> > arc_index_hash;
     vector<vector<int> > adjacency_list;
     vector<vector<int> > n_n_adjacency_list;
 
-    LayerGraph();
-    LayerGraph(const string &filename, int the_n);
+    Graph();
+    Graph(const string &filename, int the_n);
     void updateGraph(vector<int>& x_bar, bool rev=false);
     void printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs=false) const;
 };
@@ -128,7 +134,7 @@ public:
     AdaptiveInstance() : scenarios(0), policies(0), budget(0) {}; 
 
     // main constructor
-    AdaptiveInstance(int p, int k, int r_zero, const LayerGraph &G, const string &directory, const string &name) :
+    AdaptiveInstance(int p, int k, int r_zero, const Graph &G, const string &directory, const string &name) :
         scenarios(p), policies(k), budget(r_zero), nodes(G.n), arcs(G.m), directory(directory), name(name) {};
 
     // change U constructor
@@ -143,14 +149,14 @@ public:
     void set_costs(vector<int>& interdiction_costs, vector<vector<int> >& arc_costs) 
     {interdiction_costs=interdiction_costs; arc_costs=arc_costs;}
 
-    void printInstance(const LayerGraph&G) const;
-    vector<int> dijkstra(int q, const LayerGraph &G);
+    void printInstance(const Graph&G) const;
+    vector<int> dijkstra(int q, const Graph &G);
     void writeCosts();
     void generateCosts(float interdiction, int a, int b, int dist, int max_k);
     void readCosts();
     void initCosts(float interdiction=-1, int a=0, int b=0, int dist=1, int max_k=0);
     void applyInterdiction(vector<float>& x_bar, bool rev=false);
-    float validatePolicy(vector<float>& x_bar, const LayerGraph& G);
+    float validatePolicy(vector<float>& x_bar, const Graph& G);
 };
  
 class RobustAlgoModel
@@ -178,7 +184,7 @@ public:
     RobustAlgoModel(AdaptiveInstance& m3) : 
         scenarios(m3.scenarios), budget(m3.budget), nodes(m3.nodes), arcs(m3.arcs) {};
 
-    void configureModel(const LayerGraph& G, AdaptiveInstance& m3);
+    void configureModel(const Graph& G, AdaptiveInstance& m3);
     void update(vector<int>& subset);
     void reverse_update(vector<int>& subset);
     vector<double> solve(int counter); // returns solution value at 0, arc interdiction policy at 1-m
@@ -205,7 +211,7 @@ public:
     SetPartitioningModel(int M, AdaptiveInstance& m3) : 
         M(M), scenarios(m3.scenarios), policies(m3.policies), budget(m3.budget), nodes(m3.nodes), arcs(m3.arcs) {};
 
-    void configureModel(const LayerGraph& G, AdaptiveInstance& m3);
+    void configureModel(const Graph& G, AdaptiveInstance& m3);
     vector<vector<float> > solve();
 };
 
@@ -312,9 +318,9 @@ public:
 
 pair<vector<vector<int> >, vector<Policy> > mergeEnumSols(pair<vector<vector<int> >, vector<Policy> >& sol1, pair<vector<vector<int> >, vector<Policy> >& sol2, int w_index);
 
-pair<vector<vector<int> >, vector<Policy> > enumSolve(AdaptiveInstance& m3, const LayerGraph& G);
+pair<vector<vector<int> >, vector<Policy> > enumSolve(AdaptiveInstance& m3, const Graph& G);
 
-pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const LayerGraph& G);
+pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const Graph& G);
 
 long getCurrentTime();
 

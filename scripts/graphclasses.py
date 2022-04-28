@@ -160,6 +160,17 @@ class ErdosRenyi:
             for i in range(self.m):
                 print("     " + str(self.arcs[i]))
 
+    def addEdgeAttr(self, sub):
+        '''
+        - add value of sub (subgraph index) to all edges
+        - loop through edges and add sub
+        '''
+        for edge in self.G.edges():
+            i = edge[0]
+            j = edge[1]
+            self.G.edges[i, j]["sub"] = sub
+
+
     def checksNX(self, filename):
         '''
         - check anything you want - connectivity, parallel edges, etc
@@ -195,19 +206,19 @@ class CompoundGraph:
 
         # loop through every graph in graphs and perform disjoint unions sequentially
         for i in range(len(graphs)):
+            graphs[i].addEdgeAttr(i+1)
             if i == 0:
                 temp_graphs[0] = nx.disjoint_union(sourceG, graphs[0].G)
             else:
                 temp_graphs[i] = nx.disjoint_union(temp_graphs[i-1], graphs[i].G)
 
-        pdb.set_trace()
         self.G = nx.disjoint_union(temp_graphs[-1], sinkG)
 
         # add the edges to connect and source and sink
         # if we want to add more edges between subgraphs we can do it here as well
         t_0 = graphs[0].t
         for i in range(len(graphs)):
-            new_edges = [(self.s, n_0 * (i) + 1), (t_0 + n_0 * (i) + 1, self.t)]
+            new_edges = [(self.s, n_0 * (i) + 1, {"sub": 0}), (t_0 + n_0 * (i) + 1, self.t, {"sub": 0})]
             self.G.add_edges_from(new_edges)
 
         # final class attributes
@@ -220,15 +231,18 @@ class CompoundGraph:
         - check anything you want - connectivity, parallel edges, etc
         - also writes graph to a file in standard edge list style
         '''
-        nx.write_edgelist(self.G, filename, data=False)
+        nx.write_edgelist(self.G, filename, data=True)
 
 
 if __name__ == "__main__":
     nodes = 10
-    probability = 0.1
+    probability = 0.2
 
     G1 = ErdosRenyi(nodes, probability)
     G2 = ErdosRenyi(nodes, probability)
+    G3 = ErdosRenyi(nodes, probability)
+    G4 = ErdosRenyi(nodes, probability)
 
-    G3 = CompoundGraph([G1, G2])
+    G5 = CompoundGraph([G1, G2, G3, G4])
+    G5.writeGraph("testing.txt")
 

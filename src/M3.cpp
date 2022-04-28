@@ -6,55 +6,61 @@ long getCurrentTime() {
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-Arc::Arc(){i=0; j=0;}
+Arc::Arc(){i=0; j=0; sub=0;}
 
-Arc::Arc(int the_i, int the_j){i=the_i; j=the_j;}
+Arc::Arc(int the_i, int the_j, int the_sub){i=the_i; j=the_j; sub=the_sub;}
 
-LayerGraph::LayerGraph(){n=0; m=0;}
+Graph::Graph(){n=0; m=0;}
 
-LayerGraph::LayerGraph(const string &filename, int the_n)
+Graph::Graph(const string &filename, int the_n)
 {
-    // LayerGraph constructor from file
-    string line;
+    // Graph constructor from file
+    string line, word;
     ifstream myfile(filename);
 
     if (myfile.is_open())
     {
         n = the_n;
-        int counter = 0;
+        int arc_index = 0;
         int i;
         int j;
-        vector<int> new_vector;
-        vector<int> zeros_vector;
-        const char *cline;
+        string sub;
 
-        for (int i = 0; i < n; i++) {zeros_vector.push_back(0);}
+        cout << "n: " << n << endl;
 
-        for (int i = 0; i < n; i++)
-        {
-            new_vector = {};
-            adjacency_list.push_back(new_vector);
-            arc_index_hash.push_back(new_vector);
-            n_n_adjacency_list.push_back(zeros_vector);
-        }
+        arc_index_hash = vector<vector<int> >(n);
+        adjacency_list = vector<vector<int> >(n);
+        n_n_adjacency_list = vector<vector<int> >(n, vector<int>(n, 0));
 
         while (getline(myfile, line))
         {
-            cline = line.c_str();
-            sscanf(cline, "%d %d", &i, &j);
+            stringstream str(line);
+            int counter = 0;
 
-            arcs.push_back(Arc(i, j));
+            while(getline(str, word, ' ')){
+                if (counter==0) {i = stoi(word);}
+                else if (counter==1) {j = stoi(word);}
+                else if (counter==3) {
+                    sub = word;
+                    sub.pop_back();
+                }
+                ++counter;
+            }
+
+            int subval = stoi(sub)-1;
+            arcs.push_back(Arc(i, j, subval));
+            subgraph.push_back(subval);
             adjacency_list[i].push_back(j);
-            arc_index_hash[i].push_back(counter);
+            arc_index_hash[i].push_back(arc_index);
             n_n_adjacency_list[i][j] = 1;
-            ++counter; // to track the index in the 0-(m-1) vectors
+            ++arc_index; 
         }
 
         m = arcs.size();
     }
 }
 
-void LayerGraph::printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs) const
+void Graph::printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs) const
 {
     // Print arc summary of a graph, with costs if called from M3 Instance (is_costs)
     cout << "n: " << n << ", m: " << m << endl;
@@ -63,7 +69,7 @@ void LayerGraph::printGraph(vector<vector<int> > costs, vector<int> interdiction
     if (is_costs){
         for (int a = 0; a < m; a++)
         {
-            cout << "(" << arcs[a].i << "," << arcs[a].j << ")" << endl;
+            cout << "(" << arcs[a].i << "," << arcs[a].j << "," << arcs[a].sub << ")" << endl;
             cout << "   interdiction_cost: " << interdiction_costs[a] << endl;
 
             for (int q = 0; q<p; ++q){
@@ -75,7 +81,7 @@ void LayerGraph::printGraph(vector<vector<int> > costs, vector<int> interdiction
     else {
         for (int a = 0; a < m; a++)
         {
-            cout << "(" << arcs[a].i << "," << arcs[a].j << ")\n";
+            cout << "(" << arcs[a].i << "," << arcs[a].j << "," << arcs[a].sub << ")\n";
         }
     }
 }
@@ -269,14 +275,14 @@ void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist, int
     }
 }
 
-void AdaptiveInstance::printInstance(const LayerGraph& G) const {
+void AdaptiveInstance::printInstance(const Graph& G) const {
     // Print Summary of Problem Instance
     cout << "k: " << policies << endl;
     cout << "p: " << scenarios << endl;
     G.printGraph(arc_costs, interdiction_costs, true);
 }
 
-vector<int> AdaptiveInstance::dijkstra(int q, const LayerGraph& G)
+vector<int> AdaptiveInstance::dijkstra(int q, const Graph& G)
 {
     // Compute shortest path 0-n-1
     vector<int> bar_S(nodes), dist(nodes), pred(nodes), result(arcs+1);
@@ -366,7 +372,7 @@ void AdaptiveInstance::applyInterdiction(vector<float>& x_bar, bool rev){
     }
 }
 
-float AdaptiveInstance::validatePolicy(vector<float>& x_bar, const LayerGraph& G)
+float AdaptiveInstance::validatePolicy(vector<float>& x_bar, const Graph& G)
 {
     // Solve shortest path on interdicted graph - check objectives match
     float objective=100000000;
@@ -391,7 +397,7 @@ float AdaptiveInstance::validatePolicy(vector<float>& x_bar, const LayerGraph& G
 }
 
 // ------ MIP Formulations for M3 ------
-void SetPartitioningModel::configureModel(const LayerGraph& G, AdaptiveInstance& m3) {
+void SetPartitioningModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
     try
     {
         // ------ Initialize model and environment ------
@@ -1081,7 +1087,7 @@ vector<int> initKappa(int p, int k) {
 }
 
 
-void RobustAlgoModel::configureModel(const LayerGraph& G, AdaptiveInstance& m3) {
+void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
     // Construct baseline model with no constraints
     algo_env = new GRBEnv();
     algo_model = new GRBModel(*algo_env);
@@ -1277,7 +1283,7 @@ pair<vector<vector<int> >, vector<Policy> > mergeEnumSols(pair<vector<vector<int
     return sol1;
 }
 
-pair<vector<vector<int> >, vector<Policy> > enumSolve(AdaptiveInstance& m3, const LayerGraph& G){
+pair<vector<vector<int> >, vector<Policy> > enumSolve(AdaptiveInstance& m3, const Graph& G){
     // Pass a AdaptiveInstance and solve using enumeration algorithm
     // Enumeration maintained as in Orlov paper
     // Return: pair:
@@ -1365,7 +1371,7 @@ pair<vector<vector<int> >, vector<Policy> > enumSolve(AdaptiveInstance& m3, cons
     return dummy_solution;
 }
 
-pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const LayerGraph& G) {
+pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const Graph& G) {
     // Use an optimal solution found by the enumerative algorithm for k, to find a good solution for k+1
     // Take the worst subset in the optimal partition and "split it in 2"
     // "Split it in two": solve that subset for k = 2

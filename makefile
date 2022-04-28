@@ -29,24 +29,24 @@ CXXFLAGSSMD = -m64 -std=c++14 -g -Wall -Wextra -pedantic
 # ****************************************************
 
 # FOR MBP 
-# main:
-# 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)main $(SRCPATH)main.cpp -I$(GRBINCMBP) $(CPPLIBMBP) 
-# 
-# sp:
-# 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)sp $(SRCPATH)sp.cpp -I$(GRBINCMBP) $(CPPLIBMBP) 
-# 
-# enum:
-# 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)enum $(SRCPATH)enum.cpp -I$(GRBINCMBP) $(CPPLIBMBP) 
-
-# FOR SMD 
 main:
-	$(CXXSMD) $(CXXFLAGSSMD) $(SRCPATH)M3.cpp -o $(BINPATH)main $(SRCPATH)main.cpp -I$(GRBINCSMD) $(CPPLIBSMD) 
+	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)main $(SRCPATH)main.cpp -I$(GRBINCMBP) $(CPPLIBMBP) 
 
 sp:
-	$(CXXSMD) $(CXXFLAGSSMD) $(SRCPATH)M3.cpp -o $(BINPATH)sp $(SRCPATH)sp.cpp -I$(GRBINCSMD) $(CPPLIBSMD) 
+	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)sp $(SRCPATH)sp.cpp -I$(GRBINCMBP) $(CPPLIBMBP) 
 
 enum:
-	$(CXXSMD) $(CXXFLAGSSMD) $(SRCPATH)M3.cpp -o $(BINPATH)enum $(SRCPATH)enum.cpp -I$(GRBINCSMD) $(CPPLIBSMD) 
+	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)enum $(SRCPATH)enum.cpp -I$(GRBINCMBP) $(CPPLIBMBP) 
 
-clean:
-	rm -rf *.lp *.o $(BINPATH)*.dSYM $(BINPATH)main
+# FOR SMD 
+# main:
+# 	$(CXXSMD) $(CXXFLAGSSMD) $(SRCPATH)M3.cpp -o $(BINPATH)main $(SRCPATH)main.cpp -I$(GRBINCSMD) $(CPPLIBSMD) 
+# 
+# sp:
+# 	$(CXXSMD) $(CXXFLAGSSMD) $(SRCPATH)M3.cpp -o $(BINPATH)sp $(SRCPATH)sp.cpp -I$(GRBINCSMD) $(CPPLIBSMD) 
+# 
+# enum:
+# 	$(CXXSMD) $(CXXFLAGSSMD) $(SRCPATH)M3.cpp -o $(BINPATH)enum $(SRCPATH)enum.cpp -I$(GRBINCSMD) $(CPPLIBSMD) 
+# 
+# clean:
+# 	rm -rf *.lp *.o $(BINPATH)*.dSYM $(BINPATH)main
