@@ -126,10 +126,8 @@ class ErdosRenyi:
 
         diameter = -1
         st_shortest_path = -1
-        counter = 0
 
         while st_shortest_path < (diameter) or st_shortest_path < 0 or diameter < 0:
-            counter += 1
             self.G = nx.erdos_renyi_graph(self.n, self.pr, directed=True)
 
             try:
@@ -143,11 +141,11 @@ class ErdosRenyi:
             except:
                 st_shortest_path = -1
 
-            if counter > 10: break
-
         edge_list = [e for e in self.G.edges]
         self.m = len(edge_list)
         self.density = nx.density(self.G)
+
+        print("Erdos Renyi Graph Generated")
 
     def printGraph(self, edge_list=True):
         '''
@@ -183,28 +181,46 @@ class CompoundGraph:
             - graphs - list of erdos-renyi graph objects
         '''
         # assume all graphs in graphs have same n
-        self.n = graphs[0].n * len(graphs) + 2
+        n_0 = graphs[0].n
+        self.n = n_0 * len(graphs) + 2
         self.s = 0
         self.t = self.n - 1
 
         # create source and sink networkx graphs
-        sourceG = nx.Graph()
+        sourceG = nx.DiGraph()
         sourceG.add_node(0)
-        sinkG = nx.Graph()
+        sinkG = nx.DiGraph()
         sinkG.add_node(self.t)
         temp_graphs = [0 for G in graphs]
 
         # loop through every graph in graphs and perform disjoint unions sequentially
-        pdb.set_trace()
         for i in range(len(graphs)):
             if i == 0:
                 temp_graphs[0] = nx.disjoint_union(sourceG, graphs[0].G)
             else:
                 temp_graphs[i] = nx.disjoint_union(temp_graphs[i-1], graphs[i].G)
 
+        pdb.set_trace()
         self.G = nx.disjoint_union(temp_graphs[-1], sinkG)
-        print("hello")
 
+        # add the edges to connect and source and sink
+        # if we want to add more edges between subgraphs we can do it here as well
+        t_0 = graphs[0].t
+        for i in range(len(graphs)):
+            new_edges = [(self.s, n_0 * (i) + 1), (t_0 + n_0 * (i) + 1, self.t)]
+            self.G.add_edges_from(new_edges)
+
+        # final class attributes
+        edge_list = [e for e in self.G.edges]
+        self.m = len(edge_list)
+        self.density = nx.density(self.G)
+
+    def writeGraph(self, filename):
+        '''
+        - check anything you want - connectivity, parallel edges, etc
+        - also writes graph to a file in standard edge list style
+        '''
+        nx.write_edgelist(self.G, filename, data=False)
 
 
 if __name__ == "__main__":
