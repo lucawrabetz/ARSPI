@@ -37,3 +37,6 @@ modelfiles/
 
 # Graph files
 dat/
+
+# personal makefile
+makefile
