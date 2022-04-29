@@ -233,16 +233,22 @@ class CompoundGraph:
         '''
         nx.write_edgelist(self.G, filename, data=True)
 
+def compound_generator(n_0, pr, subgraphs):
+    '''
+    - helper function to generate a compound graph and return it
+    - just generating the ErdosRenyi graphs for CompoundGraph constructor
+    - n_0 and pr are the node number and probability value for the individual subgraphs
+    '''
+    graphs = [ErdosRenyi(n_0, pr) for i in range(subgraphs)]
+
+    G = CompoundGraph(graphs)
+
+    return G
 
 if __name__ == "__main__":
     nodes = 10
     probability = 0.2
 
-    G1 = ErdosRenyi(nodes, probability)
-    G2 = ErdosRenyi(nodes, probability)
-    G3 = ErdosRenyi(nodes, probability)
-    G4 = ErdosRenyi(nodes, probability)
-
-    G5 = CompoundGraph([G1, G2, G3, G4])
-    G5.writeGraph("testing.txt")
+    G = compound_generator(nodes, probability, 10)
+    G.writeGraph("testing.txt")
 

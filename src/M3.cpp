@@ -17,6 +17,7 @@ Graph::Graph(const string &filename, int the_n)
     // Graph constructor from file
     string line, word;
     ifstream myfile(filename);
+    int max_sub = -2;
 
     if (myfile.is_open())
     {
@@ -27,6 +28,7 @@ Graph::Graph(const string &filename, int the_n)
         string sub;
 
         cout << "n: " << n << endl;
+        cout << "filename: " << filename << endl;
 
         arc_index_hash = vector<vector<int> >(n);
         adjacency_list = vector<vector<int> >(n);
@@ -48,15 +50,21 @@ Graph::Graph(const string &filename, int the_n)
             }
 
             int subval = stoi(sub)-1;
+            
+            if (subval > max_sub) {max_sub = subval;}
+
             arcs.push_back(Arc(i, j, subval));
             subgraph.push_back(subval);
+
             adjacency_list[i].push_back(j);
             arc_index_hash[i].push_back(arc_index);
             n_n_adjacency_list[i][j] = 1;
+
             ++arc_index; 
         }
 
         m = arcs.size();
+        kbar = max_sub + 1;
     }
 }
 
@@ -117,7 +125,7 @@ void AdaptiveInstance::writeCosts() {
     myfile << line;
 }
 
-void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist, int max_k) {
+void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist, vector<int> subgraph) {
     /* 
      * Randomly Generate and set cost structure:
      * interdiction is the fractional multiplier on average cost used for (anti)-proportional interdiction costs
@@ -130,6 +138,32 @@ void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist,
     mt19937 gen(rd());
     
     arc_costs = vector<vector<int> >(scenarios, vector<int>(arcs));
+    vector<int> scenario_sub_map(scenarios);
+
+    int sub = 0;
+    for (int q=0; q<scenarios; ++q) {
+        if (sub==kbar) {sub=0;}
+        scenario_sub_map[q] = sub;
+        ++sub;
+    }
+
+    if (dist==3) {
+        normal_distribution<> cheap(a, 20);
+        normal_distribution<> expensive(b, 20);
+
+        for (int a=0; a<arcs; ++a) {
+            for (int q=0; q<scenarios; ++q) {
+                if (scenario_sub_map[q] == subgraph[a]) {
+                    // draw cheap
+                    arc_costs[q][a] = abs(cheap(gen));
+                }
+                else {
+                    // draw expensive
+                    arc_costs[q][a] = abs(expensive(gen));
+                }
+            }
+        }
+    }
 
     if (dist==2) {
         // bernoulli_distribution binary(0.5);
@@ -142,14 +176,14 @@ void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist,
         // define random indexing map
         vector<normal_distribution<>> normals;
         vector<int> indices;
-        uniform_int_distribution<> unif(1, max_k);
+        uniform_int_distribution<> unif(1, kbar);
 
-        for (int q=0; q<max_k; ++q) {
+        for (int q=0; q<kbar; ++q) {
             normal_distribution<> norm(a + b*q, 50);
             normals.push_back(norm);
             indices.push_back(q);
         }
-        for (int q=max_k; q < scenarios; ++q) {
+        for (int q=kbar; q < scenarios; ++q) {
             int index = unif(gen);
             indices.push_back(index);
         }
@@ -197,34 +231,34 @@ void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist,
         }
     }
 
-    interdiction_costs = vector<int>(arcs);
-    int total = 0;
+    interdiction_costs = vector<int>(arcs, 10);
+    // int total = 0;
 
-    for (int q=0; q<scenarios; ++q) {
-        total += (a + q*b);
-    }
+    // for (int q=0; q<scenarios; ++q) {
+    //     total += (a + q*b);
+    // }
 
-    int interdiction_baseline = total / scenarios;
+    // int interdiction_baseline = total / scenarios;
 
-    for (int a=0; a<arcs; ++a) {
-        cout << "arc: " << a << endl;
-        int average = 0;
-        for (int q=0; q<scenarios; ++q) {
-            average += arc_costs[q][a];
-            cout << arc_costs[q][a] << " ";
-        }
-        average = average / scenarios;
-        cout << "average: " << average << endl;
-        cout << "baseline: " << interdiction_baseline << endl;
-        cout << "difference: " << interdiction_baseline - average << endl;
+    // for (int a=0; a<arcs; ++a) {
+    //     cout << "arc: " << a << endl;
+    //     int average = 0;
+    //     for (int q=0; q<scenarios; ++q) {
+    //         average += arc_costs[q][a];
+    //         cout << arc_costs[q][a] << " ";
+    //     }
+    //     average = average / scenarios;
+    //     cout << "average: " << average << endl;
+    //     cout << "baseline: " << interdiction_baseline << endl;
+    //     cout << "difference: " << interdiction_baseline - average << endl;
 
 
-        interdiction_costs[a] = (interdiction_baseline * interdiction) + (interdiction_baseline - average) * interdiction;
-        cout << "final cost: " << interdiction_costs[a] << endl;
-    }
+    //     interdiction_costs[a] = (interdiction_baseline * interdiction) + (interdiction_baseline - average) * interdiction;
+    //     cout << "final cost: " << interdiction_costs[a] << endl;
+    // }
 
-    cout << "doing interdiction costs" << endl;
-    cout << "fraction: " << interdiction << endl;
+    // cout << "doing interdiction costs" << endl;
+    // cout << "fraction: " << interdiction << endl;
 }
 
 void AdaptiveInstance::readCosts() {
@@ -261,16 +295,16 @@ void AdaptiveInstance::readCosts() {
     }
 }
 
-void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist, int max_k) {
-    // If interdiction is not passed (<0), then read from file
+void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist, const Graph &G, bool gen) {
+    // If gen is false read from file
     // Distributions:
     //  - dist = 0: uniform, a = min, b = max
     //  - dist = 1: normal, a = mean, b = stddev
-    if (interdiction < 0) {
+    if (gen == false) {
         readCosts();
     }
     else {
-        generateCosts(interdiction, a, b, dist, max_k);
+        generateCosts(interdiction, a, b, dist, G.subgraph);
         writeCosts();
     }
 }

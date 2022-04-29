@@ -5,8 +5,8 @@
 
 int main()
 {
-    int n=100;
-    int p=10;
+    int n=32;
+    int p=13;
     int k=1;
     int M = 500;
     int interdiction_cost = 5;
@@ -15,45 +15,58 @@ int main()
     int mean = 50;
     int stddev = 10;
     int a = 50;
-    int b = 100;
+    int b = 150;
     float fraction = 0.1;
 
-    const string setname = "newdist-04_04_22-1";
-    const string name = setname + "-" + to_string(n) + "_3";
+    const string setname = "tests-04_29_22-0";
+    const string name = setname + "-" + to_string(n) + "_1_3";
     const string directory = "dat/" + setname + "/";
-    // const string filename = directory + name + ".txt";
-    const string filename = "testing.txt";
-    n = 42;
+    const string filename = directory + name + ".txt";
 
     vector<int> fake_vec = vector<int>();
     vector<vector<int>> fake_vec2 = vector<vector<int>>();
 
     const Graph G = Graph(filename, n);
-    G.printGraph(fake_vec2, fake_vec, false);
-    // int r_0=3;
-    // AdaptiveInstance m3 = AdaptiveInstance(p, k, r_0, G, directory, name); 
+    int r_0=3;
+    AdaptiveInstance m3 = AdaptiveInstance(p, k, r_0, G, directory, name); 
     // m3.initCosts();
-    // // m3.initCosts(fraction, a, b, 2, 10);
+    m3.initCosts(fraction, a, b, 3, G, true);
 
-    // auto k_solution = enumSolve(m3, G);
-    // printSolution(k_solution, "k solution");
+    // k = 1
+    auto k1_solution = enumSolve(m3, G);
+    printSolution(k1_solution, "k=1 solution exact");
 
-    // auto kprime_solution = extendByOne(k_solution, m3, G);
-    // printSolution(kprime_solution, "k+1 solution (heuristic)");
+    // k = 2
+    auto k2_solution = extendByOne(k1_solution, m3, G);
+    printSolution(k2_solution, "k=2 solution (heuristic, using exact k=1 as input)");
 
-    // m3.set_policies(k+1);
-    // auto kk_solution = enumSolve(m3, G);
-    // printSolution(kk_solution, "k+1 solution (exact)");
+    m3.set_policies(2);
+    auto k2exact_solution = enumSolve(m3, G);
+    printSolution(k2exact_solution, "k=2 solution (exact)");
 
-    // auto kprimeprime_solution = extendByOne(kprime_solution, m3, G);
-    // printSolution(kprimeprime_solution, "k+2 solution (heuristic)");
+    // k = 3
+    auto k3_solution = extendByOne(k2exact_solution, m3, G);
+    printSolution(k3_solution, "k=3 solution (heuristic, using exact k=2 as input)");
 
-    // m3.set_policies(k+2);
-    // auto kkprime_solution = enumSolve(m3, G);
-    // printSolution(kkprime_solution, "k+2 solution (exact)");
+    m3.set_policies(3);
+    auto k3exact_solution = enumSolve(m3, G);
+    printSolution(k3exact_solution, "k=3 solution (exact)");
 
+    // k = 4
+    // auto k4_solution = extendByOne(k3exact_solution, m3, G);
+    // printSolution(k4_solution, "k=4 solution (heuristic, using exact k=3 as input)");
 
+    // m3.set_policies(4);
+    // auto k4exact_solution = enumSolve(m3, G);
+    // printSolution(k4exact_solution, "k=4 solution (exact)");
 
+    // // k = 5
+    // auto k5_solution = extendByOne(k4exact_solution, m3, G);
+    // printSolution(k5_solution, "k=5 solution (heuristic, using exact k=4 as input)");
+
+    // m3.set_policies(5);
+    // auto k5exact_solution = enumSolve(m3, G);
+    // printSolution(k5exact_solution, "k=5 solution (exact)");
 
 
 

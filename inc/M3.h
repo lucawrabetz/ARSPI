@@ -101,6 +101,7 @@ class Graph
     // Graph class (to be read from Arc list)
 public:
     int n, m;
+    int kbar;
 
     // arc vectors are contiguous 0-(m-1) vectors
     // this will also apply for cost vectors and weights on arcs that are held in instance classes
@@ -124,7 +125,7 @@ class AdaptiveInstance
 {
     // Full Adaptive Instance, cost structure data, graph is maintained and passed separately
 public:
-    int scenarios, policies, budget, nodes, arcs;
+    int scenarios, policies, budget, nodes, arcs, kbar;
     vector<int> interdiction_costs;
     vector<vector<int> > arc_costs;
     const string directory;
@@ -135,7 +136,7 @@ public:
 
     // main constructor
     AdaptiveInstance(int p, int k, int r_zero, const Graph &G, const string &directory, const string &name) :
-        scenarios(p), policies(k), budget(r_zero), nodes(G.n), arcs(G.m), directory(directory), name(name) {};
+        scenarios(p), policies(k), budget(r_zero), nodes(G.n), arcs(G.m), kbar(G.kbar), directory(directory), name(name) {};
 
     // change U constructor
     AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios) :
@@ -149,12 +150,12 @@ public:
     void set_costs(vector<int>& interdiction_costs, vector<vector<int> >& arc_costs) 
     {interdiction_costs=interdiction_costs; arc_costs=arc_costs;}
 
-    void printInstance(const Graph&G) const;
+    void printInstance(const Graph &G) const;
     vector<int> dijkstra(int q, const Graph &G);
     void writeCosts();
-    void generateCosts(float interdiction, int a, int b, int dist, int max_k);
+    void generateCosts(float interdiction, int a, int b, int dist, vector<int> subgraph);
     void readCosts();
-    void initCosts(float interdiction=-1, int a=0, int b=0, int dist=1, int max_k=0);
+    void initCosts(float interdiction, int a, int b, int dist, const Graph &G, bool gen);
     void applyInterdiction(vector<float>& x_bar, bool rev=false);
     float validatePolicy(vector<float>& x_bar, const Graph& G);
 };

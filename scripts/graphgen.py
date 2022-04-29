@@ -47,27 +47,38 @@ def main():
             - (1) the desired "basename" (e.g. "luca_graph")
             - (2) max n
             - (3) max pr
+            - (4) max kbar
             - do not use the char '-' use different delimeter such as '_'
     """
-    N_VALUES = [20, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000, 500000, 1000000]
-    PR_VALUES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    N0_VALUES = [10, 20, 30, 40, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000]
+    PR0_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    KBAR_VALUES = [3, 4, 8, 12]
 
     # will set some default args if you don't pass them right
-    if len(sys.argv) == 4:
-        MAX_PR = float(sys.argv[3])
-        MAX_N = int(sys.argv[2])
+    if len(sys.argv) == 5:
+        MAX_KBAR = float(sys.argv[4])
+        MAX_PR0 = float(sys.argv[3])
+        MAX_N0 = int(sys.argv[2])
+        BASENAME = sys.argv[1]
+    elif len(sys.argv) == 4:
+        MAX_KBAR = 8
+        MAX_PR0 = float(sys.argv[3])
+        MAX_N0 = int(sys.argv[2])
         BASENAME = sys.argv[1]
     elif len(sys.argv) == 3:
-        MAX_PR = 0.5
-        MAX_N = int(sys.argv[2])
+        MAX_KBAR = 8
+        MAX_PR0 = 0.2
+        MAX_N0 = int(sys.argv[2])
         BASENAME = sys.argv[1]
     elif len(sys.argv) == 2:
-        MAX_PR = 0.5
-        MAX_N = 1000
+        MAX_KBAR = 8
+        MAX_PR0 = 0.2
+        MAX_N0 = 20
         BASENAME = sys.argv[1]
     else:
-        MAX_PR = 0.5
-        MAX_N = 1000
+        MAX_KBAR = 8
+        MAX_PR0 = 0.2
+        MAX_N0 = 20
         BASENAME = "graphs"
 
 
@@ -84,45 +95,47 @@ def main():
     LOGPATH = os.path.join(DATPATH, LOGNAME)
 
     # append through the loop to ensure it matches the order
-    # fullname_list = []
-    # n_list = []
-    # m_list = []
-    # pr_list = []
-    # density_list = []
+    fullname_list = []
+    n_list = []
+    m_list = []
+    pr0_list = []
+    density_list = []
+    kbar_list = []
 
-    # with open (LOGPATH, "w") as logfile:
-    #     for n in N_VALUES:
-    #         if n > MAX_N: break
-    #         for pr in PR_VALUES:
-    #             if pr > MAX_PR: break
-    #             G = graphclasses.ErdosRenyi(n, pr)
-    #             fullname = SETNAME + "-" + str(n) + "_" + str(int(10*pr))
-    #             filename = fullname + ".txt"
-    #             filepath = os.path.join(DATPATH, filename)
-    #             G.checksNX(filepath)
+    with open (LOGPATH, "w") as logfile:
+        for n0 in N0_VALUES:
+            if n0 > MAX_N0: break
+            for pr0 in PR0_VALUES:
+                if pr0 > MAX_PR0: break
+                for kbar in KBAR_VALUES:
+                    if kbar > MAX_KBAR: break
+                    G = graphclasses.compound_generator(n0, pr0, kbar)
+                    fullname = SETNAME + "-" + str(G.n) + "_" + str(int(10*pr0)) + "_" + str(kbar)
+                    filename = fullname + ".txt"
+                    filepath = os.path.join(DATPATH, filename)
+                    G.writeGraph(filepath)
 
-    #             n_list.append(n)
-    #             m_list.append(G.m)
-    #             pr_list.append(pr)
-    #             density_list.append(G.density)
-    #             fullname_list.append(fullname)
+                    n_list.append(G.n)
+                    m_list.append(G.m)
+                    pr0_list.append(pr0)
+                    density_list.append(G.density)
+                    fullname_list.append(fullname)
+                    kbar_list.append(kbar)
 
-    #     # instances_string = str(number_of_instances) + "\n"
-    #     n_list_string = " ".join([str(i) for i in n_list]) + "\n"
-    #     m_list_string = " ".join([str(i) for i in m_list]) + "\n"
-    #     pr_list_string = " ".join([str(i) for i in pr_list]) + "\n"
-    #     density_list_string = " ".join([str(i) for i in density_list]) + "\n"
-    #     fullname_list_string = " ".join(fullname_list) + "\n"
+        # instances_string = str(number_of_instances) + "\n"
+        n_list_string = " ".join([str(i) for i in n_list]) + "\n"
+        m_list_string = " ".join([str(i) for i in m_list]) + "\n"
+        pr0_list_string = " ".join([str(i) for i in pr0_list]) + "\n"
+        density_list_string = " ".join([str(i) for i in density_list]) + "\n"
+        kbar_list_string = " ".join([str(i) for i in kbar_list]) + "\n"
+        fullname_list_string = " ".join(fullname_list) + "\n"
 
-    #     # logfile.write(instances_string)
-    #     logfile.write(n_list_string)
-    #     logfile.write(m_list_string)
-    #     logfile.write(pr_list_string)
-    #     logfile.write(density_list_string)
-    #     logfile.write(fullname_list_string)
-
-    pdb.set_trace()
-
+        # logfile.write(instances_string)
+        logfile.write(n_list_string)
+        logfile.write(m_list_string)
+        logfile.write(pr0_list_string)
+        logfile.write(density_list_string)
+        logfile.write(fullname_list_string)
 
 if __name__ == "__main__":
     main()
