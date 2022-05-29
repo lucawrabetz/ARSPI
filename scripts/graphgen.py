@@ -29,10 +29,11 @@ def check_make_dir(path, i):
         we have to create the dir "/dat/experiments/test-01_29_22-3"
     """
 
-    isdir = os.path.isdir(path + "-" + str(i))
+
+    isdir_full = os.path.isdir(path + "-" + str(i))
 
     # if the directory exists, call on the next i
-    if isdir:
+    if isdir_full:
         return check_make_dir(path, i + 1)
 
     # base case - create directory for given i (and return final path)
@@ -81,6 +82,10 @@ def main():
         MAX_N0 = 20
         BASENAME = "graphs"
 
+
+    isdir_dat = os.path.isdir(DAT)
+    if not isdir_dat:
+        os.mkdir(DAT)
 
     setname = append_date(BASENAME)
     dat_temppath = os.path.join(DAT, setname)
