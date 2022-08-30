@@ -7,6 +7,8 @@
 #include <time.h>
 #include <cmath>
 #include <float.h>
+#include <unordered_set>
+#include <queue>
 #include <fstream>
 #include <string>
 #include <sstream>
@@ -59,8 +61,8 @@ public:
     double objective;
     vector<double> binary_policy;
 
-    // default
-    Policy() : size(0), objective(0), binary_policy(vector<double>(0)) {};
+    // // default
+    Policy() : size(0), objective(0), binary_policy(vector<double>()) {};
     // just m but no policy 
     Policy(int m) : size(m), objective(0), binary_policy(vector<double>(m)) {};
     // full constructor
@@ -72,29 +74,6 @@ public:
     void set_objective(double value) {objective=value;}
 };
 
-struct AdaptiveSolution
-{
-    // Full Solution for Instance
-public:
-    int policies, scenarios;
-    double worst_case_objective;
-    double average_objective;
-    vector<vector<int> > partition;
-    vector<Policy> solutions;
-
-    // default
-    AdaptiveSolution() : policies(0), scenarios(0), partition(vector<vector<int>>(0)), solutions(vector<Policy>(0)){};
-    // just k and p
-    AdaptiveSolution(int k, int p) : policies(k), scenarios(p), partition(vector<vector<int>>(k)), solutions(vector<Policy>(k)) {};
-    // full
-    AdaptiveSolution(int k, int p, vector<vector<int>> parts, vector<Policy> sols) : policies(k), scenarios(p), partition(parts), solutions(sols) {};
-
-    // void compute_objectives() {
-    //     for (int w=0; w<policies; ++w){
-    //         value = solutions[w].objective;
-    //     }
-    // }
-};
 
 class Graph
 {
@@ -130,6 +109,12 @@ public:
     vector<vector<int> > arc_costs;
     const string directory;
     const string name;
+    // When we copy an AdaptiveInstance but only keep a subset of U, we reset the index
+    // of the scenarios we keep. Later, we will want the original indices back. 
+    // For this reason, we keep a map of the scenarios indices (0-p-1) to their original
+    // indices in the AdaptiveInstance it was copied from.
+    // An empty map means that the instance is infact an "original" instance.
+    vector<int> scenario_index_map;
 
     // default
     AdaptiveInstance() : scenarios(0), policies(0), budget(0) {}; 
@@ -139,10 +124,10 @@ public:
         scenarios(p), policies(k), budget(r_zero), nodes(G.n), arcs(G.m), kbar(G.kbar), directory(directory), name(name) {};
 
     // change U constructor
-    AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios) :
-        scenarios(keep_scenarios.size()), policies(m3->policies), budget(m3->budget), nodes(m3->nodes), arcs(m3->arcs), interdiction_costs(m3->interdiction_costs) 
-    {arc_costs=vector<vector<int> >(scenarios, vector<int>(arcs)); 
-        for (int q=0; q<scenarios; ++q) {arc_costs[q] = m3->arc_costs[keep_scenarios[q]];}}
+    AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios);
+    //     scenarios(keep_scenarios.size()), policies(m3->policies), budget(m3->budget), nodes(m3->nodes), arcs(m3->arcs), interdiction_costs(m3->interdiction_costs) 
+    // {arc_costs=vector<vector<int> >(scenarios, vector<int>(arcs)); 
+    //     for (int q=0; q<scenarios; ++q) {arc_costs[q] = m3->arc_costs[keep_scenarios[q]];}}
 
     // no mutator for scenarios - functionality reserved for change copy constructor
     void set_policies(int k){policies=k;}
@@ -156,10 +141,40 @@ public:
     void generateCosts(float interdiction, int a, int b, int dist, vector<int> subgraph);
     void readCosts();
     void initCosts(float interdiction, int a, int b, int dist, const Graph &G, bool gen);
-    void applyInterdiction(vector<float>& x_bar, bool rev=false);
-    float validatePolicy(vector<float>& x_bar, const Graph& G);
+    void applyInterdiction(vector<double>& x_bar, bool rev=false);
+    float validatePolicy(vector<double>& x_bar, const Graph& G);
 };
  
+struct AdaptiveSolution
+{
+    // Full Solution for Instance
+public:
+    int policies, scenarios;
+    double worst_case_objective;
+    double average_objective;
+    vector<vector<int> > partition;
+    vector<Policy> solutions;
+    long most_recent_solution_time;
+
+    // default
+    AdaptiveSolution() : policies(0), scenarios(0), partition(vector<vector<int>>(0)), solutions(vector<Policy>(0)){};
+    // just k and p
+    AdaptiveSolution(int k, int p) : policies(k), scenarios(p), partition(vector<vector<int>>(k)), solutions(vector<Policy>(k)) {};
+    // full
+    AdaptiveSolution(int k, int p, vector<vector<int>> parts, vector<Policy> sols) : policies(k), scenarios(p), partition(parts), solutions(sols) {};
+
+    void logSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy=true);
+    void mergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index);
+    void extendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine=true);
+
+    void set_policies(int k){policies=k;}
+    void set_scenarios(int p){scenarios=p;}
+    void set_worst_case_objective(int z){worst_case_objective=z;}
+    
+    void computeAllObjectives(const Graph& G, AdaptiveInstance& m3);
+};
+
+
 class RobustAlgoModel
 {
     // Special Purpose Model for the Enumerative Algorithm - Static Robust Dual Reformulation
@@ -202,18 +217,19 @@ public:
     GRBEnv *m3_env;
     GRBModel *m3_model;
     GRBVar z; // objective dummy
-    vector<vector<GRBVar> > h_matrix; // set partitioning variables H[q][w]==1 if q in subset k 
+    vector<vector<GRBVar> > h_matrix; // set partitioning variables H[w][q]==1 if q in subset w 
     vector<vector<vector<GRBVar> > > pi;     // decision variable (for every w, q, i)
     vector<vector<vector<GRBVar> > > lambda; // decision variable (for every w, q, a)
     vector<vector<GRBVar> > x;                   // interdiction variable (for every w, a)
     vector<vector<float> > x_prime; // final solution, [0] is objective (for every w, a)
+    AdaptiveSolution current_solution; // final solution updated whenever ::solve() is called
 
     SetPartitioningModel() : M(0), scenarios(0), policies(0), budget(0), nodes(0), arcs(0) {};
     SetPartitioningModel(int M, AdaptiveInstance& m3) : 
         M(M), scenarios(m3.scenarios), policies(m3.policies), budget(m3.budget), nodes(m3.nodes), arcs(m3.arcs) {};
 
     void configureModel(const Graph& G, AdaptiveInstance& m3);
-    vector<vector<float> > solve();
+    void solve();
 };
 
 // class BendersSub
@@ -319,9 +335,9 @@ public:
 
 pair<vector<vector<int> >, vector<Policy> > mergeEnumSols(pair<vector<vector<int> >, vector<Policy> >& sol1, pair<vector<vector<int> >, vector<Policy> >& sol2, int w_index);
 
-pair<vector<vector<int> >, vector<Policy> > enumSolve(AdaptiveInstance& m3, const Graph& G);
+AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G);
 
-pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const Graph& G);
+// pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const Graph& G);
 
 long getCurrentTime();
 

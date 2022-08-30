@@ -27,8 +27,8 @@ Graph::Graph(const string &filename, int the_n)
         int j;
         string sub;
 
-        // cout << "n: " << n << endl;
-        // cout << "filename: " << filename << endl;
+        cout << "n: " << n << endl;
+        cout << "filename: " << filename << endl;
 
         arc_index_hash = vector<vector<int> >(n);
         adjacency_list = vector<vector<int> >(n);
@@ -626,10 +626,7 @@ void SetPartitioningModel::solve()
 
     try
     {
-        long begin = getCurrentTime();
         m3_model->optimize();
-        long time = getCurrentTime() - begin;
-        current_solution.most_recent_solution_time = time;
 
         try {
             // vector<float> objective_vec;
@@ -1277,7 +1274,7 @@ void RobustAlgoModel::reverse_update(vector<int>& subset) {
 vector<double> RobustAlgoModel::solve(int counter) {
     // solve static model, return policy and objective value
     string lp_filename = "static_model_" + to_string(counter) + ".lp";
-    // algo_model->write(lp_filename);
+    algo_model->write(lp_filename);
     algo_model->optimize();
     vector<double> sol(arcs+1, 0);
     
@@ -1322,11 +1319,13 @@ void AdaptiveSolution::computeAllObjectives(const Graph& G, AdaptiveInstance& m3
     double worst_objective = DBL_MAX;
 
     for (int w=0; w < policies; w++) {
-        static_model.update(partition[w]);
-        vector<double> sol = static_model.solve(0);
-        solutions[w].objective = sol[0];
-        if (sol[0] < worst_objective) {worst_objective = sol[0];}
-        static_model.reverse_update(partition[w]);
+        if (solutions[w].objective < 0) {
+            static_model.update(partition[w]);
+            vector<double> sol = static_model.solve(0);
+            solutions[w].objective = sol[0];
+            if (sol[0] < worst_objective) {worst_objective = sol[0];}
+            static_model.reverse_update(partition[w]);
+        }
     }
     worst_case_objective = worst_objective;
 }
@@ -1477,7 +1476,6 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
 
     // initialize static robust model
     try {
-        long begin = getCurrentTime();
         RobustAlgoModel static_robust = RobustAlgoModel(m3);
         static_robust.configureModel(G, m3);
 
@@ -1531,8 +1529,6 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
         // NEW
         AdaptiveSolution final_solution = AdaptiveSolution(k, p, best_worstcase_partition, final_policies);
         final_solution.set_worst_case_objective(best_worstcase_objective);
-        long time = getCurrentTime() - begin;
-        final_solution.most_recent_solution_time = time;
         return final_solution;
     }
     catch (GRBException e) {
@@ -1556,7 +1552,6 @@ void AdaptiveSolution::extendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
     // int values
     cout << "heuristic - extend by one policy" << endl;
     // cout << "m3: " << endl;
-    long begin = getCurrentTime();
     int k = policies;
     int p = scenarios;
     int m = m3.arcs;
@@ -1601,10 +1596,8 @@ void AdaptiveSolution::extendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
         }
 
         // auto final_solution = mergeEnumSols(k_solution, k_prime_solution, min_subset_windex);
-        long time = getCurrentTime() - begin;
 
         mergeEnumSols(k_prime_solution, &m3_prime, min_subset_windex);
-        most_recent_solution_time = time;
     }
 }
 

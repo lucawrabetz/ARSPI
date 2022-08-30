@@ -4,7 +4,7 @@ import graphclasses
 from datetime import date
 import pdb
 
-# Globale namespace
+# Global 
 DAT = "dat"
 MODELS = "modelfiles"
 
@@ -51,7 +51,7 @@ def main():
             - (4) max kbar
             - do not use the char '-' use different delimeter such as '_'
     """
-    N0_VALUES = [10, 20, 30, 40, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000]
+    N0_VALUES = [5, 10, 20, 30, 40, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000]
     PR0_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     KBAR_VALUES = [3, 4, 8, 12]
 
