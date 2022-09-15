@@ -64,67 +64,48 @@ def arcs_for_current_layer(current_layer, next_layer, p):
 
     return new_arcs
 
-class CompleteLayerInput:
+class CompleteLayerGraph:
     def __init__(self,
-                 num_layers=5,
-                 num_per_layer=10,
-                 followers=5,
-                 follower_groups=3,
-                 budget=3,
+                 num_layers=2,
+                 num_per_layer=3,
+                 followers=2,
+                 follower_groups=2,
+                 budget=2,
                  high_mean=200,
                  low_mean=50,
                  standard_deviation=10,
-                 interdiction_delta=50,
+                 interdiction_delta=10,
                  set_name="graphs",
                  set_directory="dat/graphs"):
         '''
-            - Assertions (input sanity checks):
-                - num_layers >= budget;
-                - num_per_layer >= follower_groups;
-                - create a directory for the set_directory if it doesn't exist.
+        assign basic parameters
+            - assertions (input requirements):
+                - num_layers >= budget
+                - num_per_layer >= follower_groups
         '''
-        # Make assertions / sanity checks.
-        assert num_layers >= budget
-        assert num_per_layer >= follower_groups
-        if not os.path.isdir(set_directory):
-            os.mkdir(set_directory)
+        self.source = 0
+        self.arc_list = []
+        self.arc_costs = []
         self.num_layers = num_layers
         self.num_per_layer = num_per_layer
+        self.nodes = 2 + self.num_layers * self.num_per_layer
+        self.sink = self.nodes - 1
         self.followers = followers
         self.follower_groups = follower_groups
         self.budget = budget
+        assert num_layers >= budget
+        assert num_per_layer >= follower_groups
         self.high_mean = high_mean
         self.low_mean = low_mean
         self.standard_deviation = standard_deviation
         self.interdiction_delta = interdiction_delta
         self.set_name = set_name
         self.set_directory = set_directory
-
-class CompleteLayerGraph:
-    def __init__(self,
-                 instance_input):
-        '''
-        assign basic parameters
-        '''
-        self.source = 0
-        self.arc_list = []
-        self.arc_costs = []
-        self.num_layers = instance_input.num_layers
-        self.num_per_layer = instance_input.num_per_layer
-        self.nodes = 2 + self.num_layers * self.num_per_layer
-        self.sink = self.nodes - 1
-        self.followers = instance_input.followers
-        self.follower_groups = instance_input.follower_groups
-        self.budget = instance_input.budget
-        self.high_mean = instance_input.high_mean
-        self.low_mean = instance_input.low_mean
-        self.standard_deviation = instance_input.standard_deviation
-        self.interdiction_delta = instance_input.interdiction_delta
-        self.set_name = instance_input.set_name
-        self.set_directory = instance_input.set_directory
+        if not os.path.isdir(self.set_directory):
+            os.mkdir(self.set_directory)
         self.G = None
         self.full_graph_name = self.set_name + "-" + str(self.nodes) + "_" + str(self.follower_groups)
-        self.arc_costs = [[] for i in range(self.followers+1)] # Interdiction_costs are in last list / row.
+        self.arc_costs = [[] for i in range(followers+1)] # interdiction_costs last list / row
 
     def populate_arc_list(self):
         '''
@@ -156,28 +137,17 @@ class CompleteLayerGraph:
             - the rest of the arcs will have costs drawn from N(high_mean, standard_deviation) for the group
         '''
         cheap_matrix = [[0 for a in range(self.arcs)] for i in range(self.follower_groups)]
-        arcs_per_layer = self.num_per_layer ** 2
-        print("arcs", set(range(self.arcs)))
-        for layer in range(1, 1+self.budget):
-            # there is some weirdness with these layer indices in the loop
-            # we are considering the first (node 0) and middle layers
-            # num_layers refers to the middle layers
-            if layer == 0:
-                first = 0
-                last = self.num_per_layer
-            elif layer == self.num_layers:
-                first = self.arcs - self.num_per_layer
-                last = self.arcs
-            else:
-                first = (layer - 1) * arcs_per_layer + self.num_per_layer
-                last = first + arcs_per_layer
+        for layer in range(num_layers):
             arc_set = set(range(first, last))
-            print("arc set for layer " + str(layer), arc_set)
+
+
             for group in range(self.follower_groups):
-                cheap_arcs = set(random.sample(arc_set, 1))
+                print(arc_set)
+                cheap_arcs = set(random.sample(arc_set, self.budget))
                 arc_set = arc_set - cheap_arcs
                 for arc in cheap_arcs:
                     cheap_matrix[group][arc] = 1
+        print(cheap_matrix)
         group_index = 0
         for i in range(self.followers):
             for a in range(self.arcs):
@@ -442,6 +412,5 @@ def compound_generator(n_0, pr, subgraphs):
     return G
 
 if __name__ == "__main__":
-    input_data = CompleteLayerInput()
-    G = CompleteLayerGraph(input_data)
+    G = CompleteLayerGraph()
     G.populate_graph()

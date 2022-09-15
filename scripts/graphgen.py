@@ -14,7 +14,6 @@ def append_date(basename):
     """
     today = date.today()
     date_str = today.strftime("%m_%d_%y")
-
     name = basename + "-" + date_str
     return name
 
@@ -28,14 +27,10 @@ def check_make_dir(path, i):
             - "/dat/experiments/test-01_29_22-2"
         we have to create the dir "/dat/experiments/test-01_29_22-3"
     """
-
-
     isdir_full = os.path.isdir(path + "-" + str(i))
-
     # if the directory exists, call on the next i
     if isdir_full:
         return check_make_dir(path, i + 1)
-
     # base case - create directory for given i (and return final path)
     else:
         os.mkdir(path + "-" + str(i))
@@ -54,7 +49,6 @@ def main():
     N0_VALUES = [5, 10, 20, 30, 40, 50, 100, 200, 400, 600, 800, 1000, 2000, 5000, 10000, 100000]
     PR0_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     KBAR_VALUES = [3, 4, 8, 12]
-
     # will set some default args if you don't pass them right
     if len(sys.argv) == 5:
         MAX_KBAR = float(sys.argv[4])
@@ -81,16 +75,12 @@ def main():
         MAX_PR0 = 0.2
         MAX_N0 = 20
         BASENAME = "graphs"
-
-
     isdir_dat = os.path.isdir(DAT)
     if not isdir_dat:
         os.mkdir(DAT)
-
     setname = append_date(BASENAME)
     dat_temppath = os.path.join(DAT, setname)
     models_temppath = os.path.join(MODELS, setname)
-
     DATPATH = check_make_dir(dat_temppath, 0)
     MODELSPATH = check_make_dir(models_temppath, 0)
     SETNAME = DATPATH.split("/")[-1]

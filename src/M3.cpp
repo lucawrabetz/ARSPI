@@ -6,13 +6,13 @@ long getCurrentTime() {
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-Arc::Arc(){i=0; j=0; sub=0;}
+Arc::Arc(){i=0; j=0;}
 
-Arc::Arc(int the_i, int the_j, int the_sub){i=the_i; j=the_j; sub=the_sub;}
+Arc::Arc(int the_i, int the_j){i=the_i; j=the_j;}
 
 Graph::Graph(){n=0; m=0;}
 
-Graph::Graph(const string &filename, int the_n)
+Graph::Graph(const string &filename, int the_n, int the_k_0)
 {
     // Graph constructor from file
     string line, word;
@@ -25,7 +25,7 @@ Graph::Graph(const string &filename, int the_n)
         int arc_index = 0;
         int i;
         int j;
-        string sub;
+        // string sub;
 
         // cout << "n: " << n << endl;
         // cout << "filename: " << filename << endl;
@@ -42,19 +42,19 @@ Graph::Graph(const string &filename, int the_n)
             while(getline(str, word, ' ')){
                 if (counter==0) {i = stoi(word);}
                 else if (counter==1) {j = stoi(word);}
-                else if (counter==3) {
-                    sub = word;
-                    sub.pop_back();
-                }
+                // else if (counter==3) {
+                //     sub = word;
+                //     sub.pop_back();
+                // }
                 ++counter;
             }
 
-            int subval = stoi(sub)-1;
+            // int subval = stoi(sub)-1;
             
-            if (subval > max_sub) {max_sub = subval;}
+            // aif (subval > max_sub) {max_sub = subval;}
 
-            arcs.push_back(Arc(i, j, subval));
-            subgraph.push_back(subval);
+            arcs.push_back(Arc(i, j));
+            // subgraph.push_back(subval);
 
             adjacency_list[i].push_back(j);
             arc_index_hash[i].push_back(arc_index);
@@ -64,7 +64,7 @@ Graph::Graph(const string &filename, int the_n)
         }
 
         m = arcs.size();
-        kbar = max_sub + 1;
+        kbar = the_k_0;
     }
 }
 
@@ -77,7 +77,7 @@ void Graph::printGraph(vector<vector<int> > costs, vector<int> interdiction_cost
     if (is_costs){
         for (int a = 0; a < m; a++)
         {
-            cout << "(" << arcs[a].i << "," << arcs[a].j << "," << arcs[a].sub << ")";
+            cout << "(" << arcs[a].i << "," << arcs[a].j << ")";
             // cout << "   interdiction_cost: " << interdiction_costs[a];
             cout << " costs:";
 
@@ -91,7 +91,7 @@ void Graph::printGraph(vector<vector<int> > costs, vector<int> interdiction_cost
     else {
         for (int a = 0; a < m; a++)
         {
-            cout << "(" << arcs[a].i << "," << arcs[a].j << "," << arcs[a].sub << ")\n";
+            cout << "(" << arcs[a].i << "," << arcs[a].j << endl;
         }
     }
 }
@@ -566,13 +566,13 @@ void SetPartitioningModel::configureModel(const Graph& G, AdaptiveInstance& m3) 
         }
 
         // constraint blocking interdiction of connecting arcs
-        for (int a=0; a<arcs; a++) {
-            if (G.arcs[a].sub == -1) {
-                for (int w=0; w<policies; w++) {
-                    m3_model->addConstr(x[w][a] == 0);
-                }
-            }
-        }
+        // for (int a=0; a<arcs; a++) {
+        //     if (G.arcs[a].sub == -1) {
+        //         for (int w=0; w<policies; w++) {
+        //             m3_model->addConstr(x[w][a] == 0);
+        //         }
+        //     }
+        // }
 
         // for (int q = 0; q < p; ++q)
         // {
@@ -1195,11 +1195,11 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
     algo_model->update();
 
     // constraint blocking interdiction of connecting arcs
-    for (int a=0; a<arcs; a++) {
-        if (G.arcs[a].sub == -1) {
-            algo_model->addConstr(x[a] == 0);
-        }
-    }
+    // for (int a=0; a<arcs; a++) {
+    //     if (G.arcs[a].sub == -1) {
+    //         algo_model->addConstr(x[a] == 0);
+    //     }
+    // }
 
     // Populate Global Constraints
     // Arc/Dual Constraints
@@ -1352,8 +1352,8 @@ void AdaptiveSolution::logSolution(const Graph& G, AdaptiveInstance& m3, string 
                 if (solutions[w].binary_policy[a] > 0.5) {
                     cout << a << " (" << 
                         G.arcs[a].i << ", " <<
-                        G.arcs[a].j << ", " <<
-                        G.arcs[a].sub << ") ";
+                        G.arcs[a].j << ")";
+                        // G.arcs[a].sub << ") ";
                 }
             }
             cout << endl << endl;

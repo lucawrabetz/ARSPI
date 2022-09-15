@@ -17,8 +17,8 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-// #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
-#include "/Library/gurobi902/mac64/include/gurobi_c++.h"
+#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+// #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
 using std::array;
 using std::shuffle;
@@ -48,9 +48,8 @@ struct Arc
 public:
     int i;
     int j;
-    int sub;
     Arc();
-    Arc(int the_i, int the_j, int the_sub);
+    Arc(int the_i, int the_j);
 };
 
 struct Policy
@@ -95,7 +94,7 @@ public:
     vector<vector<int> > n_n_adjacency_list;
 
     Graph();
-    Graph(const string &filename, int the_n);
+    Graph(const string &filename, int the_n, int the_k_0);
     void updateGraph(vector<int>& x_bar, bool rev=false);
     void printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs=false) const;
 };
