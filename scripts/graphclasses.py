@@ -441,7 +441,36 @@ def compound_generator(n_0, pr, subgraphs):
 
     return G
 
+def layer_inputs():
+    inputs = []
+    inputs.append(CompleteLayerInput())
+    inputs.append(CompleteLayerInput(
+                 num_layers=10,
+                 num_per_layer=20,
+                 followers=5,
+                 follower_groups=3,
+                 budget=3,
+                 high_mean=200,
+                 low_mean=50,
+                 standard_deviation=10,
+                 interdiction_delta=50,
+                 set_name="graphs",
+                 set_directory="dat/graphs"))
+    inputs.append(CompleteLayerInput(
+                 num_layers=20,
+                 num_per_layer=25,
+                 followers=5,
+                 follower_groups=3,
+                 budget=3,
+                 high_mean=200,
+                 low_mean=50,
+                 standard_deviation=10,
+                 interdiction_delta=50,
+                 set_name="graphs",
+                 set_directory="dat/graphs"))
+    return inputs
+
 if __name__ == "__main__":
-    input_data = CompleteLayerInput()
-    G = CompleteLayerGraph(input_data)
+    inputs = layer_inputs()
+    G = CompleteLayerGraph(inputs[2])
     G.populate_graph()
