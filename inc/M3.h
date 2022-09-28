@@ -17,8 +17,8 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-// #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
-#include "/Library/gurobi902/mac64/include/gurobi_c++.h"
+#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+// #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
 using std::array;
 using std::shuffle;
@@ -44,57 +44,43 @@ using std::round;
 
 struct Arc
 {
-    // Arc struct for the layer graph (directed Arc)
+    // Arc struct for the layer graph (directed Arc).
+private:
+    const int i;
+    const int j;
 public:
-    int i;
-    int j;
-    Arc();
-    Arc(int the_i, int the_j);
+    Arc() : i(0), j(0) {};
+    Arc(int the_i, int the_j) : i(the_i), j(the_j) {};
+    int get_i() const {return i;}
+    int get_j() const {return j;}
 };
-
-struct Policy
-{
-    // Interdiction Policy with Objective Value
-public:
-    int size;
-    double objective;
-    vector<double> binary_policy;
-
-    // // default
-    Policy() : size(0), objective(0), binary_policy(vector<double>()) {};
-    // just m but no policy 
-    Policy(int m) : size(m), objective(0), binary_policy(vector<double>(m)) {};
-    // full constructor
-    Policy(int m, vector<double>& policy, double value) : size(m), binary_policy(policy), objective(value) {};
-
-    // mutators - accept vector or binary new policy
-    void set_size(int m) {size=m;}
-    void set_policy(vector<double>& policy) {binary_policy=policy;}
-    void set_objective(double value) {objective=value;}
-};
-
 
 class Graph
 {
     // Graph class (to be read from Arc list)
+private:
+    int n, kbar, m;
+    const string filename;
+    // Arc vectors are contiguous 0-(m-1) vectors.
+    // This will also apply for cost vectors and weights on arcs that are held in instance classes.
+    vector<Arc> arcs; // WHY: to get i and j given an a, only used in logging of solution
+    vector<int> subgraph; // WHY: for some cost stuff - lets go look at that soon
+    // Linking vectors: when you need the index of an arc from adjacency information:
+    //      arc_index_hash maintains a linked list representation 
+    //      of indexes in the corresponding 0-(m-1) contiguous arc vectors.
+    vector<vector<int> > arc_index_hash; // WHY:
+    vector<vector<int> > adjacency_list; // WHY:
+    vector<vector<int> > n_n_adjacency_list; // WHY:
 public:
-    int n, m;
-    int kbar;
-
-    // arc vectors are contiguous 0-(m-1) vectors
-    // this will also apply for cost vectors and weights on arcs that are held in instance classes
-    vector<Arc> arcs;
-    vector<int> subgraph;
-
-    // linking vectors: when you need the index of an arc from adjacency information:
-    // arc_index_hash maintains a linked list representation 
-    // of indexes in the corresponding 0-(m-1) contiguous arc vectors
-    vector<vector<int> > arc_index_hash;
-    vector<vector<int> > adjacency_list;
-    vector<vector<int> > n_n_adjacency_list;
-
-    Graph();
+    Graph() : n(0), kbar(0), m(0) {};
     Graph(const string &filename, int the_n, int the_k_0);
+    vector<Arc> get_arcs() const {return arcs;}
+    int get_n() const {return n;}
+    int get_kbar() const {return kbar;}
+    int get_m() const {return m;}
+    vector<int> get_subgraph() const {return subgraph;}
+    vector<vector<int>> get_arc_index_hash() const {return arc_index_hash;}
+    vector<vector<int>> get_adjacency_list() const {return adjacency_list;}
     void updateGraph(vector<int>& x_bar, bool rev=false);
     void printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs=false) const;
 };
@@ -120,7 +106,7 @@ public:
 
     // main constructor
     AdaptiveInstance(int p, int k, int r_zero, const Graph &G, const string &directory, const string &name) :
-        scenarios(p), policies(k), budget(r_zero), nodes(G.n), arcs(G.m), kbar(G.kbar), directory(directory), name(name) {};
+        scenarios(p), policies(k), budget(r_zero), nodes(G.get_n()), arcs(G.get_m()), kbar(G.get_kbar()), directory(directory), name(name) {};
 
     // change U constructor
     AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios);
@@ -143,6 +129,30 @@ public:
     void applyInterdiction(vector<double>& x_bar, bool rev=false);
     float validatePolicy(vector<double>& x_bar, const Graph& G);
 };
+
+struct Policy
+{
+    // Interdiction Policy with Objective Value
+public:
+    int size;
+    double objective;
+    vector<double> binary_policy;
+
+    // // default
+    Policy() : size(0), objective(0), binary_policy(vector<double>()) {};
+    // just m but no policy 
+    Policy(int m) : size(m), objective(0), binary_policy(vector<double>(m)) {};
+    // full constructor
+    Policy(int m, vector<double>& policy, double value) : size(m), binary_policy(policy), objective(value) {};
+
+    // mutators - accept vector or binary new policy
+    void set_size(int m) {size=m;}
+    void set_policy(vector<double>& policy) {binary_policy=policy;}
+    void set_objective(double value) {objective=value;}
+};
+
+
+
  
 struct AdaptiveSolution
 {

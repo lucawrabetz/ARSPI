@@ -2,7 +2,8 @@
 
 // solve instance with set partitioning model
 // example call:
-// ./bin/sp graphs 3 27 5 1 2 500
+// ./bin/sp/<set_name> <k_0> <n> <p> <k> <budget> <M>
+// ./bin/sp aspi_testbed 3 27 5 1 3 500
 
 // output: <objective> <runtime(ms)> (<MIPGap> removed for now)
 

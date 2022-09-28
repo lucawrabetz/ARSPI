@@ -6,34 +6,24 @@ long getCurrentTime() {
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-Arc::Arc(){i=0; j=0;}
-
-Arc::Arc(int the_i, int the_j){i=the_i; j=the_j;}
-
-Graph::Graph(){n=0; m=0;}
-
-Graph::Graph(const string &filename, int the_n, int the_k_0)
-{
+Graph::Graph(const string &filename, int the_n, int the_k_0) {
     // Graph constructor from file
     string line, word;
     ifstream myfile(filename);
     int max_sub = -2;
-
     if (myfile.is_open())
     {
         n = the_n;
+        kbar = the_k_0;
         int arc_index = 0;
         int i;
         int j;
         // string sub;
-
         // cout << "n: " << n << endl;
         // cout << "filename: " << filename << endl;
-
         arc_index_hash = vector<vector<int> >(n);
         adjacency_list = vector<vector<int> >(n);
         n_n_adjacency_list = vector<vector<int> >(n, vector<int>(n, 0));
-
         while (getline(myfile, line))
         {
             stringstream str(line);
@@ -48,23 +38,16 @@ Graph::Graph(const string &filename, int the_n, int the_k_0)
                 // }
                 ++counter;
             }
-
             // int subval = stoi(sub)-1;
-            
             // aif (subval > max_sub) {max_sub = subval;}
-
             arcs.push_back(Arc(i, j));
             // subgraph.push_back(subval);
-
             adjacency_list[i].push_back(j);
             arc_index_hash[i].push_back(arc_index);
             n_n_adjacency_list[i][j] = 1;
-
             ++arc_index; 
         }
-
         m = arcs.size();
-        kbar = the_k_0;
     }
 }
 
@@ -77,7 +60,7 @@ void Graph::printGraph(vector<vector<int> > costs, vector<int> interdiction_cost
     if (is_costs){
         for (int a = 0; a < m; a++)
         {
-            cout << "(" << arcs[a].i << "," << arcs[a].j << ")";
+            cout << "(" << arcs[a].get_i() << "," << arcs[a].get_j() << ")";
             // cout << "   interdiction_cost: " << interdiction_costs[a];
             cout << " costs:";
 
@@ -91,7 +74,7 @@ void Graph::printGraph(vector<vector<int> > costs, vector<int> interdiction_cost
     else {
         for (int a = 0; a < m; a++)
         {
-            cout << "(" << arcs[a].i << "," << arcs[a].j << endl;
+            cout << "(" << arcs[a].get_i() << "," << arcs[a].get_j() << endl;
         }
     }
 }
@@ -322,7 +305,7 @@ void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist, con
         readCosts();
     }
     else {
-        generateCosts(interdiction, a, b, dist, G.subgraph);
+        generateCosts(interdiction, a, b, dist, G.get_subgraph());
         writeCosts();
     }
     // for (int i = 0; i < arcs; i++) {
@@ -367,9 +350,9 @@ vector<int> AdaptiveInstance::dijkstra(int q, const Graph& G)
         cout << "bar S size: " << bar_S.size() << endl;
 
 
-        for (int i=0; i<G.arc_index_hash[node].size(); ++i){
-            int arc=G.arc_index_hash[node][i];
-            int j_node=G.adjacency_list[node][i];
+        for (int i=0; i<G.get_arc_index_hash()[node].size(); ++i){
+            int arc=G.get_arc_index_hash()[node][i];
+            int j_node=G.get_adjacency_list()[node][i];
             cout << "i, j, arc" << node << ", " << j_node << ", " << arc << endl;
             dist.push(make_pair(distance+arc_costs[q][arc], j_node));
             pred[j_node]=node;
@@ -388,9 +371,9 @@ vector<int> AdaptiveInstance::dijkstra(int q, const Graph& G)
         int arc;
         cout << "j_node: " << j_node << ", node: " << node << endl;
 
-        for (int i=0; i<G.adjacency_list[node].size(); ++i){
-            if (G.adjacency_list[node][i]==j_node){
-                arc=G.arc_index_hash[node][i];
+        for (int i=0; i<G.get_adjacency_list()[node].size(); ++i){
+            if (G.get_adjacency_list()[node][i]==j_node){
+                arc=G.get_arc_index_hash()[node][i];
                 break;
             }
         }
@@ -554,9 +537,9 @@ void SetPartitioningModel::configureModel(const Graph& G, AdaptiveInstance& m3) 
         for (int w = 0; w<policies; ++w){
             for (int q=0; q<scenarios; ++q){
                 for (i=0; i<nodes; ++i){
-                    for (j=0; j<G.adjacency_list[i].size(); ++j){
-                        jn=G.adjacency_list[i][j];
-                        a=G.arc_index_hash[i][j];
+                    for (j=0; j<G.get_adjacency_list()[i].size(); ++j){
+                        jn=G.get_adjacency_list()[i][j];
+                        a=G.get_arc_index_hash()[i][j];
 
                         // add constraint
                         m3_model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= m3.arc_costs[q][a] + (m3.interdiction_costs[a] * x[w][a]));
@@ -1207,9 +1190,9 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
         dual_constraints.push_back(vector<GRBTempConstr>());
 
         for (int i=0; i<nodes; ++i) {
-            for (int j=0; j<G.adjacency_list[i].size(); ++j){
-                int next = G.adjacency_list[i][j];
-                int a = G.arc_index_hash[i][j];
+            for (int j=0; j<G.get_adjacency_list()[i].size(); ++j){
+                int next = G.get_adjacency_list()[i][j];
+                int a = G.get_arc_index_hash()[i][j];
 
                 GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= m3.arc_costs[q][a] + (m3.interdiction_costs[a]*x[a]);
                 dual_constraints[q].push_back(constraint);
@@ -1348,13 +1331,16 @@ void AdaptiveSolution::logSolution(const Graph& G, AdaptiveInstance& m3, string 
         cout << "} - objective: " << solutions[w].objective << endl;
         if (policy) {
             cout << "interdicted arcs: ";
-            for (int a = 0; a < arcs; a++) {
+            vector<Arc> arc_list = G.get_arcs();
+            int a = 0;
+            for (Arc arc : arc_list) {
                 if (solutions[w].binary_policy[a] > 0.5) {
-                    cout << a << " (" << 
-                        G.arcs[a].i << ", " <<
-                        G.arcs[a].j << ")";
+                    cout << "(" << 
+                        arc.get_i() << ", " <<
+                        arc.get_j() << ") ";
                         // G.arcs[a].sub << ") ";
                 }
+                a++;
             }
             cout << endl << endl;
         }
