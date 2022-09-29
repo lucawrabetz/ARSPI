@@ -1,11 +1,12 @@
 #include "../inc/M3.h"
 
-// solve instance with set partitioning model
-// example call:
+// Solve an adaptive interdiction instance with the set partitioning model.
+// Example call:
 // ./bin/sp/<set_name> <k_0> <n> <p> <k> <budget> <M>
 // ./bin/sp aspi_testbed 3 27 5 1 3 500
-
-// output: <objective> <runtime(ms)> (<MIPGap> removed for now)
+// Output: <objective> <runtime(ms)> (<MIPGap> removed for now)
+// The value k_0 is ONLY PASSED to form the filename for the graph and costs.
+// It will not be used in any of the algorithms in the code.
 
 int main(int argc, char* argv[]) {
     const string set_name = argv[1];
@@ -20,12 +21,12 @@ int main(int argc, char* argv[]) {
     const string directory = "dat/" + set_name + "/";
     const string filename = directory + name + ".txt";
 
-    const Graph G = Graph(filename, n, k_0);
+    const Graph G = Graph(filename, n);
     G.PrintGraph();
     cout << "hello i made it" << endl;
     AdaptiveInstance m3 = AdaptiveInstance(p, k, budget, G, directory, name);
     m3.ReadCosts();
-    m3.printInstance(G);
+    m3.PrintInstance(G);
 
     SetPartitioningModel sp_model = SetPartitioningModel(M, m3);
     sp_model.configureModel(G, m3);

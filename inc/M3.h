@@ -42,65 +42,32 @@ using std::ifstream;
 using std::ofstream;
 using std::round;
 
-// WHY?
-//   the Arc struct
-//   all those data structures in the graph description
-//   keeping track of the number of groups in graph and instance classes
-
-// struct Arc // WHY?
-// {
-//     // Arc struct for the layer graph (directed Arc).
-// private:
-//     const int i;
-//     const int j;
-// public:
-//     Arc() : i(0), j(0) {};
-//     Arc(int the_i, int the_j) : i(the_i), j(the_j) {};
-//     int get_i() const {return i;}
-//     int get_j() const {return j;}
-// };
-
 class Graph
 {
-    // Graph class (to be read from Arc list)
 public:
-    Graph() : nodes_(0), arcs_(0), groups_(0) {};
-    Graph(const string &filename, int nodes, int groups);
+    Graph() : nodes_(0), arcs_(0) {};
+    Graph(const string &filename, int nodes);
     void PrintArc(int a, int i, int index) const;
     void PrintGraph() const;
-    void PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<int>& interdiction_costs) const;
-    // vector<Arc> get_arcs() const {return arcs;}
-    int get_n() const {return nodes_;}
-    int get_m() const {return arcs_;}
-    int get_groups() const {return groups_;}
-    vector<int> get_subgraph() const {return subgraph_;}
+    void PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<int>& interdiction_deltas) const;
+    // Getters.
+    int get_nodes() const {return nodes_;}
+    int get_arcs() const {return arcs_;}
     vector<vector<int>> get_arc_index_hash() const {return arc_index_hash_;}
     vector<vector<int>> get_adjacency_list() const {return adjacency_list_;}
 private:
-    int nodes_, arcs_, groups_; // WHY GROUPS?
+    int nodes_, arcs_;
     const string filename_;
-    // Arc vectors are contiguous 0-(m-1) vectors.
-    // This will also apply for cost vectors and weights on arcs that are held in instance classes.
-    // vector<Arc> arcs; // WHY: to get i and j given an a, only used in logging of solution
-    vector<int> subgraph_; // WHY: for some cost stuff - lets go look at that soon
-    // Linking vectors: when you need the index of an arc from adjacency information:
-    //      arc_index_hash maintains a linked list representation 
-    //      of indexes in the corresponding 0-(m-1) contiguous arc vectors.
-    vector<vector<int>> arc_index_hash_; // WHY:
-    vector<vector<int>> adjacency_list_; // WHY:
-    vector<vector<int>> n_n_adjacency_list_; // WHY:
+    // Arc vectors - adjacency_list_ is a linked list representation of the arc list.
+    // The vector arc_index_hash_ directly maps every arc j = adjacency_list_[i] to its index a in 0,...,m-1.
+    vector<vector<int>> arc_index_hash_; 
+    vector<vector<int>> adjacency_list_;
 };
 
 class AdaptiveInstance
 {
-    // Full Adaptive Instance, cost structure data, graph is maintained and passed separately
-private:
-    int scenarios, policies, budget, nodes, arcs, groups; // WHY GROUPS?
+    // Full adaptive problem instance with cost data, (Graph G always passed by reference separately).
 public:
-    vector<int> interdiction_costs;
-    vector<vector<int>> arc_costs;
-    const string directory;
-    const string name;
     // When we copy an AdaptiveInstance but only keep a subset of U, we reset the index
     // of the scenarios we keep. Later, we will want the original indices back. 
     // For this reason, we keep a map of the scenarios indices (0-p-1) to their original
@@ -108,35 +75,35 @@ public:
     // An empty map means that the instance is infact an "original" instance.
     vector<int> scenario_index_map;
 
-    // default
-    AdaptiveInstance() : scenarios(0), policies(0), budget(0) {}; 
-
-    // main constructor
-    AdaptiveInstance(int p, int k, int r_zero, const Graph &G, const string &directory, const string &name) :
-        scenarios(p), policies(k), budget(r_zero), nodes(G.get_n()), arcs(G.get_m()), groups(G.get_groups()), directory(directory), name(name) {};
-
+    AdaptiveInstance() : scenarios_(0), policies_(0), budget_(0) {}; 
+    AdaptiveInstance(int scenarios, int policies, int budget, const Graph &G, const string &directory, const string &name) :
+        nodes_(G.get_nodes()), arcs_(G.get_arcs()), scenarios_(scenarios), policies_(policies), budget_(budget), directory_(directory), name_(name) {};
     // Copy constructor with a different U (only a subset of scenarios to keep).
     AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios);
 
-    int get_scenarios() const {return scenarios;}
-    int get_policies() const {return policies;}
-    int get_budget() const {return budget;}
-    int get_nodes() const {return nodes;}
-    int get_arcs() const {return arcs;}
-    int get_groups() const {return groups;}
+    int get_nodes() const {return nodes_;}
+    int get_arcs() const {return arcs_;}
+    int get_scenarios() const {return scenarios_;}
+    int get_policies() const {return policies_;}
+    int get_budget() const {return budget_;}
+    vector<int> get_interdiction_deltas() const {return interdiction_deltas_;}
+    vector<vector<int>> get_arc_costs() const {return arc_costs_;}
 
     // No mutator for scenarios - functionality reserved for change copy constructor.
     // CAN WE GET RID OF ALL THE MUTATORS?
-    void set_policies(int k){policies=k;}
-    void set_budget(int r_zero){budget=r_zero;}
-    void set_costs(vector<int>& interdiction_costs, vector<vector<int> >& arc_costs) 
-    {interdiction_costs=interdiction_costs; arc_costs=arc_costs;}
+    void set_policies(int policies){policies_ = policies;} // USED IN EXTEND BY ONE HEURISTIC
 
-    void printInstance(const Graph &G) const;
-    vector<int> dijkstra(int q, const Graph &G);
+    void PrintInstance(const Graph &G) const;
+    vector<int> Dijkstra(int q, const Graph &G);
     void ReadCosts();
-    void applyInterdiction(vector<double>& x_bar, bool rev=false);
-    float validatePolicy(vector<double>& x_bar, const Graph& G);
+    void ApplyInterdiction(vector<double>& x_bar, bool rev=false);
+    float ValidatePolicy(vector<double>& x_bar, const Graph& G);
+private:
+    int nodes_, arcs_, scenarios_, policies_, budget_;
+    const string directory_;
+    const string name_;
+    vector<vector<int>> arc_costs_;
+    vector<int> interdiction_deltas_;
 };
 
 struct Policy

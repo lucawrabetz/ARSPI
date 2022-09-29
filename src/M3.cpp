@@ -1,39 +1,32 @@
 #include "../inc/M3.h"
 
 long getCurrentTime() {
+    // Helper function to get current time.
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-Graph::Graph(const string &filename, int nodes, int groups) {
-    // Graph constructor from file
+Graph::Graph(const string &filename, int nodes) {
+    // Graph constructor - read arc list from file.
     string line, word;
     ifstream myfile(filename);
-    int max_sub = -2;
-    if (myfile.is_open())
-    {
+    if (myfile.is_open()) {
         nodes_ = nodes;
-        groups_ = groups;
-        cout << nodes_ << " " << groups_ << endl;
         int arc_index = 0;
         arc_index_hash_ = vector<vector<int>>(nodes_);
         adjacency_list_ = vector<vector<int>>(nodes_);
-        n_n_adjacency_list_ = vector<vector<int>>(nodes_, vector<int>(nodes_));
-        while (getline(myfile, line))
-        {
+        while (getline(myfile, line)) {
             int counter = 0;
             int i, j;
             stringstream str(line);
-            while(getline(str, word, ' ')){
+            while(getline(str, word, ' ')) {
                 if (counter==0) {i = stoi(word);}
                 else if (counter==1) {j = stoi(word);}
                 ++counter;
             }
-            // arcs.push_back(Arc(i, j));
             adjacency_list_[i].push_back(j);
             arc_index_hash_[i].push_back(arc_index);
-            n_n_adjacency_list_[i][j] = 1;
             ++arc_index; 
         }
         arcs_ = arc_index;
@@ -58,7 +51,7 @@ void Graph::PrintGraph() const {
     }
 }
 
-void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<int>& interdiction_costs) const {
+void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<int>& interdiction_deltas) const {
     // Print arc summary of a graph with costs.
     cout << "n: " << nodes_ << ", m: " << arcs_ << endl;
     int scenarios = costs.size();
@@ -70,23 +63,23 @@ void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<i
             for (int q = 0; q < scenarios; q++) {
                 cout << q + 1 << ": " << costs[q][a] << ", ";
             }
-            cout << "interdiction delta: " << interdiction_costs[a] << endl;
+            cout << "interdiction delta: " << interdiction_deltas[a] << endl;
         }
     }
 }
 
 AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios) {
     // Copy constructor only keeping a subset of the scenarios
-    scenarios = keep_scenarios.size();
-    policies = m3->policies;
-    budget = m3->budget;
-    nodes = m3->nodes;
-    arcs = m3->arcs;
-    interdiction_costs = m3->interdiction_costs;
-    arc_costs = vector<vector<int> >(scenarios);
-    scenario_index_map = vector<int>(scenarios);
-    for (int q=0; q<scenarios; q++) {
-        arc_costs[q] = m3->arc_costs[keep_scenarios[q]];
+    scenarios_ = keep_scenarios.size();
+    policies_ = m3->policies_;
+    budget_ = m3->budget_;
+    nodes_ = m3->nodes_;
+    arcs_ = m3->arcs_;
+    interdiction_deltas_ = m3->interdiction_deltas_;
+    arc_costs_ = vector<vector<int> >(scenarios_);
+    scenario_index_map = vector<int>(scenarios_);
+    for (int q=0; q<scenarios_; q++) {
+        arc_costs_[q] = m3->arc_costs_[keep_scenarios[q]];
         scenario_index_map[q] = keep_scenarios[q];
     }
 }
@@ -94,7 +87,7 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scena
 void AdaptiveInstance::ReadCosts() {
     // Read arc and interdiction costs from a file
     string line, word;
-    string filename = directory + name + "-costs_" + to_string(scenarios) + ".csv";
+    string filename = directory_ + name_ + "-costs_" + to_string(scenarios_) + ".csv";
     ifstream myfile(filename);
     int q = 0;
     vector<int> v;
@@ -112,12 +105,12 @@ void AdaptiveInstance::ReadCosts() {
                 v.push_back(cost);
             }
 
-            if (q < scenarios) {
-                arc_costs.push_back(v);
+            if (q < scenarios_) {
+                arc_costs_.push_back(v);
             }
 
             else {
-                interdiction_costs = v;
+                interdiction_deltas_ = v;
             }
             
             ++q;
@@ -125,29 +118,29 @@ void AdaptiveInstance::ReadCosts() {
     }
 }
 
-void AdaptiveInstance::printInstance(const Graph& G) const {
+void AdaptiveInstance::PrintInstance(const Graph& G) const {
     // Print Summary of Problem Instance
-    cout << "k: " << policies << endl;
-    cout << "p: " << scenarios << endl;
-    G.PrintGraphWithCosts(arc_costs, interdiction_costs);
+    cout << "k: " << policies_ << endl;
+    cout << "p: " << scenarios_ << endl;
+    G.PrintGraphWithCosts(arc_costs_, interdiction_deltas_);
 }
 
-vector<int> AdaptiveInstance::dijkstra(int q, const Graph& G)
+vector<int> AdaptiveInstance::Dijkstra(int q, const Graph& G)
 {
     // Compute shortest path 0-n-1
-    vector<int> pred(nodes), result(arcs+1);
+    vector<int> pred(nodes_), result(arcs_ + 1);
     std::priority_queue<pair<int, int>, vector<pair<int,int> >, std::greater<pair<int, int> > > dist;
     std::unordered_set<int> S, bar_S;
 
     bar_S.insert(0);
     dist.push(make_pair(0, 0));
     pred[0] = 0;
-    for (int i=1; i<nodes; ++i) {
+    for (int i=1; i<nodes_; ++i) {
         bar_S.insert(i);
         pred[i] = -1;
     }
 
-    while (S.size()<nodes) {
+    while (S.size()<nodes_) {
         int node = dist.top().second;
         int distance = dist.top().first;
         cout << dist.size() << endl;
@@ -164,7 +157,7 @@ vector<int> AdaptiveInstance::dijkstra(int q, const Graph& G)
             int arc=G.get_arc_index_hash()[node][i];
             int j_node=G.get_adjacency_list()[node][i];
             cout << "i, j, arc" << node << ", " << j_node << ", " << arc << endl;
-            dist.push(make_pair(distance+arc_costs[q][arc], j_node));
+            dist.push(make_pair(distance+arc_costs_[q][arc], j_node));
             pred[j_node]=node;
         }
         break;
@@ -173,7 +166,7 @@ vector<int> AdaptiveInstance::dijkstra(int q, const Graph& G)
     return pred;
 
     result[0]=0;
-    int j_node=nodes-1;
+    int j_node=nodes_-1;
 
     while(j_node!=0){
         // find the arc index for the arc i, j (looping backwards through sp tree using pred to determine i)
@@ -188,7 +181,7 @@ vector<int> AdaptiveInstance::dijkstra(int q, const Graph& G)
             }
         }
 
-        result[0]+=arc_costs[q][arc];
+        result[0]+=arc_costs_[q][arc];
         result[arc+1]=1;
         j_node=node;
     }
@@ -196,35 +189,35 @@ vector<int> AdaptiveInstance::dijkstra(int q, const Graph& G)
     return result;
 }
 
-void AdaptiveInstance::applyInterdiction(vector<double>& x_bar, bool rev){
+void AdaptiveInstance::ApplyInterdiction(vector<double>& x_bar, bool rev){
     // Receive interdiction policy and update costs for the M3 instance
     // If rev, we are "removing" the interdiction policy and returning the instance to its original state
-    for (int a=0; a<arcs; ++a){
+    for (int a=0; a<arcs_; ++a){
         if (x_bar[a]==1) {
-            for (int q=0; q<scenarios; ++q){
+            for (int q=0; q<scenarios_; ++q){
                 if (rev){
-                    arc_costs[q][a]-=interdiction_costs[a];
+                    arc_costs_[q][a]-=interdiction_deltas_[a];
                 }
                 else {
-                    arc_costs[q][a]+=interdiction_costs[a];
+                    arc_costs_[q][a]+=interdiction_deltas_[a];
                 }
             }
         }
     }
 }
 
-float AdaptiveInstance::validatePolicy(vector<double>& x_bar, const Graph& G)
+float AdaptiveInstance::ValidatePolicy(vector<double>& x_bar, const Graph& G)
 {
     // Solve shortest path on interdicted graph - check objectives match
     float objective=100000000;
     vector<int> sp_result;
 
     // Update M3 based on x_bar
-    applyInterdiction(x_bar);
+    ApplyInterdiction(x_bar);
 
     // run dijstra on graph to get objective 
-    for (int q=0; q<scenarios; ++q){
-        sp_result = dijkstra(q, G);
+    for (int q=0; q<scenarios_; ++q){
+        sp_result = Dijkstra(q, G);
         
         if (sp_result[0]<objective){
             objective=sp_result[0];
@@ -232,7 +225,7 @@ float AdaptiveInstance::validatePolicy(vector<double>& x_bar, const Graph& G)
     }
     
     // Revert M3 
-    applyInterdiction(x_bar, true);
+    ApplyInterdiction(x_bar, true);
 
     return objective;
 }
@@ -352,7 +345,7 @@ void SetPartitioningModel::configureModel(const Graph& G, AdaptiveInstance& m3) 
                         a=G.get_arc_index_hash()[i][j];
 
                         // add constraint
-                        m3_model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= m3.arc_costs[q][a] + (m3.interdiction_costs[a] * x[w][a]));
+                        m3_model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= m3.get_arc_costs()[q][a] + (m3.get_interdiction_deltas()[a] * x[w][a]));
                     }
                 }
             }
@@ -374,7 +367,7 @@ void SetPartitioningModel::configureModel(const Graph& G, AdaptiveInstance& m3) 
         //     {
         //         i = G.arcs[a].i;
         //         j = G.arcs[a].j;
-        //         m3_model->addConstr((pi[q][j] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_costs[a] * x[a]));
+        //         m3_model->addConstr((pi[q][j] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_deltas[a] * x[a]));
         //     }
         // }
 
@@ -500,7 +493,7 @@ void SetPartitioningModel::solve()
 //     // ------ Initialize d and c costs ------
 //     for (int a = 0; a < m; a++)
 //     {
-//         d.push_back(the_M2Instance->interdiction_costs[a]);
+//         d.push_back(the_M2Instance->interdiction_deltas[a]);
 //     }
 // 
 //     for (int q = 0; q < p; q++)
@@ -677,7 +670,7 @@ void SetPartitioningModel::solve()
 //         // ------ Initialize d and c costs ------
 //         for (int a = 0; a < m; a++)
 //         {
-//             d.push_back(the_M2Instance->interdiction_costs[a]);
+//             d.push_back(the_M2Instance->interdiction_deltas[a]);
 //         }
 // 
 //         for (int q = 0; q < p; q++)
@@ -1004,7 +997,7 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
                 int next = G.get_adjacency_list()[i][j];
                 int a = G.get_arc_index_hash()[i][j];
 
-                GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= m3.arc_costs[q][a] + (m3.interdiction_costs[a]*x[a]);
+                GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= m3.get_arc_costs()[q][a] + (m3.get_interdiction_deltas()[a]*x[a]);
                 dual_constraints[q].push_back(constraint);
             }
         }
@@ -1143,7 +1136,7 @@ void AdaptiveSolution::logSolution(const Graph& G, AdaptiveInstance& m3, string 
             cout << "interdicted arcs: ";
             vector<vector<int>> arc_index_hash = G.get_arc_index_hash();
             vector<vector<int>> adjacency_list = G.get_adjacency_list();
-            for (int i = 0; i < G.get_n(); ++i) {
+            for (int i = 0; i < G.get_nodes(); ++i) {
                 int index = 0;
                 for (int a : arc_index_hash[i]) {
                     if (solutions[w].binary_policy[a] > 0.5) {
@@ -1262,7 +1255,6 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
     int p = m3.get_scenarios();
     int k = m3.get_policies();
     int m = m3.get_arcs();
-    
     // initialize partitioning 'string' vector as in Orlov Paper 
     // initialize corresponding max vector 
     vector<int> kappa = initKappa(p, k);
