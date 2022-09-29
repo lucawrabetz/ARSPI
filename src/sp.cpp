@@ -21,9 +21,11 @@ int main(int argc, char* argv[]) {
     const string filename = directory + name + ".txt";
 
     const Graph G = Graph(filename, n, k_0);
+    G.PrintGraph();
     cout << "hello i made it" << endl;
     AdaptiveInstance m3 = AdaptiveInstance(p, k, budget, G, directory, name);
-    m3.initCosts(1, 1, 1, 1, G, false);
+    m3.ReadCosts();
+    m3.printInstance(G);
 
     SetPartitioningModel sp_model = SetPartitioningModel(M, m3);
     sp_model.configureModel(G, m3);

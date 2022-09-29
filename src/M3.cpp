@@ -6,75 +6,71 @@ long getCurrentTime() {
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-Graph::Graph(const string &filename, int the_n, int the_k_0) {
+Graph::Graph(const string &filename, int nodes, int groups) {
     // Graph constructor from file
     string line, word;
     ifstream myfile(filename);
     int max_sub = -2;
     if (myfile.is_open())
     {
-        n = the_n;
-        kbar = the_k_0;
+        nodes_ = nodes;
+        groups_ = groups;
+        cout << nodes_ << " " << groups_ << endl;
         int arc_index = 0;
-        int i;
-        int j;
-        // string sub;
-        // cout << "n: " << n << endl;
-        // cout << "filename: " << filename << endl;
-        arc_index_hash = vector<vector<int> >(n);
-        adjacency_list = vector<vector<int> >(n);
-        n_n_adjacency_list = vector<vector<int> >(n, vector<int>(n, 0));
+        arc_index_hash_ = vector<vector<int>>(nodes_);
+        adjacency_list_ = vector<vector<int>>(nodes_);
+        n_n_adjacency_list_ = vector<vector<int>>(nodes_, vector<int>(nodes_));
         while (getline(myfile, line))
         {
-            stringstream str(line);
             int counter = 0;
-
+            int i, j;
+            stringstream str(line);
             while(getline(str, word, ' ')){
                 if (counter==0) {i = stoi(word);}
                 else if (counter==1) {j = stoi(word);}
-                // else if (counter==3) {
-                //     sub = word;
-                //     sub.pop_back();
-                // }
                 ++counter;
             }
-            // int subval = stoi(sub)-1;
-            // aif (subval > max_sub) {max_sub = subval;}
-            arcs.push_back(Arc(i, j));
-            // subgraph.push_back(subval);
-            adjacency_list[i].push_back(j);
-            arc_index_hash[i].push_back(arc_index);
-            n_n_adjacency_list[i][j] = 1;
+            // arcs.push_back(Arc(i, j));
+            adjacency_list_[i].push_back(j);
+            arc_index_hash_[i].push_back(arc_index);
+            n_n_adjacency_list_[i][j] = 1;
             ++arc_index; 
         }
-        m = arcs.size();
+        arcs_ = arc_index;
     }
 }
 
-void Graph::printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs) const
-{
-    // Print arc summary of a graph, with costs if called from M3 Instance (is_costs)
-    cout << "n: " << n << ", m: " << m << endl;
-    int p = costs.size();
+void Graph::PrintArc(int a, int i, int index) const {
+    int j = adjacency_list_[i][index]; 
+    cout << a << ": (" << i << ", " << j << ")";
+}
 
-    if (is_costs){
-        for (int a = 0; a < m; a++)
-        {
-            cout << "(" << arcs[a].get_i() << "," << arcs[a].get_j() << ")";
-            // cout << "   interdiction_cost: " << interdiction_costs[a];
-            cout << " costs:";
-
-            for (int q = 0; q<p; ++q){
-                cout << " " << q << ": " << costs[q][a];
-            }
+void Graph::PrintGraph() const {
+    // Print arc summary of a graph.
+    cout << "n: " << nodes_ << ", m: " << arcs_ << endl;
+    for (int i = 0; i < nodes_; i++) {
+        int index = 0;
+        for (int a : arc_index_hash_[i]) {
+            PrintArc(a, i, index);
             cout << endl;
+            index++;
         }
     }
+}
 
-    else {
-        for (int a = 0; a < m; a++)
-        {
-            cout << "(" << arcs[a].get_i() << "," << arcs[a].get_j() << endl;
+void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<int>& interdiction_costs) const {
+    // Print arc summary of a graph with costs.
+    cout << "n: " << nodes_ << ", m: " << arcs_ << endl;
+    int scenarios = costs.size();
+    for (int i = 0; i < nodes_; i++) {
+        int index = 0;
+        for (int a : arc_index_hash_[i]) {
+            PrintArc(a, i, index);
+            cout << ", costs: ";
+            for (int q = 0; q < scenarios; q++) {
+                cout << q + 1 << ": " << costs[q][a] << ", ";
+            }
+            cout << "interdiction delta: " << interdiction_costs[a] << endl;
         }
     }
 }
@@ -95,174 +91,7 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scena
     }
 }
 
-void AdaptiveInstance::writeCosts() {
-    // Write a costs file for the instance
-    // Costs file has (p+1) lines - p sets of arc costs plus interdiction costs
-    string filename = directory + name + "-costs_" + to_string(scenarios) + ".csv";
-    ofstream myfile(filename);
-
-    for (int q=0; q<scenarios; ++q) {
-        stringstream ss;
-        for (int a=0; a<arcs; ++a) {
-            if (a!=0) {
-                ss << ",";
-            }
-            ss << arc_costs[q][a];
-        }
-
-        string line = ss.str() + "\n";
-        myfile << line;
-    }
-
-    stringstream ss;
-    for (int a=0; a<arcs; ++a) {
-        if (a!=0) {
-            ss << ",";
-        }
-        ss << interdiction_costs[a];
-    }
-
-    string line = ss.str() + "\n";
-    myfile << line;
-}
-
-void AdaptiveInstance::generateCosts(float interdiction, int a, int b, int dist, vector<int> subgraph) {
-    /* 
-     * Randomly Generate and set cost structure:
-     * interdiction is the fractional multiplier on average cost used for (anti)-proportional interdiction costs
-     * a and b are distribution parameters:
-     *  a is the lowest mean
-     *  b is the increase in every next mean
-     */
-
-    random_device rd;                           
-    mt19937 gen(rd());
-    
-    arc_costs = vector<vector<int> >(scenarios, vector<int>(arcs));
-    vector<int> scenario_sub_map(scenarios);
-
-    int sub = 0;
-    for (int q=0; q<scenarios; ++q) {
-        if (sub==kbar) {sub=0;}
-        scenario_sub_map[q] = sub;
-        ++sub;
-    }
-
-    if (dist==3) {
-        normal_distribution<> cheap(a, 20);
-        normal_distribution<> expensive(b, 20);
-
-        for (int a=0; a<arcs; ++a) {
-            for (int q=0; q<scenarios; ++q) {
-                if (scenario_sub_map[q] == subgraph[a]) {
-                    // draw cheap
-                    arc_costs[q][a] = abs(cheap(gen));
-                }
-                else {
-                    // draw expensive
-                    arc_costs[q][a] = abs(expensive(gen));
-                }
-            }
-        }
-    }
-
-    if (dist==2) {
-        // bernoulli_distribution binary(0.5);
-
-        // define the distribution for q=0
-        // normal_distribution<> norm_high(b, 50);
-        // normal_distribution<> norm_low(a, 50);
-
-        // define vector of p normal distributions
-        // define random indexing map
-        vector<normal_distribution<>> normals;
-        vector<int> indices;
-        uniform_int_distribution<> unif(1, kbar);
-
-        for (int q=0; q<kbar; ++q) {
-            normal_distribution<> norm(a + b*q, 50);
-            normals.push_back(norm);
-            indices.push_back(q);
-        }
-        for (int q=kbar; q < scenarios; ++q) {
-            int index = unif(gen);
-            indices.push_back(index);
-        }
-
-
-        for (int a=0; a<arcs; ++a) {
-
-            // obtain seed and shuffle indices
-            unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-            shuffle (indices.begin(), indices.end(), default_random_engine(seed));
-
-            for (int q=0; q<scenarios; ++q) {
-
-                arc_costs[q][a] = abs(normals[indices[q]](gen));
-
-                // if (ind) {
-                //     if (q==0 || q==1) {
-                //         arc_costs[q][a] = abs (norm_low(gen)); 
-                //     } 
-                //     else {
-                //         arc_costs[q][a] = abs (norm_high(gen));
-                //     }
-                // }
-                // else {
-                //     if (q==0 || q==1) {
-                //         arc_costs[q][a] = abs (norm_high(gen));
-                //     } 
-                //     else {
-                //         arc_costs[q][a] = abs (norm_low(gen));
-                //     }
-                // }
-            }
-        }
-    }
-
-    else {
-        for (int q=0; q<scenarios; ++q) {
-            // define the distribution
-            uniform_int_distribution<> unif(a+10, b+10); 
-            normal_distribution<> norm(a+10, b);
-            for (int a=0; a<arcs; ++a) {
-                if (dist==0) {arc_costs[q][a] = unif(gen);}
-                else if (dist==1) {arc_costs[q][a] = round(norm(gen));}
-            }
-        }
-    }
-
-    interdiction_costs = vector<int>(arcs, 10);
-    // int total = 0;
-
-    // for (int q=0; q<scenarios; ++q) {
-    //     total += (a + q*b);
-    // }
-
-    // int interdiction_baseline = total / scenarios;
-
-    // for (int a=0; a<arcs; ++a) {
-    //     cout << "arc: " << a << endl;
-    //     int average = 0;
-    //     for (int q=0; q<scenarios; ++q) {
-    //         average += arc_costs[q][a];
-    //         cout << arc_costs[q][a] << " ";
-    //     }
-    //     average = average / scenarios;
-    //     cout << "average: " << average << endl;
-    //     cout << "baseline: " << interdiction_baseline << endl;
-    //     cout << "difference: " << interdiction_baseline - average << endl;
-
-
-    //     interdiction_costs[a] = (interdiction_baseline * interdiction) + (interdiction_baseline - average) * interdiction;
-    //     cout << "final cost: " << interdiction_costs[a] << endl;
-    // }
-
-    // cout << "doing interdiction costs" << endl;
-    // cout << "fraction: " << interdiction << endl;
-}
-
-void AdaptiveInstance::readCosts() {
+void AdaptiveInstance::ReadCosts() {
     // Read arc and interdiction costs from a file
     string line, word;
     string filename = directory + name + "-costs_" + to_string(scenarios) + ".csv";
@@ -296,30 +125,11 @@ void AdaptiveInstance::readCosts() {
     }
 }
 
-void AdaptiveInstance::initCosts(float interdiction, int a, int b, int dist, const Graph &G, bool gen) {
-    // If gen is false read from file
-    // Distributions:
-    //  - dist = 0: uniform, a = min, b = max
-    //  - dist = 1: normal, a = mean, b = stddev
-    if (gen == false) {
-        readCosts();
-    }
-    else {
-        generateCosts(interdiction, a, b, dist, G.get_subgraph());
-        writeCosts();
-    }
-    // for (int i = 0; i < arcs; i++) {
-    //     if (G.arcs[i].sub == -1) {
-    //         arc_costs
-    //     }
-    // }
-}
-
 void AdaptiveInstance::printInstance(const Graph& G) const {
     // Print Summary of Problem Instance
     cout << "k: " << policies << endl;
     cout << "p: " << scenarios << endl;
-    G.printGraph(arc_costs, interdiction_costs, true);
+    G.PrintGraphWithCosts(arc_costs, interdiction_costs);
 }
 
 vector<int> AdaptiveInstance::dijkstra(int q, const Graph& G)
@@ -432,7 +242,7 @@ void SetPartitioningModel::configureModel(const Graph& G, AdaptiveInstance& m3) 
     try
     {
         // ------ Initialize solution to appropriate size -----
-        current_solution = AdaptiveSolution(m3.policies, m3.scenarios);
+        current_solution = AdaptiveSolution(m3.get_policies(), m3.get_scenarios());
 
         // ------ Initialize model and environment ------
         m3_env = new GRBEnv();
@@ -1331,18 +1141,19 @@ void AdaptiveSolution::logSolution(const Graph& G, AdaptiveInstance& m3, string 
         cout << "} - objective: " << solutions[w].objective << endl;
         if (policy) {
             cout << "interdicted arcs: ";
-            vector<Arc> arc_list = G.get_arcs();
-            int a = 0;
-            for (Arc arc : arc_list) {
-                if (solutions[w].binary_policy[a] > 0.5) {
-                    cout << "(" << 
-                        arc.get_i() << ", " <<
-                        arc.get_j() << ") ";
-                        // G.arcs[a].sub << ") ";
+            vector<vector<int>> arc_index_hash = G.get_arc_index_hash();
+            vector<vector<int>> adjacency_list = G.get_adjacency_list();
+            for (int i = 0; i < G.get_n(); ++i) {
+                int index = 0;
+                for (int a : arc_index_hash[i]) {
+                    if (solutions[w].binary_policy[a] > 0.5) {
+                        G.PrintArc(a, i, index);
+                        cout << " ";
+                    }    
+                    index++;
                 }
-                a++;
             }
-            cout << endl << endl;
+            cout << endl;
         }
     }
     cout << endl;
@@ -1448,9 +1259,9 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
     //  NEW Return: Adaptive Solution Struct (basic info, nested vector of partitions, vector of policies)
     // ints and bool
     bool next = true;
-    int p = m3.scenarios;
-    int k = m3.policies;
-    int m = m3.arcs;
+    int p = m3.get_scenarios();
+    int k = m3.get_policies();
+    int m = m3.get_arcs();
     
     // initialize partitioning 'string' vector as in Orlov Paper 
     // initialize corresponding max vector 
@@ -1545,7 +1356,7 @@ void AdaptiveSolution::extendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
     long begin = getCurrentTime();
     int k = policies;
     int p = scenarios;
-    int m = m3.arcs;
+    int m = m3.get_arcs();
     int k_prime = k+1;
 
     

@@ -42,56 +42,63 @@ using std::ifstream;
 using std::ofstream;
 using std::round;
 
-struct Arc
-{
-    // Arc struct for the layer graph (directed Arc).
-private:
-    const int i;
-    const int j;
-public:
-    Arc() : i(0), j(0) {};
-    Arc(int the_i, int the_j) : i(the_i), j(the_j) {};
-    int get_i() const {return i;}
-    int get_j() const {return j;}
-};
+// WHY?
+//   the Arc struct
+//   all those data structures in the graph description
+//   keeping track of the number of groups in graph and instance classes
+
+// struct Arc // WHY?
+// {
+//     // Arc struct for the layer graph (directed Arc).
+// private:
+//     const int i;
+//     const int j;
+// public:
+//     Arc() : i(0), j(0) {};
+//     Arc(int the_i, int the_j) : i(the_i), j(the_j) {};
+//     int get_i() const {return i;}
+//     int get_j() const {return j;}
+// };
 
 class Graph
 {
     // Graph class (to be read from Arc list)
+public:
+    Graph() : nodes_(0), arcs_(0), groups_(0) {};
+    Graph(const string &filename, int nodes, int groups);
+    void PrintArc(int a, int i, int index) const;
+    void PrintGraph() const;
+    void PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<int>& interdiction_costs) const;
+    // vector<Arc> get_arcs() const {return arcs;}
+    int get_n() const {return nodes_;}
+    int get_m() const {return arcs_;}
+    int get_groups() const {return groups_;}
+    vector<int> get_subgraph() const {return subgraph_;}
+    vector<vector<int>> get_arc_index_hash() const {return arc_index_hash_;}
+    vector<vector<int>> get_adjacency_list() const {return adjacency_list_;}
 private:
-    int n, kbar, m;
-    const string filename;
+    int nodes_, arcs_, groups_; // WHY GROUPS?
+    const string filename_;
     // Arc vectors are contiguous 0-(m-1) vectors.
     // This will also apply for cost vectors and weights on arcs that are held in instance classes.
-    vector<Arc> arcs; // WHY: to get i and j given an a, only used in logging of solution
-    vector<int> subgraph; // WHY: for some cost stuff - lets go look at that soon
+    // vector<Arc> arcs; // WHY: to get i and j given an a, only used in logging of solution
+    vector<int> subgraph_; // WHY: for some cost stuff - lets go look at that soon
     // Linking vectors: when you need the index of an arc from adjacency information:
     //      arc_index_hash maintains a linked list representation 
     //      of indexes in the corresponding 0-(m-1) contiguous arc vectors.
-    vector<vector<int> > arc_index_hash; // WHY:
-    vector<vector<int> > adjacency_list; // WHY:
-    vector<vector<int> > n_n_adjacency_list; // WHY:
-public:
-    Graph() : n(0), kbar(0), m(0) {};
-    Graph(const string &filename, int the_n, int the_k_0);
-    vector<Arc> get_arcs() const {return arcs;}
-    int get_n() const {return n;}
-    int get_kbar() const {return kbar;}
-    int get_m() const {return m;}
-    vector<int> get_subgraph() const {return subgraph;}
-    vector<vector<int>> get_arc_index_hash() const {return arc_index_hash;}
-    vector<vector<int>> get_adjacency_list() const {return adjacency_list;}
-    void updateGraph(vector<int>& x_bar, bool rev=false);
-    void printGraph(vector<vector<int> > costs, vector<int> interdiction_costs, bool is_costs=false) const;
+    vector<vector<int>> arc_index_hash_; // WHY:
+    vector<vector<int>> adjacency_list_; // WHY:
+    vector<vector<int>> n_n_adjacency_list_; // WHY:
 };
 
 class AdaptiveInstance
 {
     // Full Adaptive Instance, cost structure data, graph is maintained and passed separately
+private:
+    int scenarios, policies, budget, nodes, arcs, groups; // WHY GROUPS?
 public:
-    int scenarios, policies, budget, nodes, arcs, kbar;
     vector<int> interdiction_costs;
-    vector<vector<int> > arc_costs;
+    vector<vector<int>> arc_costs;
     const string directory;
     const string name;
     // When we copy an AdaptiveInstance but only keep a subset of U, we reset the index
@@ -106,15 +113,20 @@ public:
 
     // main constructor
     AdaptiveInstance(int p, int k, int r_zero, const Graph &G, const string &directory, const string &name) :
-        scenarios(p), policies(k), budget(r_zero), nodes(G.get_n()), arcs(G.get_m()), kbar(G.get_kbar()), directory(directory), name(name) {};
+        scenarios(p), policies(k), budget(r_zero), nodes(G.get_n()), arcs(G.get_m()), groups(G.get_groups()), directory(directory), name(name) {};
 
-    // change U constructor
+    // Copy constructor with a different U (only a subset of scenarios to keep).
     AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios);
-    //     scenarios(keep_scenarios.size()), policies(m3->policies), budget(m3->budget), nodes(m3->nodes), arcs(m3->arcs), interdiction_costs(m3->interdiction_costs) 
-    // {arc_costs=vector<vector<int> >(scenarios, vector<int>(arcs)); 
-    //     for (int q=0; q<scenarios; ++q) {arc_costs[q] = m3->arc_costs[keep_scenarios[q]];}}
 
-    // no mutator for scenarios - functionality reserved for change copy constructor
+    int get_scenarios() const {return scenarios;}
+    int get_policies() const {return policies;}
+    int get_budget() const {return budget;}
+    int get_nodes() const {return nodes;}
+    int get_arcs() const {return arcs;}
+    int get_groups() const {return groups;}
+
+    // No mutator for scenarios - functionality reserved for change copy constructor.
+    // CAN WE GET RID OF ALL THE MUTATORS?
     void set_policies(int k){policies=k;}
     void set_budget(int r_zero){budget=r_zero;}
     void set_costs(vector<int>& interdiction_costs, vector<vector<int> >& arc_costs) 
@@ -122,10 +134,7 @@ public:
 
     void printInstance(const Graph &G) const;
     vector<int> dijkstra(int q, const Graph &G);
-    void writeCosts();
-    void generateCosts(float interdiction, int a, int b, int dist, vector<int> subgraph);
-    void readCosts();
-    void initCosts(float interdiction, int a, int b, int dist, const Graph &G, bool gen);
+    void ReadCosts();
     void applyInterdiction(vector<double>& x_bar, bool rev=false);
     float validatePolicy(vector<double>& x_bar, const Graph& G);
 };
@@ -207,7 +216,7 @@ public:
     RobustAlgoModel() : 
         scenarios(0), budget(0), nodes(0), arcs(0) {};
     RobustAlgoModel(AdaptiveInstance& m3) : 
-        scenarios(m3.scenarios), budget(m3.budget), nodes(m3.nodes), arcs(m3.arcs) {};
+        scenarios(m3.get_scenarios()), budget(m3.get_budget()), nodes(m3.get_nodes()), arcs(m3.get_arcs()) {};
 
     void configureModel(const Graph& G, AdaptiveInstance& m3);
     void update(vector<int>& subset);
@@ -235,7 +244,7 @@ public:
 
     SetPartitioningModel() : M(0), scenarios(0), policies(0), budget(0), nodes(0), arcs(0) {};
     SetPartitioningModel(int M, AdaptiveInstance& m3) : 
-        M(M), scenarios(m3.scenarios), policies(m3.policies), budget(m3.budget), nodes(m3.nodes), arcs(m3.arcs) {};
+        M(M), scenarios(m3.get_scenarios()), policies(m3.get_policies()), budget(m3.get_budget()), nodes(m3.get_nodes()), arcs(m3.get_arcs()) {};
 
     void configureModel(const Graph& G, AdaptiveInstance& m3);
     void solve();
