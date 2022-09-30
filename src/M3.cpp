@@ -77,10 +77,10 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scena
     arcs_ = m3->arcs_;
     interdiction_deltas_ = m3->interdiction_deltas_;
     arc_costs_ = vector<vector<int> >(scenarios_);
-    scenario_index_map = vector<int>(scenarios_);
+    scenario_index_map_ = vector<int>(scenarios_);
     for (int q=0; q<scenarios_; q++) {
         arc_costs_[q] = m3->arc_costs_[keep_scenarios[q]];
-        scenario_index_map[q] = keep_scenarios[q];
+        scenario_index_map_[q] = keep_scenarios[q];
     }
 }
 
@@ -1171,7 +1171,7 @@ void AdaptiveSolution::mergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* in
     vector<vector<int> > reindexed_partition(sol2.policies);
     for (int w=0; w<sol2.policies; w++) {
         for (int i : sol2.partition[w]) {
-            int q = instance2->scenario_index_map[i]; 
+            int q = instance2->get_scenario_index_map()[i]; 
             reindexed_partition[w].push_back(q);
         }
     }

@@ -45,7 +45,6 @@ using std::round;
 class Graph
 {
 public:
-    Graph() : nodes_(0), arcs_(0) {};
     Graph(const string &filename, int nodes);
     void PrintArc(int a, int i, int index) const;
     void PrintGraph() const;
@@ -66,16 +65,8 @@ private:
 
 class AdaptiveInstance
 {
-    // Full adaptive problem instance with cost data, (Graph G always passed by reference separately).
+    // Full adaptive problem instance with cost data, (Graph G is always passed by reference separately).
 public:
-    // When we copy an AdaptiveInstance but only keep a subset of U, we reset the index
-    // of the scenarios we keep. Later, we will want the original indices back. 
-    // For this reason, we keep a map of the scenarios indices (0-p-1) to their original
-    // indices in the AdaptiveInstance it was copied from.
-    // An empty map means that the instance is infact an "original" instance.
-    vector<int> scenario_index_map;
-
-    AdaptiveInstance() : scenarios_(0), policies_(0), budget_(0) {}; 
     AdaptiveInstance(int scenarios, int policies, int budget, const Graph &G, const string &directory, const string &name) :
         nodes_(G.get_nodes()), arcs_(G.get_arcs()), scenarios_(scenarios), policies_(policies), budget_(budget), directory_(directory), name_(name) {};
     // Copy constructor with a different U (only a subset of scenarios to keep).
@@ -88,6 +79,7 @@ public:
     int get_budget() const {return budget_;}
     vector<int> get_interdiction_deltas() const {return interdiction_deltas_;}
     vector<vector<int>> get_arc_costs() const {return arc_costs_;}
+    vector<int> get_scenario_index_map() const {return scenario_index_map_;}
 
     // No mutator for scenarios - functionality reserved for change copy constructor.
     // CAN WE GET RID OF ALL THE MUTATORS?
@@ -104,6 +96,10 @@ private:
     const string name_;
     vector<vector<int>> arc_costs_;
     vector<int> interdiction_deltas_;
+    // Map of scenario indices (0-p-1) to their original indices, for when an AdaptiveInstance
+    // is copied but only keeps a subset of U (to be able to recover the original). An empty
+    // map indicates an original instance.
+    vector<int> scenario_index_map_;
 };
 
 struct Policy
