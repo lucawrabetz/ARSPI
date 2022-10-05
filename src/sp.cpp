@@ -34,9 +34,9 @@ int main(int argc, char* argv[]) {
     sp_model.solve();
 
     AdaptiveSolution sp_solution = sp_model.current_solution;
-    sp_solution.computeAllObjectives(G, m3);
-    sp_solution.logSolution(G, m3, "solution", true);
-    long runtime = sp_solution.most_recent_solution_time;
+    sp_solution.ComputeAllObjectives(G, m3);
+    sp_solution.LogSolution(G, m3, "solution", true);
+    long runtime = sp_solution.most_recent_solution_time();
 
-    cout << sp_solution.worst_case_objective << " " << runtime << endl;
+    cout << sp_solution.worst_case_objective() << " " << runtime << endl;
 }

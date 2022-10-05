@@ -42,18 +42,22 @@ using std::ifstream;
 using std::ofstream;
 using std::round;
 
+// WHY:
+// Can we replace some explicit setters with with "updaters" that set internally (e.g. Policy.objective)
+
 class Graph
 {
+    // Class to read an arc list from a file and represent it as linked lists.
 public:
     Graph(const string &filename, int nodes);
     void PrintArc(int a, int i, int index) const;
     void PrintGraph() const;
     void PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<int>& interdiction_deltas) const;
     // Getters.
-    int get_nodes() const {return nodes_;}
-    int get_arcs() const {return arcs_;}
-    vector<vector<int>> get_arc_index_hash() const {return arc_index_hash_;}
-    vector<vector<int>> get_adjacency_list() const {return adjacency_list_;}
+    int nodes() const {return nodes_;}
+    int arcs() const {return arcs_;}
+    vector<vector<int>> arc_index_hash() const {return arc_index_hash_;}
+    vector<vector<int>> adjacency_list() const {return adjacency_list_;}
 private:
     int nodes_, arcs_;
     const string filename_;
@@ -68,28 +72,26 @@ class AdaptiveInstance
     // Full adaptive problem instance with cost data, (Graph G is always passed by reference separately).
 public:
     AdaptiveInstance(int scenarios, int policies, int budget, const Graph &G, const string &directory, const string &name) :
-        nodes_(G.get_nodes()), arcs_(G.get_arcs()), scenarios_(scenarios), policies_(policies), budget_(budget), directory_(directory), name_(name) {};
+        nodes_(G.nodes()), arcs_(G.arcs()), scenarios_(scenarios), policies_(policies), budget_(budget), directory_(directory), name_(name) {};
     // Copy constructor with a different U (only a subset of scenarios to keep).
     AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios);
-
-    int get_nodes() const {return nodes_;}
-    int get_arcs() const {return arcs_;}
-    int get_scenarios() const {return scenarios_;}
-    int get_policies() const {return policies_;}
-    int get_budget() const {return budget_;}
-    vector<int> get_interdiction_deltas() const {return interdiction_deltas_;}
-    vector<vector<int>> get_arc_costs() const {return arc_costs_;}
-    vector<int> get_scenario_index_map() const {return scenario_index_map_;}
-
-    // No mutator for scenarios - functionality reserved for change copy constructor.
-    // CAN WE GET RID OF ALL THE MUTATORS?
-    void set_policies(int policies){policies_ = policies;} // USED IN EXTEND BY ONE HEURISTIC
-
+    void ReadCosts();
     void PrintInstance(const Graph &G) const;
     vector<int> Dijkstra(int q, const Graph &G);
-    void ReadCosts();
     void ApplyInterdiction(vector<double>& x_bar, bool rev=false);
     float ValidatePolicy(vector<double>& x_bar, const Graph& G);
+    // Getters.
+    int nodes() const {return nodes_;}
+    int arcs() const {return arcs_;}
+    int scenarios() const {return scenarios_;}
+    int policies() const {return policies_;}
+    int budget() const {return budget_;}
+    vector<int> interdiction_deltas() const {return interdiction_deltas_;} // ?
+    vector<vector<int>> arc_costs() const {return arc_costs_;} // ?
+    vector<int> scenario_index_map() const {return scenario_index_map_;} // ?
+    // Setters.
+    // No setter for scenarios_ - functionality reserved for change copy constructor.
+    void set_policies(int policies){policies_ = policies;} // USED IN EXTEND BY ONE HEURISTIC
 private:
     int nodes_, arcs_, scenarios_, policies_, budget_;
     const string directory_;
@@ -102,57 +104,56 @@ private:
     vector<int> scenario_index_map_;
 };
 
-struct Policy
+class Policy
 {
-    // Interdiction Policy with Objective Value
+    // Policy class - represent a single interdiction policy with its objective.
 public:
-    int size;
-    double objective;
-    vector<double> binary_policy;
-
-    // // default
-    Policy() : size(0), objective(0), binary_policy(vector<double>()) {};
-    // just m but no policy 
-    Policy(int m) : size(m), objective(0), binary_policy(vector<double>(m)) {};
-    // full constructor
-    Policy(int m, vector<double>& policy, double value) : size(m), binary_policy(policy), objective(value) {};
-
-    // mutators - accept vector or binary new policy
-    void set_size(int m) {size=m;}
-    void set_policy(vector<double>& policy) {binary_policy=policy;}
-    void set_objective(double value) {objective=value;}
+    Policy() : size_(0), objective_(0), binary_policy_(vector<double>()) {};
+    Policy(int size) : size_(size), objective_(0), binary_policy_(vector<double>(size)) {};
+    Policy(int size, double objective, const vector<double>& binary_policy) : size_(size), objective_(objective), binary_policy_(binary_policy) {};
+    // Getters.
+    double objective() const {return objective_;}
+    vector<double> binary_policy() const {return binary_policy_;}
+    // Setters.
+    void set_policy(const vector<double>& binary_policy) {binary_policy_=binary_policy;}
+    void set_objective(double objective) {objective_=objective;}
+private:
+    int size_;
+    double objective_;
+    vector<double> binary_policy_;
 };
 
-
-
- 
-struct AdaptiveSolution
+class AdaptiveSolution
 {
-    // Full Solution for Instance
+    // Full solution - i.e. a vector of k policy objects with extra info, including the partition.
 public:
-    int policies, scenarios;
-    double worst_case_objective;
-    double average_objective;
-    vector<vector<int> > partition;
-    vector<Policy> solutions;
-    long most_recent_solution_time;
-
-    // default
-    AdaptiveSolution() : policies(0), scenarios(0), partition(vector<vector<int>>(0)), solutions(vector<Policy>(0)){};
-    // just k and p
-    AdaptiveSolution(int k, int p) : policies(k), scenarios(p), partition(vector<vector<int>>(k)), solutions(vector<Policy>(k)) {};
-    // full
-    AdaptiveSolution(int k, int p, vector<vector<int>> parts, vector<Policy> sols) : policies(k), scenarios(p), partition(parts), solutions(sols) {};
-
-    void logSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy=true);
-    void mergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index);
-    void extendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine=true);
-
-    void set_policies(int k){policies=k;}
-    void set_scenarios(int p){scenarios=p;}
-    void set_worst_case_objective(int z){worst_case_objective=z;}
-    
-    void computeAllObjectives(const Graph& G, AdaptiveInstance& m3);
+    AdaptiveSolution() : policies_(0), scenarios_(0), partition_(vector<vector<int>>(0)), solution_(vector<Policy>(0)){};
+    AdaptiveSolution(int policies, int scenarios) : policies_(policies), scenarios_(scenarios), partition_(vector<vector<int>>(policies)), solution_(vector<Policy>(policies)) {};
+    AdaptiveSolution(int policies, int scenarios, const vector<vector<int>>& partition, const vector<Policy>& solution) : policies_(policies), scenarios_(scenarios), partition_(partition), solution_(solution) {};
+    void LogSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy=true);
+    void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index);
+    void ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine=true);
+    void ComputeAllObjectives(const Graph& G, AdaptiveInstance& m3);
+    // Getters.
+    int policies() const {return policies_;}
+    double worst_case_objective() const {return worst_case_objective_;}
+    vector<vector<int>> partition() const {return partition_;}
+    vector<Policy> solution() const {return solution_;}
+    long most_recent_solution_time() const {return most_recent_solution_time_;}
+    // Setters.
+    void set_policies(int policies){policies_=policies;}
+    void set_scenarios(int scenarios){scenarios_=scenarios;}
+    void set_worst_case_objective(int worst_case_objective){worst_case_objective_=worst_case_objective;}
+    void set_most_recent_solution_time(long most_recent_solution_time) {most_recent_solution_time_=most_recent_solution_time;}
+    void set_solution_policy(int index, Policy policy) {solution_[index]=policy;}
+    void add_to_partition(int index, int scenario) {partition_[index].push_back(scenario);}
+private:
+    int policies_, scenarios_;
+    double worst_case_objective_;
+    double average_objective_;
+    vector<Policy> solution_;
+    vector<vector<int>> partition_;
+    long most_recent_solution_time_;
 };
 
 
@@ -179,7 +180,7 @@ public:
     RobustAlgoModel() : 
         scenarios(0), budget(0), nodes(0), arcs(0) {};
     RobustAlgoModel(AdaptiveInstance& m3) : 
-        scenarios(m3.get_scenarios()), budget(m3.get_budget()), nodes(m3.get_nodes()), arcs(m3.get_arcs()) {};
+        scenarios(m3.scenarios()), budget(m3.budget()), nodes(m3.nodes()), arcs(m3.arcs()) {};
 
     void configureModel(const Graph& G, AdaptiveInstance& m3);
     void update(vector<int>& subset);
@@ -207,7 +208,7 @@ public:
 
     SetPartitioningModel() : M(0), scenarios(0), policies(0), budget(0), nodes(0), arcs(0) {};
     SetPartitioningModel(int M, AdaptiveInstance& m3) : 
-        M(M), scenarios(m3.get_scenarios()), policies(m3.get_policies()), budget(m3.get_budget()), nodes(m3.get_nodes()), arcs(m3.get_arcs()) {};
+        M(M), scenarios(m3.scenarios()), policies(m3.policies()), budget(m3.budget()), nodes(m3.nodes()), arcs(m3.arcs()) {};
 
     void configureModel(const Graph& G, AdaptiveInstance& m3);
     void solve();
@@ -317,6 +318,8 @@ public:
 pair<vector<vector<int> >, vector<Policy> > mergeEnumSols(pair<vector<vector<int> >, vector<Policy> >& sol1, pair<vector<vector<int> >, vector<Policy> >& sol2, int w_index);
 
 AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G);
+
+AdaptiveSolution KMeansHeuristic(const AdaptiveInstance& m3, const Graph& G);
 
 // pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const Graph& G);
 

@@ -153,9 +153,9 @@ vector<int> AdaptiveInstance::Dijkstra(int q, const Graph& G)
         cout << "bar S size: " << bar_S.size() << endl;
 
 
-        for (int i=0; i<G.get_arc_index_hash()[node].size(); ++i){
-            int arc=G.get_arc_index_hash()[node][i];
-            int j_node=G.get_adjacency_list()[node][i];
+        for (int i=0; i<G.arc_index_hash()[node].size(); ++i){
+            int arc=G.arc_index_hash()[node][i];
+            int j_node=G.adjacency_list()[node][i];
             cout << "i, j, arc" << node << ", " << j_node << ", " << arc << endl;
             dist.push(make_pair(distance+arc_costs_[q][arc], j_node));
             pred[j_node]=node;
@@ -174,9 +174,9 @@ vector<int> AdaptiveInstance::Dijkstra(int q, const Graph& G)
         int arc;
         cout << "j_node: " << j_node << ", node: " << node << endl;
 
-        for (int i=0; i<G.get_adjacency_list()[node].size(); ++i){
-            if (G.get_adjacency_list()[node][i]==j_node){
-                arc=G.get_arc_index_hash()[node][i];
+        for (int i=0; i<G.adjacency_list()[node].size(); ++i){
+            if (G.adjacency_list()[node][i]==j_node){
+                arc=G.arc_index_hash()[node][i];
                 break;
             }
         }
@@ -235,7 +235,7 @@ void SetPartitioningModel::configureModel(const Graph& G, AdaptiveInstance& m3) 
     try
     {
         // ------ Initialize solution to appropriate size -----
-        current_solution = AdaptiveSolution(m3.get_policies(), m3.get_scenarios());
+        current_solution = AdaptiveSolution(m3.policies(), m3.scenarios());
 
         // ------ Initialize model and environment ------
         m3_env = new GRBEnv();
@@ -340,12 +340,12 @@ void SetPartitioningModel::configureModel(const Graph& G, AdaptiveInstance& m3) 
         for (int w = 0; w<policies; ++w){
             for (int q=0; q<scenarios; ++q){
                 for (i=0; i<nodes; ++i){
-                    for (j=0; j<G.get_adjacency_list()[i].size(); ++j){
-                        jn=G.get_adjacency_list()[i][j];
-                        a=G.get_arc_index_hash()[i][j];
+                    for (j=0; j<G.adjacency_list()[i].size(); ++j){
+                        jn=G.adjacency_list()[i][j];
+                        a=G.arc_index_hash()[i][j];
 
                         // add constraint
-                        m3_model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= m3.get_arc_costs()[q][a] + (m3.get_interdiction_deltas()[a] * x[w][a]));
+                        m3_model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= m3.arc_costs()[q][a] + (m3.interdiction_deltas()[a] * x[w][a]));
                     }
                 }
             }
@@ -415,14 +415,14 @@ void SetPartitioningModel::solve()
         long begin = getCurrentTime();
         m3_model->optimize();
         long time = getCurrentTime() - begin;
-        current_solution.most_recent_solution_time = time;
+        current_solution.set_most_recent_solution_time(time);
 
         try {
             // vector<float> objective_vec;
             // objective_vec.push_back(m3_model->get(GRB_DoubleAttr_ObjVal));
             // objective_vec.push_back(m3_model->get(GRB_DoubleAttr_MIPGap));
             // x_prime.push_back(objective_vec);
-            current_solution.worst_case_objective = m3_model->get(GRB_DoubleAttr_ObjVal);
+            current_solution.set_worst_case_objective(m3_model->get(GRB_DoubleAttr_ObjVal));
 
             // cout << "policies: " << policies << endl;
             // cout << "scenarios: " << scenarios << endl;
@@ -434,16 +434,16 @@ void SetPartitioningModel::solve()
                 {
                     x_vector.push_back(x[w][a].get(GRB_DoubleAttr_X));
                 }
-                // Policy.objective taken care of after in computeAllObjectives
-                Policy temp_policy = Policy(arcs, x_vector, -1);
-                current_solution.solutions[w] = temp_policy;
+                // Policy.objective taken care of after in ComputeAllObjectives
+                Policy temp_policy = Policy(arcs, -1, x_vector);
+                current_solution.set_solution_policy(w, temp_policy);
 
                 // cout << "w: " << w << endl;
                 // current_solution.partition[w].clear();
                 for (int q=0; q<scenarios; q++) {
                     // cout << "q: " << q << endl;
                     if (h_matrix[w][q].get(GRB_DoubleAttr_X) > 0.5) {
-                        current_solution.partition[w].push_back(q);
+                        current_solution.add_to_partition(w, q);
                     }
                 }
                 // x_prime.push_back(x_vector);
@@ -993,11 +993,11 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
         dual_constraints.push_back(vector<GRBTempConstr>());
 
         for (int i=0; i<nodes; ++i) {
-            for (int j=0; j<G.get_adjacency_list()[i].size(); ++j){
-                int next = G.get_adjacency_list()[i][j];
-                int a = G.get_arc_index_hash()[i][j];
+            for (int j=0; j<G.adjacency_list()[i].size(); ++j){
+                int next = G.adjacency_list()[i][j];
+                int a = G.arc_index_hash()[i][j];
 
-                GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= m3.get_arc_costs()[q][a] + (m3.get_interdiction_deltas()[a]*x[a]);
+                GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= m3.arc_costs()[q][a] + (m3.interdiction_deltas()[a]*x[a]);
                 dual_constraints[q].push_back(constraint);
             }
         }
@@ -1095,51 +1095,51 @@ void printSolution(pair<vector<vector<int> >, vector<Policy> >& sol, string soln
         for (int q : sol.first[w]){
             cout << q << " ";
         }
-        cout << "- objective: " << sol.second[w].objective << endl;
+        cout << "- objective: " << sol.second[w].objective() << endl;
     }
     cout << endl;
 }
 
-void AdaptiveSolution::computeAllObjectives(const Graph& G, AdaptiveInstance& m3) {
+void AdaptiveSolution::ComputeAllObjectives(const Graph& G, AdaptiveInstance& m3) {
     // Populate / recompute the all_objectives vector based on interdiction policies and follower costs
     // Worst case objective for every policy will be assigned to solution[w].objective (in the Policy struct)
     RobustAlgoModel static_model = RobustAlgoModel(m3);
     static_model.configureModel(G, m3);
     double worst_objective = DBL_MAX;
 
-    for (int w=0; w < policies; w++) {
-        static_model.update(partition[w]);
+    for (int w=0; w < policies_; w++) {
+        static_model.update(partition_[w]);
         vector<double> sol = static_model.solve(0);
-        solutions[w].objective = sol[0];
+        solution_[w].set_objective(sol[0]);
         if (sol[0] < worst_objective) {worst_objective = sol[0];}
-        static_model.reverse_update(partition[w]);
+        static_model.reverse_update(partition_[w]);
     }
-    worst_case_objective = worst_objective;
+    worst_case_objective_ = worst_objective;
 }
 
-void AdaptiveSolution::logSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy) {
-    int arcs = solutions[0].binary_policy.size();
+void AdaptiveSolution::LogSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy) {
+    int arcs = solution_[0].binary_policy().size();
     // print subsets and objectives
     cout << endl;
     if (title == ""){cout << "solution:" << endl;}
     else {cout << title << ":" << endl;} 
-    cout << "Worst Case Objective: " << worst_case_objective << endl;
-    int k = partition.size();
+    cout << "Worst Case Objective: " << worst_case_objective_ << endl;
+    int k = partition_.size();
 
     for (int w=0; w<k; ++w){
         cout << "subset: { ";
-        for (int q : partition[w]){
+        for (int q : partition_[w]){
             cout << q << " ";
         }
-        cout << "} - objective: " << solutions[w].objective << endl;
+        cout << "} - objective: " << solution_[w].objective() << endl;
         if (policy) {
             cout << "interdicted arcs: ";
-            vector<vector<int>> arc_index_hash = G.get_arc_index_hash();
-            vector<vector<int>> adjacency_list = G.get_adjacency_list();
-            for (int i = 0; i < G.get_nodes(); ++i) {
+            vector<vector<int>> arc_index_hash = G.arc_index_hash();
+            vector<vector<int>> adjacency_list = G.adjacency_list();
+            for (int i = 0; i < G.nodes(); ++i) {
                 int index = 0;
                 for (int a : arc_index_hash[i]) {
-                    if (solutions[w].binary_policy[a] > 0.5) {
+                    if (solution_[w].binary_policy()[a] > 0.5) {
                         G.PrintArc(a, i, index);
                         cout << " ";
                     }    
@@ -1152,40 +1152,35 @@ void AdaptiveSolution::logSolution(const Graph& G, AdaptiveInstance& m3, string 
     cout << endl;
 }
 
-void AdaptiveSolution::mergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index) {
+void AdaptiveSolution::MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index) {
     // Merge 2 adaptive solutions
     // The AdaptiveSolution being passed has k=2
     // The AdaptiveSolution being worked on needs its split_index replaced:
     //   - in .partition, by the two subsets in sol2
-    //   - in .solutions, by the two policies in sol2
+    //   - in .solution_, by the two policies in sol2
     //   - in both cases, we can just replace split_index by the first, and add the 
     //   second to the end
     // Additionally, .policies must be increased by 1
     // Remember - change-of-scenario copy constructor reindexes, but we maintain
     // a map of the original indices (sol2 has this map)
-
-    // policies++
-    set_policies(policies+1);
-
+    set_policies(policies_+1);
     // reindexed copy of sol2.partition
-    vector<vector<int> > reindexed_partition(sol2.policies);
-    for (int w=0; w<sol2.policies; w++) {
-        for (int i : sol2.partition[w]) {
-            int q = instance2->get_scenario_index_map()[i]; 
+    vector<vector<int>> reindexed_partition(sol2.policies());
+    for (int w=0; w<sol2.policies(); w++) {
+        for (int i : sol2.partition()[w]) {
+            int q = instance2->scenario_index_map()[i]; 
             reindexed_partition[w].push_back(q);
         }
     }
-
     // replace and push_back in partition
-    partition[split_index] = reindexed_partition[0];
-    for (int w=1; w<sol2.policies; w++) {
-        partition.push_back(reindexed_partition[w]);
+    partition_[split_index] = reindexed_partition[0];
+    for (int w=1; w<sol2.policies(); w++) {
+        partition_.push_back(reindexed_partition[w]);
     }
-    
-    // replace in solutions
-    solutions[split_index] = sol2.solutions[0];
-    for (int w=1; w<sol2.policies; w++) {
-        solutions.push_back(sol2.solutions[w]);
+    // replace in solution_
+    solution_[split_index] = sol2.solution()[0];
+    for (int w=1; w<sol2.policies(); w++) {
+        solution_.push_back(sol2.solution()[w]);
     }
 }
 
@@ -1228,7 +1223,7 @@ vector<vector<int> > kappa_to_partition(vector<int>& kappa, int k, int p){
     return partition;
 }
 
-pair<vector<vector<int> >, vector<Policy> > mergeEnumSols(pair<vector<vector<int> >, vector<Policy> >& sol1, pair<vector<vector<int> >, vector<Policy> >& sol2, int w_index){
+pair<vector<vector<int> >, vector<Policy> > MergeEnumSols(pair<vector<vector<int> >, vector<Policy> >& sol1, pair<vector<vector<int> >, vector<Policy> >& sol2, int w_index){
     // Merge 2 solutions e.g. when extending an enum solve, combine the new split worst subset
     // w_index is the position of the split subset in the original solution (sol1)
 
@@ -1252,9 +1247,9 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
     //  NEW Return: Adaptive Solution Struct (basic info, nested vector of partitions, vector of policies)
     // ints and bool
     bool next = true;
-    int p = m3.get_scenarios();
-    int k = m3.get_policies();
-    int m = m3.get_arcs();
+    int p = m3.scenarios();
+    int k = m3.policies();
+    int m = m3.arcs();
     // initialize partitioning 'string' vector as in Orlov Paper 
     // initialize corresponding max vector 
     vector<int> kappa = initKappa(p, k);
@@ -1321,7 +1316,7 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
         AdaptiveSolution final_solution = AdaptiveSolution(k, p, best_worstcase_partition, final_policies);
         final_solution.set_worst_case_objective(best_worstcase_objective);
         long time = getCurrentTime() - begin;
-        final_solution.most_recent_solution_time = time;
+        final_solution.set_most_recent_solution_time(time);
         return final_solution;
     }
     catch (GRBException e) {
@@ -1336,7 +1331,7 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
     return dummy_solution;
 }
 
-void AdaptiveSolution::extendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine) {
+void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine) {
     // Use an optimal solution found for k, to find a good solution for k+1
     // Take the worst subset in the optimal partition and "split it in 2"
     // "Split it in two": solve that subset for k = 2
@@ -1346,9 +1341,9 @@ void AdaptiveSolution::extendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
     cout << "heuristic - extend by one policy" << endl;
     // cout << "m3: " << endl;
     long begin = getCurrentTime();
-    int k = policies;
-    int p = scenarios;
-    int m = m3.get_arcs();
+    int k = policies_;
+    int p = scenarios_;
+    int m = m3.arcs();
     int k_prime = k+1;
 
     
@@ -1357,19 +1352,19 @@ void AdaptiveSolution::extendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
     int min_subset_windex;
 
     for (int w=0; w<k; ++w){
-        if (solutions[w].objective < min_subset_obj) {
-            min_subset_obj = solutions[w].objective;
+        if (solution_[w].objective() < min_subset_obj) {
+            min_subset_obj = solution_[w].objective();
             min_subset_windex = w;
         }
     }
 
-    int p_prime = partition[min_subset_windex].size(); // the new p - number of scenarios in the subset that we will work on
+    int p_prime = partition_[min_subset_windex].size(); // the new p - number of scenarios in the subset that we will work on
 
     if (p_prime > 1) {
         cout << "Subset to split: { ";
-        for (int q : partition[min_subset_windex]){cout << q << " ";}
+        for (int q : partition_[min_subset_windex]){cout << q << " ";}
         cout << "}" << endl;
-        AdaptiveInstance m3_prime = AdaptiveInstance(&m3, partition[min_subset_windex]);
+        AdaptiveInstance m3_prime = AdaptiveInstance(&m3, partition_[min_subset_windex]);
         // careful - m3_prime always has k=2 because we are just extending by ONE
         m3_prime.set_policies(2);
         // cout << endl << endl;
@@ -1383,17 +1378,32 @@ void AdaptiveSolution::extendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
             m3prime_model.configureModel(G, m3_prime);
             m3prime_model.solve();
             k_prime_solution = m3prime_model.current_solution;
-            k_prime_solution.computeAllObjectives(G, m3_prime);
+            k_prime_solution.ComputeAllObjectives(G, m3_prime);
         }
         else {
             k_prime_solution = enumSolve(m3_prime, G);
         }
 
-        // auto final_solution = mergeEnumSols(k_solution, k_prime_solution, min_subset_windex);
+        // auto final_solution = MergeEnumSols(k_solution, k_prime_solution, min_subset_windex);
         long time = getCurrentTime() - begin;
 
-        mergeEnumSols(k_prime_solution, &m3_prime, min_subset_windex);
-        most_recent_solution_time = time;
+        MergeEnumSols(k_prime_solution, &m3_prime, min_subset_windex);
+        most_recent_solution_time_ = time;
     }
 }
 
+AdaptiveSolution KMeansHeuristic(const AdaptiveInstance& m3, const Graph& G) {
+    // Use the KMeans - Style heuristic to solve an Adaptive Instance.
+    double z_previous = DBL_MIN;
+    // Initialize the first solution - solving the non-robust model for k followers chosen at random
+    // out of p.
+    AdaptiveSolution current_solution = ;
+    // Update the objective (and initialize the current objective).
+    double z_current = UpdateCurrentObjectiveGivenSolution(current_solution);
+    while (z_previous < z_current) {
+        current_solution = KMeansHeuristicUpdateSolution();
+        UpdateCurrentObjectiveGivenSolution(current_solution);
+    }
+
+    return current_solution;
+}
