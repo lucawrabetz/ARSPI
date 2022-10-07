@@ -125,71 +125,41 @@ void AdaptiveInstance::PrintInstance(const Graph& G) const {
     G.PrintGraphWithCosts(arc_costs_, interdiction_deltas_);
 }
 
-vector<int> AdaptiveInstance::Dijkstra(int q, const Graph& G)
+int AdaptiveInstance::Dijkstra(int q, const Graph& G)
 {
-    // Compute shortest path 0-n-1
-    vector<int> pred(nodes_), result(arcs_ + 1);
-    std::priority_queue<pair<int, int>, vector<pair<int,int> >, std::greater<pair<int, int> > > dist;
-    std::unordered_set<int> S, bar_S;
-
-    bar_S.insert(0);
-    dist.push(make_pair(0, 0));
+    // Compute shortest path 0-n-1 and just return its objective (we never actually need the path).
+    vector<int> pred(nodes_), distance(nodes_);
+    // First item in the pair is the weight/cost, second is the vertex. std::greater allows the smallest
+    // distance to appear at top.
+    std::priority_queue<pair<int, int>, vector<pair<int,int> >, std::greater<pair<int, int> > > pq;
+    std::unordered_set<int> visited;
+    visited.insert(0);
+    pq.push({0, 0});
     pred[0] = 0;
+    distance[0] = 0;
     for (int i=1; i<nodes_; ++i) {
-        bar_S.insert(i);
         pred[i] = -1;
+        distance[i] = INT_MAX;
     }
-
-    while (S.size()<nodes_) {
-        int node = dist.top().second;
-        int distance = dist.top().first;
-        cout << dist.size() << endl;
-        cout << "node: " << node << ", distance: " << distance << endl;
-        dist.pop();
-        cout << "distsize: " << dist.size() << endl;
-        bar_S.erase(node); 
-        S.insert(node);
-        cout << "S size: " << S.size() << endl;
-        cout << "bar S size: " << bar_S.size() << endl;
-
-
+    while (!pq.empty()) {
+        int node = pq.top().second;
+        int node_distance = pq.top().first;
+        pq.pop();
+        visited.insert(node);
         for (int i=0; i<G.arc_index_hash()[node].size(); ++i){
             int arc=G.arc_index_hash()[node][i];
-            int j_node=G.adjacency_list()[node][i];
-            cout << "i, j, arc" << node << ", " << j_node << ", " << arc << endl;
-            dist.push(make_pair(distance+arc_costs_[q][arc], j_node));
-            pred[j_node]=node;
+            int v=G.adjacency_list()[node][i];
+            if (node_distance + arc_costs_[q][arc] < distance[v]) {
+                pq.push(make_pair(node_distance + arc_costs_[q][arc], v));
+                pred[v]=node;
+                distance[v] = node_distance + arc_costs_[q][arc];
+            } 
         }
-        break;
     }
-
-    return pred;
-
-    result[0]=0;
-    int j_node=nodes_-1;
-
-    while(j_node!=0){
-        // find the arc index for the arc i, j (looping backwards through sp tree using pred to determine i)
-        int node=pred[j_node];
-        int arc;
-        cout << "j_node: " << j_node << ", node: " << node << endl;
-
-        for (int i=0; i<G.adjacency_list()[node].size(); ++i){
-            if (G.adjacency_list()[node][i]==j_node){
-                arc=G.arc_index_hash()[node][i];
-                break;
-            }
-        }
-
-        result[0]+=arc_costs_[q][arc];
-        result[arc+1]=1;
-        j_node=node;
-    }
-
-    return result;
+    return distance[nodes_-1];
 }
 
-void AdaptiveInstance::ApplyInterdiction(vector<double>& x_bar, bool rev){
+void AdaptiveInstance::ApplyInterdiction(const vector<double>& x_bar, bool rev){
     // Receive interdiction policy and update costs for the M3 instance
     // If rev, we are "removing" the interdiction policy and returning the instance to its original state
     for (int a=0; a<arcs_; ++a){
@@ -206,27 +176,26 @@ void AdaptiveInstance::ApplyInterdiction(vector<double>& x_bar, bool rev){
     }
 }
 
-float AdaptiveInstance::ValidatePolicy(vector<double>& x_bar, const Graph& G)
+double AdaptiveInstance::ComputeObjectiveOfPolicyForScenario(const vector<double>& binary_policy, const Graph& G, int q) {
+    ApplyInterdiction(binary_policy);
+    int objective = Dijkstra(q, G);
+    ApplyInterdiction(binary_policy, true);
+    return objective;
+}
+
+double AdaptiveInstance::ValidatePolicy(vector<double>& x_bar, const Graph& G)
 {
     // Solve shortest path on interdicted graph - check objectives match
-    float objective=100000000;
-    vector<int> sp_result;
-
-    // Update M3 based on x_bar
+    double objective = DBL_MAX;
+    int sp_result;
     ApplyInterdiction(x_bar);
-
-    // run dijstra on graph to get objective 
     for (int q=0; q<scenarios_; ++q){
         sp_result = Dijkstra(q, G);
-        
-        if (sp_result[0]<objective){
-            objective=sp_result[0];
+        if (sp_result<objective){
+            objective=sp_result;
         }
     }
-    
-    // Revert M3 
     ApplyInterdiction(x_bar, true);
-
     return objective;
 }
 
@@ -1060,22 +1029,17 @@ void RobustAlgoModel::reverse_update(vector<int>& subset) {
     algo_model->update();
 }
 
-vector<double> RobustAlgoModel::solve(int counter) {
+Policy RobustAlgoModel::Solve() {
     // solve static model, return policy and objective value
-    string lp_filename = "static_model_" + to_string(counter) + ".lp";
-    // algo_model->write(lp_filename);
     algo_model->optimize();
-    vector<double> sol(arcs+1, 0);
-    
-    sol[0] = algo_model->get(GRB_DoubleAttr_ObjVal);
-    sol[0] = -sol[0];
-    for (int a=1; a<arcs+1; ++a) {
-        sol[a] = x[a-1].get(GRB_DoubleAttr_X);
+    vector<double> binary_policy(arcs, 0);
+    double objective = -algo_model->get(GRB_DoubleAttr_ObjVal);
+    for (int a=0; a<arcs; ++a) {
+        binary_policy[a] = x[a].get(GRB_DoubleAttr_X);
     }
-
     algo_model->reset();
-
-    return sol;
+    Policy solution = Policy(arcs, objective, binary_policy);
+    return solution;
 }
 
 int max_int(int a, int b){
@@ -1083,38 +1047,53 @@ int max_int(int a, int b){
     else {return a;}
 }
 
-void printSolution(pair<vector<vector<int> >, vector<Policy> >& sol, string solname){
-    // print adaptive solution
-    cout << endl;
-    if (solname == ""){cout << "solution:" << endl;}
-    else {cout << solname << ":" << endl;} 
-    int k = sol.first.size();
-
-    for (int w=0; w<k; ++w){
-        cout << "subset: ";
-        for (int q : sol.first[w]){
-            cout << q << " ";
+void AdaptiveSolution::ComputeAllObjectives(const Graph& G, AdaptiveInstance* m3) {
+//     // Populate / recompute the all_objectives vector based on interdiction policies and follower costs
+//     // Worst case objective for every policy will be assigned to solution[w].objective (in the Policy struct)
+//     // Note: this requires knowing the optimal partition, which is part of the AdaptiveSolution class.
+//     // THIS FUNCTION IS NOT STABLE.
+//     RobustAlgoModel static_model = RobustAlgoModel(m3);
+//     static_model.configureModel(G, m3);
+//     double worst_objective = DBL_MAX;
+// 
+//     for (int w=0; w < policies_; w++) {
+//         static_model.update(partition_[w]);
+//         Policy sol = static_model.Solve();
+//         double temp_objective = sol.objective();
+//         solution_[w].set_objective(temp_objective);
+//         if (temp_objective < worst_objective) {worst_objective = temp_objective;}
+//         static_model.reverse_update(partition_[w]);
+//     }
+//     worst_case_objective_ = worst_objective;
+    vector<vector<int>> new_partition(policies_);
+    vector<vector<double>> all_objectives(policies_, vector<double>(scenarios_));
+    double min_max_objective = DBL_MAX;
+    for (int q = 0; q < scenarios_; q++) {
+        double max_objective_this_scenario = DBL_MIN;
+        int subset_assignment = -1;
+        for (int w = 0; w < policies_; w++) {
+            double objective = m3->ComputeObjectiveOfPolicyForScenario(solution_[w].binary_policy(), G, q);
+            all_objectives[w][q] = objective;
+            cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
+            if (objective > max_objective_this_scenario) {
+                subset_assignment = w;
+                max_objective_this_scenario = objective;
+            }
         }
-        cout << "- objective: " << sol.second[w].objective() << endl;
+        if (max_objective_this_scenario < min_max_objective) min_max_objective = max_objective_this_scenario;
+        new_partition[subset_assignment].push_back(q);
     }
-    cout << endl;
-}
-
-void AdaptiveSolution::ComputeAllObjectives(const Graph& G, AdaptiveInstance& m3) {
-    // Populate / recompute the all_objectives vector based on interdiction policies and follower costs
-    // Worst case objective for every policy will be assigned to solution[w].objective (in the Policy struct)
-    RobustAlgoModel static_model = RobustAlgoModel(m3);
-    static_model.configureModel(G, m3);
-    double worst_objective = DBL_MAX;
-
-    for (int w=0; w < policies_; w++) {
-        static_model.update(partition_[w]);
-        vector<double> sol = static_model.solve(0);
-        solution_[w].set_objective(sol[0]);
-        if (sol[0] < worst_objective) {worst_objective = sol[0];}
-        static_model.reverse_update(partition_[w]);
+    int w = 0;
+    for (const vector<int>& subset : new_partition) {
+        double min_objective_this_policy = DBL_MAX;
+        for (int q : subset) {
+            if (min_objective_this_policy > all_objectives[w][q]) min_objective_this_policy = all_objectives[w][q];
+        }
+        solution_[w].set_objective(min_objective_this_policy);
+        w++;
     }
-    worst_case_objective_ = worst_objective;
+    partition_=new_partition;
+    worst_case_objective_=min_max_objective;
 }
 
 void AdaptiveSolution::LogSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy) {
@@ -1282,13 +1261,13 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
             for (int w=0; w<k; ++w) {
                 // for every subset in partition, solve M2 for k=1
                 static_robust.update(partition[w]);
-                vector<double> temp_single_solution = static_robust.solve(counter);
-                temp_objectives[w] = temp_single_solution[0];
+                Policy temp_single_solution = static_robust.Solve();
+                temp_objectives[w] = temp_single_solution.objective();
                 static_robust.reverse_update(partition[w]);
                 ++counter;
 
                 // update temp_worst_objective and temp_sol if this subset is worse
-                if (temp_single_solution[0] < temp_worst_objective) {temp_worst_objective = temp_single_solution[0];}
+                if (temp_objectives[w] < temp_worst_objective) {temp_worst_objective = temp_objectives[w];}
             }
 
             if (temp_worst_objective > best_worstcase_objective) {
@@ -1378,7 +1357,7 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
             m3prime_model.configureModel(G, m3_prime);
             m3prime_model.solve();
             k_prime_solution = m3prime_model.current_solution;
-            k_prime_solution.ComputeAllObjectives(G, m3_prime);
+            k_prime_solution.ComputeAllObjectives(G, &m3_prime);
         }
         else {
             k_prime_solution = enumSolve(m3_prime, G);
@@ -1392,18 +1371,102 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
     }
 }
 
-AdaptiveSolution KMeansHeuristic(const AdaptiveInstance& m3, const Graph& G) {
+vector<Policy> InitializeKPolicies(AdaptiveInstance* m3, const Graph& G) {
+    unordered_set<int> centers;
+    int k = m3->policies();
+    RobustAlgoModel spi_model = RobustAlgoModel(*m3);
+    vector<Policy> initial_policies;
+    spi_model.configureModel(G, *m3);
+    // Choose the first scenario to solve SPI for arbitrarily (we'll just use index 0).
+    centers.insert(0);
+    vector<int> update_vector(1);
+    spi_model.update(update_vector);
+    Policy single_policy = spi_model.Solve();
+    spi_model.reverse_update(update_vector);
+    initial_policies.push_back(single_policy);
+    while (centers.size() < k) {
+        // Evaluate all non center scenarios against the current policies, maintaining the minimum one.
+        pair<int, double> min_subset = {-1, DBL_MAX};
+        for (int q = 0; q < m3->scenarios(); q++) {
+            if (centers.count(q) == 1) continue;
+            for (const Policy& policy : initial_policies) {
+                double objective = m3->ComputeObjectiveOfPolicyForScenario(policy.binary_policy(), G, q);
+                if (objective < min_subset.second) min_subset = {q, objective};
+            }
+        }
+        // Solve SPI for scenario that is currently performing worst (for the interdictor), and add the
+        // scenario to the set of centers.
+        update_vector[0] = min_subset.first;
+        spi_model.update(update_vector);
+        Policy single_policy = spi_model.Solve();
+        spi_model.reverse_update(update_vector);
+        initial_policies.push_back(single_policy);
+        centers.insert(min_subset.first);
+    }
+    return initial_policies;
+}
+
+double UpdateCurrentObjectiveGivenSolution(AdaptiveSolution* current_solution, AdaptiveInstance* m3, const Graph& G) {
+    int k = m3->policies();
+    int p = m3->scenarios();
+    vector<vector<int>> partition(k);
+    double min_max_objective = DBL_MAX;
+    for (int q = 0; q < p; q++) {
+        double max_objective_this_scenario = DBL_MIN;
+        int subset_assignment = -1;
+        for (int w = 0; w < k; w++) {
+            double objective = m3->ComputeObjectiveOfPolicyForScenario(current_solution->solution()[w].binary_policy(), G, q);
+            cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
+            if (objective > max_objective_this_scenario) {
+                subset_assignment = w;
+                max_objective_this_scenario = objective;
+            }
+        }
+        if (max_objective_this_scenario < min_max_objective) min_max_objective = max_objective_this_scenario;
+        partition[subset_assignment].push_back(q);
+    }
+    current_solution->set_partition(partition);
+
+    return min_max_objective;
+}
+
+AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G) {
     // Use the KMeans - Style heuristic to solve an Adaptive Instance.
+    long begin = getCurrentTime();
     double z_previous = DBL_MIN;
     // Initialize the first solution - solving the non-robust model for k followers chosen at random
     // out of p.
-    AdaptiveSolution current_solution = ;
+    vector<Policy> first_solution = InitializeKPolicies(m3, G);
+    vector<vector<int>> partitions(m3->policies());
+    AdaptiveSolution current_solution = AdaptiveSolution(m3->policies(), m3->scenarios(), partitions, first_solution);
     // Update the objective (and initialize the current objective).
-    double z_current = UpdateCurrentObjectiveGivenSolution(current_solution);
+    current_solution.ComputeAllObjectives(G, m3);
+    double z_current = current_solution.worst_case_objective();
+    RobustAlgoModel static_model = RobustAlgoModel(*m3);
+    static_model.configureModel(G, *m3);
+    int counter = 0;
     while (z_previous < z_current) {
-        current_solution = KMeansHeuristicUpdateSolution();
-        UpdateCurrentObjectiveGivenSolution(current_solution);
+        cout << "objective, iteration " << counter << ": " << z_current << endl;
+        // identify subset/policy with min objective
+        double min_objective = DBL_MAX;
+        int subset = -1;
+        for (int w=0; w<m3->policies(); w++) {
+            if (current_solution.solution()[w].objective() < min_objective) {
+                min_objective = current_solution.solution()[w].objective(); 
+                subset = w;
+            }
+        }
+        static_model.update(current_solution.partition()[subset]);
+        Policy new_policy = static_model.Solve();
+        current_solution.set_solution_policy(subset, new_policy);
+        static_model.reverse_update(current_solution.partition()[subset]);
+        current_solution.ComputeAllObjectives(G, m3);
+        z_previous = z_current;
+        z_current = current_solution.worst_case_objective();
+        counter++;
     }
-
+    cout << "objective, iteration " << counter << ": " << z_current << endl;
+    long runtime = getCurrentTime() - begin;
+    current_solution.set_most_recent_solution_time(runtime);
     return current_solution;
 }

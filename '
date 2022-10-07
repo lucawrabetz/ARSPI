@@ -110,7 +110,6 @@ private:
 class Policy
 {
     // Policy class - represent a single interdiction policy with its objective.
-    // The objective - is the worst (max) objective for the subsets that the interdiction policy is assigned to.
 public:
     Policy() : size_(0), objective_(0), binary_policy_(vector<double>()) {};
     Policy(int size) : size_(size), objective_(0), binary_policy_(vector<double>(size)) {};
@@ -137,7 +136,7 @@ public:
     void LogSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy=true);
     void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index);
     void ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine=true);
-    void ComputeAllObjectives(const Graph& G, AdaptiveInstance* m3);
+    void ComputeAllObjectives(const Graph& G, AdaptiveInstance& m3);
     // Getters.
     int policies() const {return policies_;}
     double worst_case_objective() const {return worst_case_objective_;}
@@ -150,7 +149,7 @@ public:
     void set_worst_case_objective(int worst_case_objective){worst_case_objective_=worst_case_objective;}
     void set_most_recent_solution_time(long most_recent_solution_time) {most_recent_solution_time_=most_recent_solution_time;}
     void set_solution_policy(int index, Policy policy) {solution_[index]=policy;}
-    void set_partition(const vector<vector<int>>& partition) {partition_=partition;}
+    void set_partition(const vector<vector<int>& partition) {partition_=partition;}
     void add_to_partition(int index, int scenario) {partition_[index].push_back(scenario);}
 private:
     int policies_, scenarios_;

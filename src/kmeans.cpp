@@ -1,9 +1,9 @@
 #include "../inc/M3.h"
 
-// Solve an adaptive interdiction instance with the set partitioning model.
+// Solve an adaptive interdiction instance with the kmeans heuristic.
 // Example call:
-// ./bin/sp/<set_name> <k_0> <n> <p> <k> <budget> <M>
-// ./bin/sp aspi_testbed 3 27 5 1 3 500
+// ./bin/kmeans <set_name> <k_0> <n> <p> <k> <budget> <M>
+// ./bin/kmeans aspi_testbed 3 27 5 1 3 500
 // Output: <objective> <runtime(ms)> (<MIPGap> removed for now)
 // The value k_0 is ONLY PASSED to form the filename for the graph and costs.
 // It will not be used in any of the algorithms in the code.
@@ -25,15 +25,9 @@ int main(int argc, char* argv[]) {
     AdaptiveInstance m3 = AdaptiveInstance(p, k, budget, G, directory, name);
     m3.ReadCosts();
 
-    SetPartitioningModel sp_model = SetPartitioningModel(M, m3);
-    sp_model.configureModel(G, m3);
+    AdaptiveSolution kmeans_solution = KMeansHeuristic(&m3, G);
+    kmeans_solution.LogSolution(G, m3, "solution", true);
+    long runtime = kmeans_solution.most_recent_solution_time();
 
-    sp_model.solve();
-    cout << "gurobi objective: " << sp_model.m3_model->get(GRB_DoubleAttr_ObjVal) << endl; 
-
-    AdaptiveSolution sp_solution = sp_model.current_solution;
-    sp_solution.ComputeAllObjectives(G, &m3);
-    sp_solution.LogSolution(G, m3, "solution", true);
-    long runtime = sp_solution.most_recent_solution_time();
-    cout << sp_solution.worst_case_objective() << " " << runtime << endl;
+    cout << kmeans_solution.worst_case_objective() << " " << runtime << endl;
 }
