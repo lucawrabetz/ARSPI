@@ -1074,7 +1074,7 @@ void AdaptiveSolution::ComputeAllObjectives(const Graph& G, AdaptiveInstance* m3
         for (int w = 0; w < policies_; w++) {
             double objective = m3->ComputeObjectiveOfPolicyForScenario(solution_[w].binary_policy(), G, q);
             all_objectives[w][q] = objective;
-            cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
+            // cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
             if (objective > max_objective_this_scenario) {
                 subset_assignment = w;
                 max_objective_this_scenario = objective;
@@ -1416,7 +1416,7 @@ double UpdateCurrentObjectiveGivenSolution(AdaptiveSolution* current_solution, A
         int subset_assignment = -1;
         for (int w = 0; w < k; w++) {
             double objective = m3->ComputeObjectiveOfPolicyForScenario(current_solution->solution()[w].binary_policy(), G, q);
-            cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
+            // cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
             if (objective > max_objective_this_scenario) {
                 subset_assignment = w;
                 max_objective_this_scenario = objective;
@@ -1447,7 +1447,7 @@ AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G) {
     int counter = 0;
     while (z_previous < z_current) {
         cout << "objective, iteration " << counter << ": " << z_current << endl;
-        // identify subset/policy with min objective
+        // ONLY UPDATE MIN OBJECTIVE POLICY
         double min_objective = DBL_MAX;
         int subset = -1;
         for (int w=0; w<m3->policies(); w++) {
@@ -1460,6 +1460,14 @@ AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G) {
         Policy new_policy = static_model.Solve();
         current_solution.set_solution_policy(subset, new_policy);
         static_model.reverse_update(current_solution.partition()[subset]);
+        // UPDATE All POLICIES
+        // for (int subset=0; subset<m3->policies(); subset++) {
+        //     static_model.update(current_solution.partition()[subset]);
+        //     Policy new_policy = static_model.Solve();
+        //     current_solution.set_solution_policy(subset, new_policy);
+        //     static_model.reverse_update(current_solution.partition()[subset]);
+        // }
+        // REASSIGNMENT
         current_solution.ComputeAllObjectives(G, m3);
         z_previous = z_current;
         z_current = current_solution.worst_case_objective();

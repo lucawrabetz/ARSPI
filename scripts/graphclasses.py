@@ -454,7 +454,7 @@ def layer_inputs():
                  low_mean=50,
                  standard_deviation=10,
                  interdiction_delta=50,
-                 set_name="graphs",
+                 set_name="aspi_testbed",
                  set_directory="dat/graphs"))
     inputs.append(CompleteLayerInput(
                  num_layers=20,
@@ -466,7 +466,7 @@ def layer_inputs():
                  low_mean=50,
                  standard_deviation=10,
                  interdiction_delta=50,
-                 set_name="graphs",
+                 set_name="aspi_testbed",
                  set_directory="dat/graphs"))
     inputs.append(CompleteLayerInput(
                  followers=5,
@@ -476,7 +476,7 @@ def layer_inputs():
                  low_mean=50,
                  standard_deviation=10,
                  interdiction_delta=50,
-                 set_name="graphs",
+                 set_name="aspi_testbed",
                  set_directory="dat/graphs"))
     inputs.append(CompleteLayerInput(
                  num_per_layer=15,
@@ -487,9 +487,33 @@ def layer_inputs():
                  low_mean=50,
                  standard_deviation=10,
                  interdiction_delta=50,
-                 set_name="graphs",
+                 set_name="aspi_testbed",
                  set_directory="dat/aspi_testbed"))
     inputs.append(CompleteLayerInput(
+                 num_per_layer=20,
+                 followers=5,
+                 follower_groups=5,
+                 budget=3,
+                 high_mean=200,
+                 low_mean=50,
+                 standard_deviation=10,
+                 interdiction_delta=50,
+                 set_name="aspi_testbed",
+                 set_directory="dat/aspi_testbed"))
+    inputs.append(CompleteLayerInput(
+                 num_layers=10,
+                 num_per_layer=20,
+                 followers=5,
+                 follower_groups=5,
+                 budget=3,
+                 high_mean=200,
+                 low_mean=50,
+                 standard_deviation=10,
+                 interdiction_delta=50,
+                 set_name="aspi_testbed",
+                 set_directory="dat/aspi_testbed"))
+    inputs.append(CompleteLayerInput(
+                 num_layers=20,
                  num_per_layer=20,
                  followers=5,
                  follower_groups=5,
@@ -504,5 +528,7 @@ def layer_inputs():
 
 if __name__ == "__main__":
     inputs = layer_inputs()
-    G = CompleteLayerGraph(inputs[4])
+    G = CompleteLayerGraph(inputs[5])
+    G.populate_graph()
+    G = CompleteLayerGraph(inputs[6])
     G.populate_graph()
