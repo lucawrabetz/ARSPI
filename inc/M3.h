@@ -18,8 +18,8 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
-// #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
+// #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+#include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
 using std::array;
 using std::shuffle;

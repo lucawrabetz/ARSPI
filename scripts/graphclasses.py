@@ -64,6 +64,7 @@ def arcs_for_current_layer(current_layer, next_layer, p):
 
     return new_arcs
 
+
 class CompleteLayerInput:
     def __init__(self,
                  num_layers=5,
@@ -99,6 +100,7 @@ class CompleteLayerInput:
         self.interdiction_delta = interdiction_delta
         self.set_name = set_name
         self.set_directory = set_directory
+
 
 class CompleteLayerGraph:
     def __init__(self,
@@ -159,7 +161,6 @@ class CompleteLayerGraph:
         arcs_per_layer = self.num_per_layer ** 2
         print("arcs", set(range(self.arcs)))
         for layer in range(1, 1+self.budget):
-            # there is some weirdness with these layer indices in the loop
             # we are considering the first (node 0) and middle layers
             # num_layers refers to the middle layers
             if layer == 0:
@@ -380,7 +381,7 @@ class CompoundGraph:
     def __init__(self, graphs):
         '''
         Join graphs at source and sink nodes
-            - graphs - list of erdos-renyi graph objects
+            - graphs - list of graph objects
         '''
         # assume all graphs in graphs have same n
         n_0 = graphs[0].n
@@ -425,8 +426,177 @@ class CompoundGraph:
         nx.write_edgelist(self.G, filename, data=True)
 
 
-# class CompleteLayerGraphSet:
-#    def __init__(self, )
+class PseudoTreeRawInput:
+    def __init__(self,
+                 num_layers=1,
+                 num_per_layer=2,
+                 followers=1,
+                 follower_groups=1,
+                 # budget=3,
+                 high_mean=200,
+                 low_mean=50,
+                 standard_deviation=10,
+                 interdiction_delta=50,
+                 set_name="graphs",
+                 set_directory="dat/graphs"):
+        '''
+            - Assertions (input sanity checks):
+                - num_layers >= budget;
+                - num_per_layer >= follower_groups;
+                - create a directory for the set_directory if it doesn't exist.
+        '''
+        # Make assertions / sanity checks.
+        # assert num_layers >= budget
+        # assert num_per_layer >= follower_groups
+        if not os.path.isdir(set_directory):
+            os.mkdir(set_directory)
+        self.num_layers = num_layers
+        self.num_per_layer = num_per_layer
+        self.followers = followers
+        self.follower_groups = follower_groups
+        # self.budget = budget
+        self.high_mean = high_mean
+        self.low_mean = low_mean
+        self.standard_deviation = standard_deviation
+        self.interdiction_delta = interdiction_delta
+        self.set_name = set_name
+        self.set_directory = set_directory
+
+class PseudoTreeInput:
+    def __init__(self,
+                 followers=1,
+                 follower_groups=3,
+                 layers=3, # not including sink node, just the rary tree (including root)
+                 # budget=3,
+                 high_mean=200,
+                 low_mean=50,
+                 standard_deviation=10,
+                 interdiction_delta=50,
+                 set_name="graphs",
+                 set_directory="dat/graphs"):
+        '''
+            - Assertions (input sanity checks):
+                - create a directory for the set_directory if it doesn't exist.
+        '''
+        # Make assertions / sanity checks.
+        # assert num_layers >= budget
+        # assert num_per_layer >= follower_groups
+        if not os.path.isdir(set_directory):
+            os.mkdir(set_directory)
+        self.followers = followers
+        self.follower_groups = follower_groups
+        self.layers = layers
+        # self.budget = budget
+        self.high_mean = high_mean
+        self.low_mean = low_mean
+        self.standard_deviation = standard_deviation
+        self.interdiction_delta = interdiction_delta
+        self.set_name = set_name
+        self.set_directory = set_directory
+
+class PseudoTreeRaw:
+    '''
+        This graph class is designed to meet the condition that G[N \ t] is a tree.
+        To generate this graph, we'll build it path by path, adding paths to the source node that are always disjoint.
+        In order to make the tree interesting, we will also let the paths split into new paths, without rejoining which would induce a cycle.
+        In order to make the instance interesting, we will have as many paths / path groups starting from the source node, as follower groups.
+        Each follower will have its costs drawn from the cheap distribution on one of the path groups, and expensive on the rest.
+        SOME IMPORTANT THINGS TO NOTE:
+            - Layers means something different, than in the layer graph, i.e. it means the level at which a split occurs.
+                - e.g. an instance with 3 layers, has 3 "splits"
+                - additionally, num_per_layer will be the number of nodes between every split, between s and the first split,
+                and between the last split and t.
+            - That said, the input structure is very consistent with CompleteLayerGraph, however the budget does not matter for this graph.
+    '''
+    def __init__(self,
+                 instance_input):
+        self.source = 0
+        self.arc_list = []
+        self.arc_costs = []
+        self.num_layers = instance_input.num_layers
+        self.num_per_layer = instance_input.num_per_layer
+        self.nodes = 0 # worked out when nodes are added manually
+        self.sink = 0 # also worked out when self.nodes is set
+        self.followers = instance_input.followers
+        self.follower_groups = instance_input.follower_groups
+        # self.budget = instance_input.budget
+        self.high_mean = instance_input.high_mean
+        self.low_mean = instance_input.low_mean
+        self.standard_deviation = instance_input.standard_deviation
+        self.interdiction_delta = instance_input.interdiction_delta
+        self.set_name = instance_input.set_name
+        self.set_directory = instance_input.set_directory
+        self.G = None
+        self.full_graph_name = None # worked out when self.nodes is set
+        self.arc_costs = [[] for i in range(self.followers+1)] # Interdiction_costs are in last list / row.
+
+    def create_path_group(self, layer, root, split_n):
+        '''
+            - create a path group starting from node sink_node, which could be the sink node of the graph or a splitting node
+            - create the paths recursively at splits, splitting into split_n paths
+            - add arcs to arc list
+            - if layer == num_layers+1, stop
+        '''
+        # append all arcs to arc list for root to root + self.num_per_layer (straight line path)
+        for i in range(root, root+self.num_per_layer):
+            j = i+1 # needs to be adjusted for the splits
+            self.arc_list.append((i, j))
+        if layer <= self.num_layers:
+            create_path_group(self, layer+1, j, 1)
+        else: return
+
+    def populate_arc_list(self):
+        '''
+            - populate the arc list
+            - we will do this by adding to the nodes (and creating arcs along the way) along the path groups (splitting at every layer)
+            - we follow the flow: create a path group
+            - initialize graph, as well as self.nodes, self.full_graph_name, and self.sink, once the work is done
+        '''
+        create_path_group(self, layer, self.source, 1)
+        # self.nodes = 
+        # self.full_graph_name = self.set_name + "-" + str(self.nodes) + "_" + str(self.follower_groups)
+        # self.sink = self.nodes - 1
+
+
+class PseudoTree:
+    '''
+        This graph class is designed to meet the condition that G[N \ t] is a tree.
+        We construct our graph using the networkx built-in full_rary_tree function.
+    '''
+    def __init__(self,
+                 instance_input):
+        self.source = 0
+        self.arc_list = []
+        self.arc_costs = []
+        self.num_layers = instance_input.layers # layers includes root node but not sink
+        # every layer l (where 0 is the root node) has follower_groups ^ l nodes,
+        # so n is the sum of a geometric series sum_{l=0}{layers-1} follower_groups^l (+ 1 because we will add the sink node)
+        self.nodes = int(1 + (1-instance_input.follower_groups**(instance_input.layers)) / (1 - instance_input.follower_groups))
+        self.sink = self.nodes - 1
+        self.followers = instance_input.followers
+        self.follower_groups = instance_input.follower_groups
+        # self.budget = instance_input.budget
+        self.high_mean = instance_input.high_mean
+        self.low_mean = instance_input.low_mean
+        self.standard_deviation = instance_input.standard_deviation
+        self.interdiction_delta = instance_input.interdiction_delta
+        self.set_name = instance_input.set_name
+        self.set_directory = instance_input.set_directory
+        self.G = nx.full_rary_tree(self.follower_groups, self.nodes-1)
+        self.G.add_node(self.sink)
+        # layer structure is as follows, where l denotes the layer, and l=0 is the layer of the root/source node:
+        #   - l=0 includes node 0
+        #   - l=1 includes nodes 1, ...., follower_groups
+        #   - l=2 includes nodes follower_groups+1, ..., follower_groups+follower_groups^2
+        #   - l=l includes nodes sum_{i=0}^{l-1} follower_groups^i, ..., sum_{i=1}^{l} follower_groups^i
+        # to add edges from last layer to sink, we iterate over leaf nodes:
+        l = self.num_layers-1 # our formula is 0-indexed
+        start_node = int((1-self.follower_groups**(l)) / (1 - self.follower_groups)) # first node of last layer
+        end_node = int((self.follower_groups - self.follower_groups**(l+1)) / (1 - self.follower_groups)) # last node of last layer
+        for i in range(start_node, end_node+1):
+            self.G.add_edge(i, self.sink)
+        self.full_graph_name = self.set_name + "-" + str(self.nodes) + "_" + str(self.follower_groups)
+        self.arc_costs = [[] for i in range(self.followers+1)] # Interdiction_costs are in last list / row.
 
 
 def compound_generator(n_0, pr, subgraphs):
@@ -441,7 +611,8 @@ def compound_generator(n_0, pr, subgraphs):
 
     return G
 
-def layer_inputs():
+
+def complete_layer_inputs():
     inputs = []
     inputs.append(CompleteLayerInput())
     inputs.append(CompleteLayerInput(
@@ -527,8 +698,14 @@ def layer_inputs():
     return inputs
 
 if __name__ == "__main__":
-    inputs = layer_inputs()
-    G = CompleteLayerGraph(inputs[5])
-    G.populate_graph()
-    G = CompleteLayerGraph(inputs[6])
-    G.populate_graph()
+    # inputs = layer_inputs()
+    # G = CompleteLayerGraph(inputs[5])
+    # G.populate_graph()
+    # G = CompleteLayerGraph(inputs[6])
+    # G.populate_graph()
+
+    tree = PseudoTreeInput()
+    instance = PseudoTree(tree)
+    print(instance.G.nodes, instance.G.edges)
+    print(len(instance.G.nodes))
+    print(instance.nodes)

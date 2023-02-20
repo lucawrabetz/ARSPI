@@ -64,48 +64,69 @@ def arcs_for_current_layer(current_layer, next_layer, p):
 
     return new_arcs
 
-class CompleteLayerGraph:
+
+class CompleteLayerInput:
     def __init__(self,
-                 num_layers=2,
-                 num_per_layer=3,
-                 followers=2,
-                 follower_groups=2,
-                 budget=2,
+                 num_layers=5,
+                 num_per_layer=10,
+                 followers=5,
+                 follower_groups=3,
+                 budget=3,
                  high_mean=200,
                  low_mean=50,
                  standard_deviation=10,
-                 interdiction_delta=10,
+                 interdiction_delta=50,
                  set_name="graphs",
                  set_directory="dat/graphs"):
         '''
-        assign basic parameters
-            - assertions (input requirements):
-                - num_layers >= budget
-                - num_per_layer >= follower_groups
+            - Assertions (input sanity checks):
+                - num_layers >= budget;
+                - num_per_layer >= follower_groups;
+                - create a directory for the set_directory if it doesn't exist.
         '''
-        self.source = 0
-        self.arc_list = []
-        self.arc_costs = []
+        # Make assertions / sanity checks.
+        assert num_layers >= budget
+        assert num_per_layer >= follower_groups
+        if not os.path.isdir(set_directory):
+            os.mkdir(set_directory)
         self.num_layers = num_layers
         self.num_per_layer = num_per_layer
-        self.nodes = 2 + self.num_layers * self.num_per_layer
-        self.sink = self.nodes - 1
         self.followers = followers
         self.follower_groups = follower_groups
         self.budget = budget
-        assert num_layers >= budget
-        assert num_per_layer >= follower_groups
         self.high_mean = high_mean
         self.low_mean = low_mean
         self.standard_deviation = standard_deviation
         self.interdiction_delta = interdiction_delta
         self.set_name = set_name
         self.set_directory = set_directory
-        if not os.path.isdir(self.set_directory):
-            os.mkdir(self.set_directory)
+
+
+class CompleteLayerGraph:
+    def __init__(self,
+                 instance_input):
+        '''
+        assign basic parameters
+        '''
+        self.source = 0
+        self.arc_list = []
+        self.arc_costs = []
+        self.num_layers = instance_input.num_layers
+        self.num_per_layer = instance_input.num_per_layer
+        self.nodes = 2 + self.num_layers * self.num_per_layer
+        self.sink = self.nodes - 1
+        self.followers = instance_input.followers
+        self.follower_groups = instance_input.follower_groups
+        self.budget = instance_input.budget
+        self.high_mean = instance_input.high_mean
+        self.low_mean = instance_input.low_mean
+        self.standard_deviation = instance_input.standard_deviation
+        self.interdiction_delta = instance_input.interdiction_delta
+        self.set_name = instance_input.set_name
+        self.set_directory = instance_input.set_directory
         self.G = None
         self.full_graph_name = self.set_name + "-" + str(self.nodes) + "_" + str(self.follower_groups)
-        self.arc_costs = [[] for i in range(followers+1)] # interdiction_costs last list / row
+        self.arc_costs = [[] for i in range(self.followers+1)] # Interdiction_costs are in last list / row.
 
     def populate_arc_list(self):
         '''
@@ -137,17 +158,27 @@ class CompleteLayerGraph:
             - the rest of the arcs will have costs drawn from N(high_mean, standard_deviation) for the group
         '''
         cheap_matrix = [[0 for a in range(self.arcs)] for i in range(self.follower_groups)]
-        for layer in range(num_layers):
+        arcs_per_layer = self.num_per_layer ** 2
+        print("arcs", set(range(self.arcs)))
+        for layer in range(1, 1+self.budget):
+            # we are considering the first (node 0) and middle layers
+            # num_layers refers to the middle layers
+            if layer == 0:
+                first = 0
+                last = self.num_per_layer
+            elif layer == self.num_layers:
+                first = self.arcs - self.num_per_layer
+                last = self.arcs
+            else:
+                first = (layer - 1) * arcs_per_layer + self.num_per_layer
+                last = first + arcs_per_layer
             arc_set = set(range(first, last))
-
-
+            print("arc set for layer " + str(layer), arc_set)
             for group in range(self.follower_groups):
-                print(arc_set)
-                cheap_arcs = set(random.sample(arc_set, self.budget))
+                cheap_arcs = set(random.sample(arc_set, 1))
                 arc_set = arc_set - cheap_arcs
                 for arc in cheap_arcs:
                     cheap_matrix[group][arc] = 1
-        print(cheap_matrix)
         group_index = 0
         for i in range(self.followers):
             for a in range(self.arcs):
@@ -350,7 +381,7 @@ class CompoundGraph:
     def __init__(self, graphs):
         '''
         Join graphs at source and sink nodes
-            - graphs - list of erdos-renyi graph objects
+            - graphs - list of graph objects
         '''
         # assume all graphs in graphs have same n
         n_0 = graphs[0].n
@@ -395,9 +426,160 @@ class CompoundGraph:
         nx.write_edgelist(self.G, filename, data=True)
 
 
-# class CompleteLayerGraphSet:
-#    def __init__(self, )
+class Input:
+    def __init__(self,
+                 num_layers=1,
+                 num_per_layer=2,
+                 followers=1,
+                 follower_groups=1,
+                 # budget=3,
+                 high_mean=200,
+                 low_mean=50,
+                 standard_deviation=10,
+                 interdiction_delta=50,
+                 set_name="graphs",
+                 set_directory="dat/graphs"):
+        '''
+            - Assertions (input sanity checks):
+                - num_layers >= budget;
+                - num_per_layer >= follower_groups;
+                - create a directory for the set_directory if it doesn't exist.
+        '''
+        # Make assertions / sanity checks.
+        # assert num_layers >= budget
+        # assert num_per_layer >= follower_groups
+        if not os.path.isdir(set_directory):
+            os.mkdir(set_directory)
+        self.num_layers = num_layers
+        self.num_per_layer = num_per_layer
+        self.followers = followers
+        self.follower_groups = follower_groups
+        # self.budget = budget
+        self.high_mean = high_mean
+        self.low_mean = low_mean
+        self.standard_deviation = standard_deviation
+        self.interdiction_delta = interdiction_delta
+        self.set_name = set_name
+        self.set_directory = set_directory
 
+
+class PseudoTreeRaw:
+    '''
+        This graph class is designed to meet the condition that G[N \ t] is a tree.
+        To generate this graph, we'll build it path by path, adding paths to the source node that are always disjoint.
+        In order to make the tree interesting, we will also let the paths split into new paths, without rejoining which would induce a cycle.
+        In order to make the instance interesting, we will have as many paths / path groups starting from the source node, as follower groups.
+        Each follower will have its costs drawn from the cheap distribution on one of the path groups, and expensive on the rest.
+        SOME IMPORTANT THINGS TO NOTE:
+            - Layers means something different, than in the layer graph, i.e. it means the level at which a split occurs.
+                - e.g. an instance with 3 layers, has 3 "splits"
+                - additionally, num_per_layer will be the number of nodes between every split, between s and the first split,
+                and between the last split and t.
+            - That said, the input structure is very consistent with CompleteLayerGraph, however the budget does not matter for this graph.
+    '''
+    def __init__(self,
+                 instance_input):
+        self.source = 0
+        self.arc_list = []
+        self.arc_costs = []
+        self.num_layers = instance_input.num_layers
+        self.num_per_layer = instance_input.num_per_layer
+        self.nodes = 0 # worked out when nodes are added manually
+        self.sink = 0 # also worked out when self.nodes is set
+        self.followers = instance_input.followers
+        self.follower_groups = instance_input.follower_groups
+        # self.budget = instance_input.budget
+        self.high_mean = instance_input.high_mean
+        self.low_mean = instance_input.low_mean
+        self.standard_deviation = instance_input.standard_deviation
+        self.interdiction_delta = instance_input.interdiction_delta
+        self.set_name = instance_input.set_name
+        self.set_directory = instance_input.set_directory
+        self.G = None
+        self.full_graph_name = None # worked out when self.nodes is set
+        self.arc_costs = [[] for i in range(self.followers+1)] # Interdiction_costs are in last list / row.
+
+    def create_path_group(self, layer, root, split_n):
+        '''
+            - create a path group starting from node sink_node, which could be the sink node of the graph or a splitting node
+            - create the paths recursively at splits, splitting into split_n paths
+            - add arcs to arc list
+            - if layer == num_layers+1, stop
+        '''
+        # append all arcs to arc list for root to root + self.num_per_layer (straight line path)
+        for i in range(root, root+self.num_per_layer):
+            j = i+1 # needs to be adjusted for the splits
+            self.arc_list.append((i, j))
+        if layer <= self.num_layers:
+            create_path_group(self, layer+1, j, 1)
+        else: return
+
+    def populate_arc_list(self):
+        '''
+            - populate the arc list
+            - we will do this by adding to the nodes (and creating arcs along the way) along the path groups (splitting at every layer)
+            - we follow the flow: create a path group
+            - initialize graph, as well as self.nodes, self.full_graph_name, and self.sink, once the work is done
+        '''
+        create_path_group(self, layer, self.source, 1)
+        # self.nodes = 
+        # self.full_graph_name = self.set_name + "-" + str(self.nodes) + "_" + str(self.follower_groups)
+        # self.sink = self.nodes - 1
+
+
+class PseudoTree:
+    '''
+        This graph class is designed to meet the condition that G[N \ t] is a tree.
+        We construct our graph using the networkx built-in full_rary_tree function.
+    '''
+    def __init__(self,
+                 instance_input):
+        self.source = 0
+        self.arc_list = []
+        self.arc_costs = []
+        self.num_layers = instance_input.num_layers
+        self.num_per_layer = instance_input.num_per_layer
+        self.nodes = 0 # worked out when nodes are added manually
+        self.sink = 0 # also worked out when self.nodes is set
+        self.followers = instance_input.followers
+        self.follower_groups = instance_input.follower_groups
+        # self.budget = instance_input.budget
+        self.high_mean = instance_input.high_mean
+        self.low_mean = instance_input.low_mean
+        self.standard_deviation = instance_input.standard_deviation
+        self.interdiction_delta = instance_input.interdiction_delta
+        self.set_name = instance_input.set_name
+        self.set_directory = instance_input.set_directory
+        self.G = None
+        self.full_graph_name = None # worked out when self.nodes is set
+        self.arc_costs = [[] for i in range(self.followers+1)] # Interdiction_costs are in last list / row.
+
+    def create_path_group(self, layer, root, split_n):
+        '''
+            - create a path group starting from node sink_node, which could be the sink node of the graph or a splitting node
+            - create the paths recursively at splits, splitting into split_n paths
+            - add arcs to arc list
+            - if layer == num_layers+1, stop
+        '''
+        # append all arcs to arc list for root to root + self.num_per_layer (straight line path)
+        for i in range(root, root+self.num_per_layer):
+            j = i+1 # needs to be adjusted for the splits
+            self.arc_list.append((i, j))
+        if layer <= self.num_layers:
+            create_path_group(self, layer+1, j, 1)
+        else: return
+
+    def populate_arc_list(self):
+        '''
+            - populate the arc list
+            - we will do this by adding to the nodes (and creating arcs along the way) along the path groups (splitting at every layer)
+            - we follow the flow: create a path group
+            - initialize graph, as well as self.nodes, self.full_graph_name, and self.sink, once the work is done
+        '''
+        create_path_group(self, layer, self.source, 1)
+        # self.nodes = 
+        # self.full_graph_name = self.set_name + "-" + str(self.nodes) + "_" + str(self.follower_groups)
+        # self.sink = self.nodes - 1
 
 def compound_generator(n_0, pr, subgraphs):
     '''
@@ -411,6 +593,36 @@ def compound_generator(n_0, pr, subgraphs):
 
     return G
 
+
+def complete_layer_inputs():
+    inputs = []
+    inputs.append(CompleteLayerInput())
+    inputs.append(CompleteLayerInput(
+                 num_layers=10,
+                 num_per_layer=20,
+                 followers=5,
+                 follower_groups=3,
+                 budget=3,
+                 high_mean=200,
+                 low_mean=50,
+                 standard_deviation=10,
+                 interdiction_delta=50,
+                 set_name="graphs",
+                 set_directory="dat/graphs"))
+    inputs.append(CompleteLayerInput(
+                 num_layers=20,
+                 num_per_layer=25,
+                 followers=5,
+                 follower_groups=3,
+                 budget=3,
+                 high_mean=200,
+                 low_mean=50,
+                 standard_deviation=10,
+                 interdiction_delta=50,
+                 set_name="graphs",
+                 set_directory="dat/graphs"))
+    return inputs
+
 if __name__ == "__main__":
-    G = CompleteLayerGraph()
-    G.populate_graph()
+    G = nx.full_rary_tree(3, 13)
+    print(G.nodes, G.edges)
