@@ -1534,7 +1534,7 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
 }
 
 void AdaptiveSolution::extendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine) {
-    // Use an optimal solution found for k, to find a good solution for k+1
+    // Use an optimal solution found for k, to find a good solution for k+
     // Take the worst subset in the optimal partition and "split it in 2"
     // "Split it in two": solve that subset for k = 2
     // Return format will always be exactly the same as enum solve, just for k greater than one
