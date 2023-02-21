@@ -4,7 +4,7 @@ This repository contains the source code to solve the adaptive network interdict
 
 ## Public API
 
-All of the classes needed to read a problem instance and solve are declared in the [solvers header file](https://github.com/lucawrabetz/ARSPI/tree/master/solvers.h). The general structure to read an instance name (see the [test file](https://github.com/lucawrabetz/ARSPI/tree/master/solvers.h) for an example) is as follows:
+All of the classes needed to read a problem instance and solve are declared in the [solvers header file](https://github.com/lucawrabetz/ARSPI/tree/master/solvers.h). The general structure to read an instance name (see the [test file](https://github.com/lucawrabetz/ARSPI/tree/master/test.cpp) for an example) is as follows:
 * Read a Graph from a file, initialize an AdaptiveInstance, and read costs from a file (AdaptiveInstance::ReadCosts)
 * Pass the Graph and AdaptiveInstance to initialize one of the solvers
 * Run ::ConfigureSolver

@@ -1,5 +1,5 @@
-#ifndef M3_H
-#define M3_H
+#ifndef SOLVERS_H
+#define SOLVERS_H
 
 #include <climits>
 #include <utility>
