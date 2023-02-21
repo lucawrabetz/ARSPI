@@ -20,10 +20,10 @@ int main(int argc, char*argv[]) {
     const Graph G1 = Graph(filename1, n);
     AdaptiveInstance test1(p, k, budget, G1, directory, name1);
     test1.ReadCosts();
-    SetPartitioningModel sp_model = SetPartitioningModel(M, test1);
-    sp_model.configureModel(G1, test1);
-    sp_model.solve();
-    AdaptiveSolution sp_solution = sp_model.current_solution;
+    SetPartitioningModel sp = SetPartitioningModel(M, test1);
+    sp.ConfigureSolver(G1, test1);
+    sp.Solve();
+    AdaptiveSolution sp_solution = sp.current_solution();
     sp_solution.ComputeAllObjectives(G1, &test1);
     cout << "Instance 1, k = 1: " << sp_solution.worst_case_objective() << endl;
 
@@ -39,10 +39,10 @@ int main(int argc, char*argv[]) {
     for (int k=1; k<4; k++) {
         AdaptiveInstance test2(p, k, budget, G2, directory, name2);
         test2.ReadCosts();
-        SetPartitioningModel sp_model = SetPartitioningModel(M, test2);
-        sp_model.configureModel(G2, test2);
-        sp_model.solve();
-        AdaptiveSolution sp_solution = sp_model.current_solution;
+        SetPartitioningModel sp = SetPartitioningModel(M, test2);
+        sp.ConfigureSolver(G2, test2);
+        sp.Solve();
+        AdaptiveSolution sp_solution = sp.current_solution();
         sp_solution.ComputeAllObjectives(G2, &test2);
         cout << "Instance 2, k = " << k << ": " << sp_solution.worst_case_objective() << endl;
     }

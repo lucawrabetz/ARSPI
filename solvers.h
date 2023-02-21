@@ -76,7 +76,7 @@ public:
     AdaptiveInstance(int scenarios, int policies, int budget, const Graph &G, const string &directory, const string &name) :
         nodes_(G.nodes()), arcs_(G.arcs()), scenarios_(scenarios), policies_(policies), budget_(budget), directory_(directory), name_(name) {};
     // Copy constructor with a different U (only a subset of scenarios to keep).
-    AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios);
+    AdaptiveInstance(AdaptiveInstance* adaptive_instance, vector<int>& keep_scenarios);
     void ReadCosts();
     void PrintInstance(const Graph &G) const;
     int Dijkstra(int q, const Graph &G);
@@ -94,14 +94,14 @@ public:
     vector<int> scenario_index_map() const {return scenario_index_map_;} // ?
     // Setters.
     // No setter for scenarios_ - functionality reserved for change copy constructor.
-    void set_policies(int policies){policies_ = policies;} // USED IN EXTEND BY ONE HEURISTIC
+    void set_policies(int policies){policies_ = policies;}
 private:
     int nodes_, arcs_, scenarios_, policies_, budget_;
     const string directory_;
     const string name_;
     vector<vector<int>> arc_costs_;
     vector<int> interdiction_deltas_;
-    // Map of scenario indices (0-p-1) to their original indices, for when an AdaptiveInstance
+    // Map of scenario indices (indexed 0-(p-1)) to their original indices, for when an AdaptiveInstance
     // is copied but only keeps a subset of U (to be able to recover the original). An empty
     // map indicates an original instance.
     vector<int> scenario_index_map_;
@@ -132,8 +132,9 @@ class AdaptiveSolution
     // Full solution - i.e. a vector of k policy objects with extra info, including the partition.
 public:
     AdaptiveSolution() : policies_(0), scenarios_(0), partition_(vector<vector<int>>(0)), solution_(vector<Policy>(0)){};
+    AdaptiveSolution(bool unbounded) : unbounded_(unbounded){};
     AdaptiveSolution(int policies, int scenarios) : policies_(policies), scenarios_(scenarios), partition_(vector<vector<int>>(policies)), solution_(vector<Policy>(policies)) {};
-    AdaptiveSolution(int policies, int scenarios, const vector<vector<int>>& partition, const vector<Policy>& solution) : policies_(policies), scenarios_(scenarios), partition_(partition), solution_(solution) {};
+    AdaptiveSolution(int policies, int scenarios, const vector<vector<int>>& partition, const vector<Policy>& solution) : policies_(policies), scenarios_(scenarios), partition_(partition), solution_(solution), unbounded_(false) {};
     void LogSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy=true);
     void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index);
     void ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine=true);
@@ -151,6 +152,7 @@ public:
     void set_most_recent_solution_time(long most_recent_solution_time) {most_recent_solution_time_=most_recent_solution_time;}
     void set_solution_policy(int index, Policy policy) {solution_[index]=policy;}
     void set_partition(const vector<vector<int>>& partition) {partition_=partition;}
+    void set_unbounded(bool unbounded) {unbounded_=unbounded;}
     void add_to_partition(int index, int scenario) {partition_[index].push_back(scenario);}
 private:
     int policies_, scenarios_;
@@ -159,6 +161,7 @@ private:
     vector<Policy> solution_;
     vector<vector<int>> partition_;
     long most_recent_solution_time_;
+    bool unbounded_;
 };
 
 class RobustAlgoModel
@@ -199,25 +202,24 @@ class SetPartitioningModel
 {
     // Linear MIP for solving an adaptive instance
 public:
-    const int M; // set to 500 before initializing in constructor
-    int scenarios, policies, budget, nodes, arcs;
-
-    GRBEnv *m3_env;
-    GRBModel *m3_model;
-    GRBVar z; // objective dummy
-    vector<vector<GRBVar> > h_matrix; // set partitioning variables H[w][q]==1 if q in subset w 
-    vector<vector<vector<GRBVar> > > pi;     // decision variable (for every w, q, i)
-    vector<vector<vector<GRBVar> > > lambda; // decision variable (for every w, q, a)
-    vector<vector<GRBVar> > x;                   // interdiction variable (for every w, a)
-    vector<vector<float> > x_prime; // final solution, [0] is objective (for every w, a)
-    AdaptiveSolution current_solution; // final solution updated whenever ::solve() is called
-
-    SetPartitioningModel() : M(0), scenarios(0), policies(0), budget(0), nodes(0), arcs(0) {};
-    SetPartitioningModel(int M, AdaptiveInstance& m3) : 
-        M(M), scenarios(m3.scenarios()), policies(m3.policies()), budget(m3.budget()), nodes(m3.nodes()), arcs(m3.arcs()) {};
-
-    void configureModel(const Graph& G, AdaptiveInstance& m3);
-    void solve();
+    // vector<vector<float> > x_prime; // final solution, [0] is objective (for every w, a)
+    SetPartitioningModel() : big_m_(0), scenarios_(0), policies_(0), budget_(0), nodes_(0), arcs_(0) {};
+    SetPartitioningModel(int big_m, AdaptiveInstance& instance) : 
+        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()) {};
+    void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
+    void Solve();
+    AdaptiveSolution current_solution(){return current_solution_;}
+private:
+    const int big_m_;
+    int scenarios_, policies_, budget_, nodes_, arcs_;
+    GRBEnv *sp_env_;
+    GRBModel *sp_model_;
+    GRBVar z_var_; // Piecewise linearization dummy variable z.
+    vector<vector<GRBVar> > h_var_; // Set partitioning variables h[w][q]==1 if q in subset w.
+    vector<vector<GRBVar> > x_var_; // Interdiction variable (for every w, a).
+    vector<vector<vector<GRBVar> > > pi_var_; // Dual decision variable (for every w, q, i) pi.
+    vector<vector<vector<GRBVar> > > lambda_var_; // Dual decision variable (for every w, q, a) lambda.
+    AdaptiveSolution current_solution_; // Solution updated whenever ::Solve() is called.
 };
 
 // class BendersSub

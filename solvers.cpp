@@ -68,18 +68,18 @@ void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<i
     }
 }
 
-AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* m3, vector<int>& keep_scenarios) {
+AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* adaptive_instance, vector<int>& keep_scenarios) {
     // Copy constructor only keeping a subset of the scenarios
     scenarios_ = keep_scenarios.size();
-    policies_ = m3->policies_;
-    budget_ = m3->budget_;
-    nodes_ = m3->nodes_;
-    arcs_ = m3->arcs_;
-    interdiction_deltas_ = m3->interdiction_deltas_;
+    policies_ = adaptive_instance->policies_;
+    budget_ = adaptive_instance->budget_;
+    nodes_ = adaptive_instance->nodes_;
+    arcs_ = adaptive_instance->arcs_;
+    interdiction_deltas_ = adaptive_instance->interdiction_deltas_;
     arc_costs_ = vector<vector<int> >(scenarios_);
     scenario_index_map_ = vector<int>(scenarios_);
     for (int q=0; q<scenarios_; q++) {
-        arc_costs_[q] = m3->arc_costs_[keep_scenarios[q]];
+        arc_costs_[q] = adaptive_instance->arc_costs_[keep_scenarios[q]];
         scenario_index_map_[q] = keep_scenarios[q];
     }
 }
@@ -180,7 +180,7 @@ double AdaptiveInstance::ComputeObjectiveOfPolicyForScenario(const vector<double
 
 double AdaptiveInstance::ValidatePolicy(vector<double>& x_bar, const Graph& G)
 {
-    // Solve shortest path on interdicted graph - check objectives match
+    // Solve shortest path on interdicted graph - check objectives match.
     double objective = DBL_MAX;
     int sp_result;
     ApplyInterdiction(x_bar);
@@ -194,239 +194,169 @@ double AdaptiveInstance::ValidatePolicy(vector<double>& x_bar, const Graph& G)
     return objective;
 }
 
-// ------ MIP Formulations for M3 ------
-void SetPartitioningModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
+void SetPartitioningModel::ConfigureSolver(const Graph& G, AdaptiveInstance& instance) {
     try
     {
         // ------ Initialize solution to appropriate size -----
-        current_solution = AdaptiveSolution(m3.policies(), m3.scenarios());
-
+        current_solution_ = AdaptiveSolution(policies_, scenarios_);
         // ------ Initialize model and environment ------
-        m3_env = new GRBEnv();
-        m3_model = new GRBModel(*m3_env);
-        m3_model->getEnv().set(GRB_DoubleParam_TimeLimit, 3600); // set time limit to 1 hour
-        m3_model->set(GRB_IntParam_OutputFlag, 0);
-
+        sp_env_ = new GRBEnv();
+        sp_model_ = new GRBModel(*sp_env_);
+        sp_model_->getEnv().set(GRB_DoubleParam_TimeLimit, 3600); // set time limit to 1 hour
+        sp_model_->set(GRB_IntParam_OutputFlag, 0);
+        
         // ------ Decision variables ------
         vector<GRBVar> new_vector;
-
         // set partitioning variables
-        for (int w = 0; w < policies; ++w){
+        for (int w = 0; w < policies_; ++w){
             // cout << "in model constructor" << endl;
-            h_matrix.push_back(new_vector);
-            for (int q =0; q<scenarios; ++q){
+            h_var_.push_back(new_vector);
+            for (int q =0; q<scenarios_; ++q){
                 string varname = "H_" + to_string(w) + "_" + to_string(q);
-                h_matrix[w].push_back(m3_model->addVar(0, 1, 0, GRB_BINARY, varname));
+                h_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
             }
         }
-
         // interdiction policy on arcs 'x' - REMEMBER to check that this initialization works
-        for (int w = 0; w < policies; ++w) {
-            x.push_back(new_vector);
+        for (int w = 0; w < policies_; ++w) {
+            x_var_.push_back(new_vector);
 
-            for (int a = 0; a < arcs; a++)
+            for (int a = 0; a < arcs_; a++)
             {
                 string varname = "x_" + to_string(w) + "_" + to_string(a);
-                x[w].push_back(m3_model->addVar(0, 1, 0, GRB_BINARY, varname));
+                x_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
             }
         } 
-
-       
-
         // objective func dummy 'z'
-        z = m3_model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
-
+        z_var_ = sp_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
         vector<vector<GRBVar> > newnew_vector;
-        
         // post interdiction flow 'pi'
-        for (int w = 0; w<policies; ++w){
-            pi.push_back(newnew_vector);
-
-            for (int q = 0; q < scenarios; q++)
+        for (int w = 0; w<policies_; ++w){
+            pi_var_.push_back(newnew_vector);
+            for (int q = 0; q < scenarios_; q++)
             {
-                pi[w].push_back(new_vector);
-
-                for (int i = 0; i < nodes; i++)
+                pi_var_[w].push_back(new_vector);
+                for (int i = 0; i < nodes_; i++)
                 {
                     string varname = "pi_" + to_string(w) + "_" + to_string(q) + "_" + to_string(i);
-                    pi[w][q].push_back(m3_model->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+                    pi_var_[w][q].push_back(sp_model_->addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
                 }
             }
         }
-
         // arc variable 'lambda'
-        for (int w = 0; w<policies; ++w){
-            lambda.push_back(newnew_vector);
-
-            for (int q = 0; q < scenarios; q++)
+        for (int w = 0; w<policies_; ++w){
+            lambda_var_.push_back(newnew_vector);
+            for (int q = 0; q < scenarios_; q++)
             {
-                lambda[w].push_back(new_vector);
-                
-                for (int a = 0; a < arcs; a++)
+                lambda_var_[w].push_back(new_vector);
+                for (int a = 0; a < arcs_; a++)
                 {
                     string varname = "lambda_" + to_string(w) + "_"  + to_string(q) + "_" + to_string(a);
-                    lambda[w][q].push_back(m3_model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+                    lambda_var_[w][q].push_back(sp_model_->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
                 }
             }
         }
-
         // ------ Constraints ------
         // budget constraint
-        for (int w = 0; w<policies; ++w){
+        for (int w = 0; w<policies_; ++w){
             GRBLinExpr linexpr = 0;
-            for (int a = 0; a < arcs; a++)
+            for (int a = 0; a < arcs_; a++)
             {
-                linexpr += x[w][a];
+                linexpr += x_var_[w][a];
             }
-            m3_model->addConstr(linexpr <= budget);
+            sp_model_->addConstr(linexpr <= budget_);
         }
-
-
         // z constraints
-        for (int w = 0; w<policies; ++w){
-            for (int q = 0; q < scenarios; q++)
+        for (int w = 0; w<policies_; ++w){
+            for (int q = 0; q < scenarios_; q++)
             {
                 GRBLinExpr linexpr = 0;
-                linexpr += (pi[w][q][nodes - 1] - pi[w][q][0]); // b^\top pi (our b is simply a source-sink single unit of flow)
-                for (int a = 0; a < arcs; ++a)
+                linexpr += (pi_var_[w][q][nodes_ - 1] - pi_var_[w][q][0]); // b^\top pi (our b is simply a source-sink single unit of flow)
+                for (int a = 0; a < arcs_; ++a)
                 {
-                    linexpr += -lambda[w][q][a]; // u^\top \cdot lambda (our u is 1)
+                    linexpr += -lambda_var_[w][q][a]; // u^\top \cdot lambda (our u is 1)
                 }
 
-                linexpr += M * (1 - h_matrix[w][q]);
-                m3_model->addConstr(z <= linexpr);
+                linexpr += big_m_ * (1 - h_var_[w][q]);
+                sp_model_->addConstr(z_var_ <= linexpr);
             }
         }
-
         // main constraint for each arc
         int i;
         int j; // looping index 
         int jn; // node j
         int a;
-
-        for (int w = 0; w<policies; ++w){
-            for (int q=0; q<scenarios; ++q){
-                for (i=0; i<nodes; ++i){
+        for (int w = 0; w<policies_; ++w){
+            for (int q=0; q<scenarios_; ++q){
+                for (i=0; i<nodes_; ++i){
                     for (j=0; j<G.adjacency_list()[i].size(); ++j){
                         jn=G.adjacency_list()[i][j];
                         a=G.arc_index_hash()[i][j];
-
                         // add constraint
-                        m3_model->addConstr((pi[w][q][jn] - pi[w][q][i] - lambda[w][q][a]) <= m3.arc_costs()[q][a] + (m3.interdiction_deltas()[a] * x[w][a]));
+                        sp_model_->addConstr((pi_var_[w][q][jn] - pi_var_[w][q][i] - lambda_var_[w][q][a]) <= instance.arc_costs()[q][a] + (instance.interdiction_deltas()[a] * x_var_[w][a]));
                     }
                 }
             }
         }
-
-        // constraint blocking interdiction of connecting arcs
-        // for (int a=0; a<arcs; a++) {
-        //     if (G.arcs[a].sub == -1) {
-        //         for (int w=0; w<policies; w++) {
-        //             m3_model->addConstr(x[w][a] == 0);
-        //         }
-        //     }
-        // }
-
-        // for (int q = 0; q < p; ++q)
-        // {
-        //     linexpr = 0;
-        //     for (int a = 0; a < m; ++a)
-        //     {
-        //         i = G.arcs[a].i;
-        //         j = G.arcs[a].j;
-        //         m3_model->addConstr((pi[q][j] - pi[q][i] - lambda[q][a]) <= M2Instance->arc_costs[q][a] + (M2Instance->interdiction_deltas[a] * x[a]));
-        //     }
-        // }
-
         // set-partitioning constraint
-        for (int q=0; q<scenarios; ++q){
+        for (int q=0; q<scenarios_; ++q){
             GRBLinExpr linexpr=0;
-
-            for (int w=0; w<policies; ++w){
-                linexpr+=h_matrix[w][q];
+            for (int w=0; w<policies_; ++w){
+                linexpr+=h_var_[w][q];
             }
-
-            m3_model->addConstr(linexpr == 1);
+            sp_model_->addConstr(linexpr == 1);
         }
-
         // pi[0] = 0
-        for (int w=0; w<policies; ++w) {
-            for (int q = 0; q < scenarios; q++)
+        for (int w=0; w<policies_; ++w) {
+            for (int q = 0; q < scenarios_; q++)
             {
-                m3_model->addConstr(pi[w][q][0] == 0);
+                sp_model_->addConstr(pi_var_[w][q][0] == 0);
             }
         }
-        m3_model->update();
+        sp_model_->update();
     }
     catch (GRBException e)
     {
-        cout << "Gurobi error number [m3_model, constructor]: " << e.getErrorCode() << "\n";
+        cout << "Gurobi error number [sp_model_, constructor]: " << e.getErrorCode() << "\n";
         cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        cout << "Non-gurobi error during optimization [m3_model]"
+        cout << "Non-gurobi error during optimization [sp_model_]"
                   << "\n";
     }
 }
 
-void SetPartitioningModel::solve()
+void SetPartitioningModel::Solve()
 {
-    /*
-     * Returns vector of interdiction policy [0-m] (for every (w) for M3, plus an extra vector of size 2 as first element - [objective value, MIPGap])
-     * Note: the return values are stored in class variables so unassigned in some compexp runs 
-     */
-
+    // Updates current solution to latest solution, or sets unbounded to true.
+    // Compute objectives after solving with AdaptiveSolution::ComputeAllObjectives.
     try
     {
         long begin = getCurrentTime();
-        m3_model->optimize();
+        sp_model_->optimize();
         long time = getCurrentTime() - begin;
-        current_solution.set_most_recent_solution_time(time);
-
+        current_solution_.set_most_recent_solution_time(time);
         try {
-            // vector<float> objective_vec;
-            // objective_vec.push_back(m3_model->get(GRB_DoubleAttr_ObjVal));
-            // objective_vec.push_back(m3_model->get(GRB_DoubleAttr_MIPGap));
-            // x_prime.push_back(objective_vec);
-            current_solution.set_worst_case_objective(m3_model->get(GRB_DoubleAttr_ObjVal));
-
-            // cout << "policies: " << policies << endl;
-            // cout << "scenarios: " << scenarios << endl;
-            // cout << h_matrix.size() << endl;
-            // cout << h_matrix[0].size() << endl;
-            for (int w=0; w<policies; ++w){
+            for (int w=0; w<policies_; ++w){
                 vector<double> x_vector;
-                for (int a = 0; a < arcs; a++)
+                for (int a = 0; a < arcs_; a++)
                 {
-                    x_vector.push_back(x[w][a].get(GRB_DoubleAttr_X));
+                    x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
                 }
-                // Policy.objective taken care of after in ComputeAllObjectives
-                Policy temp_policy = Policy(arcs, -1, x_vector);
-                current_solution.set_solution_policy(w, temp_policy);
-
-                // cout << "w: " << w << endl;
-                // current_solution.partition[w].clear();
-                for (int q=0; q<scenarios; q++) {
-                    // cout << "q: " << q << endl;
-                    if (h_matrix[w][q].get(GRB_DoubleAttr_X) > 0.5) {
-                        current_solution.add_to_partition(w, q);
+                // Policy.objective taken care of later in ComputeAllObjectives.
+                Policy temp_policy = Policy(arcs_, -1, x_vector);
+                current_solution_.set_solution_policy(w, temp_policy);
+                for (int q=0; q<scenarios_; q++) {
+                    if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
+                        current_solution_.add_to_partition(w, q);
                     }
                 }
-                // x_prime.push_back(x_vector);
             }
         }
-
         catch (GRBException e) {
-
             if (e.getErrorCode() == 10005 || e.getErrorCode() == 10013) {
-                // in this case the error is because the model was unbounded
-                // set the optimality gap to -1 and we'll list as unbounded 
-                // put -infinity as objective value (the objectives are negative, min -z)
-                // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
-                vector<float> vec; 
-                vec.push_back(-GRB_INFINITY);
-                x_prime.push_back(vec);
+                // Error - model unbounded.
+                current_solution_.set_unbounded(true);
             }
 
             else {
@@ -1046,52 +976,45 @@ int max_int(int a, int b){
 }
 
 void AdaptiveSolution::ComputeAllObjectives(const Graph& G, AdaptiveInstance* m3) {
-//     // Populate / recompute the all_objectives vector based on interdiction policies and follower costs
-//     // Worst case objective for every policy will be assigned to solution[w].objective (in the Policy struct)
-//     // Note: this requires knowing the optimal partition, which is part of the AdaptiveSolution class.
-//     // THIS FUNCTION IS NOT STABLE.
-//     RobustAlgoModel static_model = RobustAlgoModel(m3);
-//     static_model.configureModel(G, m3);
-//     double worst_objective = DBL_MAX;
-// 
-//     for (int w=0; w < policies_; w++) {
-//         static_model.update(partition_[w]);
-//         Policy sol = static_model.Solve();
-//         double temp_objective = sol.objective();
-//         solution_[w].set_objective(temp_objective);
-//         if (temp_objective < worst_objective) {worst_objective = temp_objective;}
-//         static_model.reverse_update(partition_[w]);
-//     }
-//     worst_case_objective_ = worst_objective;
-    vector<vector<int>> new_partition(policies_);
-    vector<vector<double>> all_objectives(policies_, vector<double>(scenarios_));
-    double min_max_objective = DBL_MAX;
-    for (int q = 0; q < scenarios_; q++) {
-        double max_objective_this_scenario = DBL_MIN;
-        int subset_assignment = -1;
-        for (int w = 0; w < policies_; w++) {
-            double objective = m3->ComputeObjectiveOfPolicyForScenario(solution_[w].binary_policy(), G, q);
-            all_objectives[w][q] = objective;
-            // cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
-            if (objective > max_objective_this_scenario) {
-                subset_assignment = w;
-                max_objective_this_scenario = objective;
+// Populate / recompute the all_objectives vector based on interdiction policies and follower costs.
+// Worst case objective for every policy will be assigned to solution[w].objective (in the Policy struct).
+// Note: this requires knowing the optimal partition, which is part of the AdaptiveSolution class.
+// If the unbounded bool is true, it will set the objective to DBL_MAX.
+// THIS FUNCTION IS NOT STABLE.
+    if (unbounded_) {
+        worst_case_objective_ = DBL_MAX;
+    }
+    else {
+        vector<vector<int>> new_partition(policies_);
+        vector<vector<double>> all_objectives(policies_, vector<double>(scenarios_));
+        double min_max_objective = DBL_MAX;
+        for (int q = 0; q < scenarios_; q++) {
+            double max_objective_this_scenario = DBL_MIN;
+            int subset_assignment = -1;
+            for (int w = 0; w < policies_; w++) {
+                double objective = m3->ComputeObjectiveOfPolicyForScenario(solution_[w].binary_policy(), G, q);
+                all_objectives[w][q] = objective;
+                // cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
+                if (objective > max_objective_this_scenario) {
+                    subset_assignment = w;
+                    max_objective_this_scenario = objective;
+                }
             }
+            if (max_objective_this_scenario < min_max_objective) min_max_objective = max_objective_this_scenario;
+            new_partition[subset_assignment].push_back(q);
         }
-        if (max_objective_this_scenario < min_max_objective) min_max_objective = max_objective_this_scenario;
-        new_partition[subset_assignment].push_back(q);
-    }
-    int w = 0;
-    for (const vector<int>& subset : new_partition) {
-        double min_objective_this_policy = DBL_MAX;
-        for (int q : subset) {
-            if (min_objective_this_policy > all_objectives[w][q]) min_objective_this_policy = all_objectives[w][q];
+        int w = 0;
+        for (const vector<int>& subset : new_partition) {
+            double min_objective_this_policy = DBL_MAX;
+            for (int q : subset) {
+                if (min_objective_this_policy > all_objectives[w][q]) min_objective_this_policy = all_objectives[w][q];
+            }
+            solution_[w].set_objective(min_objective_this_policy);
+            w++;
         }
-        solution_[w].set_objective(min_objective_this_policy);
-        w++;
+        partition_=new_partition;
+        worst_case_objective_=min_max_objective;
     }
-    partition_=new_partition;
-    worst_case_objective_=min_max_objective;
 }
 
 void AdaptiveSolution::LogSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy) {
@@ -1352,9 +1275,9 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
 
         if (mip_subroutine) {
             SetPartitioningModel m3prime_model = SetPartitioningModel(500, m3_prime);
-            m3prime_model.configureModel(G, m3_prime);
-            m3prime_model.solve();
-            k_prime_solution = m3prime_model.current_solution;
+            m3prime_model.ConfigureSolver(G, m3_prime);
+            m3prime_model.Solve();
+            k_prime_solution = m3prime_model.current_solution();
             k_prime_solution.ComputeAllObjectives(G, &m3_prime);
         }
         else {

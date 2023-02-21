@@ -1,6 +1,6 @@
 # Adaptive Network Interdiction
 
-This repository contains the source code to solve the adaptive network interdiction problem (adaptive shortest-path interdiction). The code to generate test instances and handle experiments can be found in [scripts](https://github.com/lucawrabetz/ARSPI/tree/master/scripts).
+This repository contains the source code to solve the adaptive network interdiction problem (adaptive shortest-path interdiction) using multiple exact solvers (an MIP, an enumerative algorithm, and a Bender's Decomposition) as well as an approximation algorithm. The repository also contains code to generate more instances (jump to [here]() for instance types) - this code is in the directory [scripts](https://github.com/lucawrabetz/ARSPI/tree/master/scripts).
 
 ## Directory / file naming convention
 * All instances in dat - grouped into sets of instances 
