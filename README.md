@@ -2,6 +2,19 @@
 
 This repository contains the source code to solve the adaptive network interdiction problem (adaptive shortest-path interdiction) using multiple exact solvers (an MIP, an enumerative algorithm, and a Bender's Decomposition) as well as an approximation algorithm. The repository also contains code to generate more instances (jump to [here]() for instance types) - this code is in the directory [scripts](https://github.com/lucawrabetz/ARSPI/tree/master/scripts).
 
+## Public API
+
+All of the classes needed to read a problem instance and solve are declared in the [solvers header file](https://github.com/lucawrabetz/ARSPI/tree/master/solvers.h). The general structure to read an instance name (see the [test file](https://github.com/lucawrabetz/ARSPI/tree/master/solvers.h) for an example) is as follows:
+* Read a Graph from a file, initialize an AdaptiveInstance, and read costs from a file (AdaptiveInstance::ReadCosts)
+* Pass the Graph and AdaptiveInstance to initialize one of the solvers
+* Run ::ConfigureSolver
+* Run ::Solve
+
+That being said the solver classes SetPartitioningModel (the MIP), SetPartitioningBenders, (? ) have the following important public functionalities:
+* ::ConfigureSolver
+* ::Solve
+* ::current_solution
+
 ## Directory / file naming convention
 * All instances in dat - grouped into sets of instances 
     * A set has a setname <base_name>-<date_created(mm_dd_yy)>-<repeat_number>, an instance/graph is called <setname>-<n>_<10*pr>
