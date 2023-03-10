@@ -55,7 +55,7 @@ public:
     Graph(const string &filename, int nodes);
     void PrintArc(int a, int i, int index) const;
     void PrintGraph() const;
-    void PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<int>& interdiction_deltas) const;
+    void PrintGraphWithCosts(const vector<vector<int>>& costs, int interdiction_delta) const;
     // Getters.
     int nodes() const {return nodes_;}
     int arcs() const {return arcs_;}
@@ -90,7 +90,7 @@ public:
     int scenarios() const {return scenarios_;}
     int policies() const {return policies_;}
     int budget() const {return budget_;}
-    vector<int> interdiction_deltas() const {return interdiction_deltas_;} // ?
+    int interdiction_delta() const {return interdiction_delta_;} // ?
     vector<vector<int>> arc_costs() const {return arc_costs_;} // ?
     vector<int> scenario_index_map() const {return scenario_index_map_;} // ?
     // Setters.
@@ -98,10 +98,10 @@ public:
     void set_policies(int policies){policies_ = policies;}
 private:
     int nodes_, arcs_, scenarios_, policies_, budget_;
+    int interdiction_delta_;
     const string directory_;
     const string name_;
     vector<vector<int>> arc_costs_;
-    vector<int> interdiction_deltas_;
     // Map of scenario indices (indexed 0-(p-1)) to their original indices, for when an AdaptiveInstance
     // is copied but only keeps a subset of U (to be able to recover the original). An empty
     // map indicates an original instance.

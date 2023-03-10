@@ -51,7 +51,7 @@ void Graph::PrintGraph() const {
     }
 }
 
-void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<int>& interdiction_deltas) const {
+void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs,int interdiction_delta) const {
     // Print arc summary of a graph with costs.
     cout << "n: " << nodes_ << ", m: " << arcs_ << endl;
     int scenarios = costs.size();
@@ -63,7 +63,7 @@ void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs, const vector<i
             for (int q = 0; q < scenarios; q++) {
                 cout << q + 1 << ": " << costs[q][a] << ", ";
             }
-            cout << "interdiction delta: " << interdiction_deltas[a] << endl;
+            cout << "interdiction delta: " << interdiction_delta << endl;
         }
     }
 }
@@ -75,7 +75,7 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* adaptive_instance, vector<i
     budget_ = adaptive_instance->budget_;
     nodes_ = adaptive_instance->nodes_;
     arcs_ = adaptive_instance->arcs_;
-    interdiction_deltas_ = adaptive_instance->interdiction_deltas_;
+    interdiction_delta_ = adaptive_instance->interdiction_delta_;
     arc_costs_ = vector<vector<int> >(scenarios_);
     scenario_index_map_ = vector<int>(scenarios_);
     for (int q=0; q<scenarios_; q++) {
@@ -85,7 +85,7 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* adaptive_instance, vector<i
 }
 
 void AdaptiveInstance::ReadCosts() {
-    // Read arc and interdiction costs from a file
+    // Read arc costs and interdiction delta from a file.
     string line, word;
     string filename = directory_ + name_ + "-costs_" + to_string(scenarios_) + ".csv";
     ifstream myfile(filename);
@@ -106,7 +106,7 @@ void AdaptiveInstance::ReadCosts() {
                 arc_costs_.push_back(v);
             }
             else {
-                interdiction_deltas_ = v;
+                interdiction_delta_ = v[0];
             }
             ++q;
         }
@@ -117,7 +117,7 @@ void AdaptiveInstance::PrintInstance(const Graph& G) const {
     // Print Summary of Problem Instance
     cout << "k: " << policies_ << endl;
     cout << "p: " << scenarios_ << endl;
-    G.PrintGraphWithCosts(arc_costs_, interdiction_deltas_);
+    G.PrintGraphWithCosts(arc_costs_, interdiction_delta_);
 }
 
 int AdaptiveInstance::Dijkstra(int q, const Graph& G)
@@ -161,10 +161,10 @@ void AdaptiveInstance::ApplyInterdiction(const vector<double>& x_bar, bool rev){
         if (x_bar[a]==1) {
             for (int q=0; q<scenarios_; ++q){
                 if (rev){
-                    arc_costs_[q][a]-=interdiction_deltas_[a];
+                    arc_costs_[q][a]-=interdiction_delta_;
                 }
                 else {
-                    arc_costs_[q][a]+=interdiction_deltas_[a];
+                    arc_costs_[q][a]+=interdiction_delta_;
                 }
             }
         }
@@ -292,7 +292,7 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G, AdaptiveInstance& ins
                         jn=G.adjacency_list()[i][j];
                         a=G.arc_index_hash()[i][j];
                         // add constraint
-                        sp_model_->addConstr((pi_var_[w][q][jn] - pi_var_[w][q][i] - lambda_var_[w][q][a]) <= instance.arc_costs()[q][a] + (instance.interdiction_deltas()[a] * x_var_[w][a]));
+                        sp_model_->addConstr((pi_var_[w][q][jn] - pi_var_[w][q][i] - lambda_var_[w][q][a]) <= instance.arc_costs()[q][a] + (instance.interdiction_delta() * x_var_[w][a]));
                     }
                 }
             }
@@ -1044,7 +1044,7 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
                 int next = G.adjacency_list()[i][j];
                 int a = G.arc_index_hash()[i][j];
 
-                GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= m3.arc_costs()[q][a] + (m3.interdiction_deltas()[a]*x[a]);
+                GRBTempConstr constraint = pi[q][next] - pi[q][i] - lambda[q][a] <= m3.arc_costs()[q][a] + (m3.interdiction_delta()*x[a]);
                 dual_constraints[q].push_back(constraint);
             }
         }
