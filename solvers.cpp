@@ -377,26 +377,174 @@ void SetPartitioningModel::Solve()
     }
 }
 
-// // ------ Bender's Schemes for M2 ------
-// BendersSub::BendersSub(){n=0; m=0; p=0;}
+// void BendersSubProblem::ConfigureSolver(const Graph& G, AdaptiveInstance& instance) {
+//     // Initialize p x k SubEnvironments and SubModels
+//     //
+//     // Initialize Decision Variables:
+//     // z[w][q] and y[w][q].
+//     //
+//     // Constraints:
+//     // Lower Bound on z[w][q] (these are held in an array of constraints so we
+//     // can directly modify them as the cost function changes based on interdiction).
+//     //
+//     // Flow Constraints:
+// }
 // 
-// BendersSub::BendersSub(AdaptiveInstance *the_M2Instance)
+// void BendersSubProblem::Update(vector<int> x_hat) {
+//     // Loop through all submodels and change coefficients of interdicted arcs.
+//     // Qs:
+//     // Can we do this without looking at every arc every time when we write it?
+//     // Maybe pass the previous x_hat as well, and reverse it then only do the 
+//     // interdicted arcs. Or always reverse it after it has been used.
+// }
+
+// (? not sure) BendersSubProblem::Solve(int counter) {
+//     // Optimize submodel and return shortest paths.
+//     // Qs:
+//     // What is best to return here? Are we using dijsktra to solve shortest path
+//     // problems? Would it be worth it to write a clean shortest path solution
+//     // struct or class like the AdaptiveSolution or Policy ones?
+// }
+
+void BendersCallback::ConfigureIndividualSubModel(const Graph& G, AdaptiveInstance& instance, int w, int q) {
+
+}
+
+void BendersCallback::ConfigureSubModels(const Graph& G, AdaptiveInstance& instance) {
+    cout << "BendersCallback::ConfigureSubModels" << endl;
+    // Initialize environments and models (k x p).
+    for (int w=0; w<policies_; ++w) {
+        for (int q=0; q<scenarios_; ++q) {
+
+        }
+    }
+    
+    // Configure each individual submodel.
+    for (int w=0; w<policies_; ++w) {
+        for (int q=0; q<scenarios_; ++q) {
+            ConfigureIndividualSubModel(G, instance, w, q);
+        }
+    }
+}
+
+void BendersCallback::callback() {
+    if (where == GRB_CB_MIPSOL) {
+        if (upper_bound_ - lower_bound_ >= epsilon_) {
+            // Solve subproblem for every follower for every interdiction policy
+            // in current x.
+
+            if (lower_bound_ < temp_bound_) {
+                // Update lower bound.
+                lower_bound_ = temp_bound_;
+                // Set x_prime (final interdiction solution) to solution
+                // that was passed to the subproblem.
+            }
+
+            // Add lazy cut to master problem for every new path (of which there
+            // are p*k).
+        
+        }
+    }
+}
+
+// SetPartitioningBenders::SetPartitioningBenders(AdaptiveInstance& instance) {}
+
+void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& instance) {
+    try {
+        // Initialize Model/Environment, and Solution.
+        current_solution_ = AdaptiveSolution(policies_, scenarios_);
+        benders_env_ = new GRBEnv();
+        benders_model_ = new GRBModel(*benders_env_); 
+        benders_model_->getEnv().set(GRB_DoubleParam_TimeLimit, 3600); // set time limit to 1 hour
+        benders_model_->set(GRB_IntParam_OutputFlag, 0);
+        
+        // Add Decision variables - z, h(w)(q) and x(w).
+        z_var_ = benders_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, "z");
+        h_var_ = vector<vector<GRBVar> >(policies_, vector<GRBVar>(scenarios_));
+        for (int w = 0; w < policies_; ++w) {
+            for (int q = 0; q < scenarios_; ++q) {
+                string varname = "H_" + to_string(w) + "_" + to_string(q);
+                h_var_[w][q] = benders_model_->addVar(0, 1, 0, GRB_BINARY, varname);
+            }
+        }
+        x_var_ = vector<vector<GRBVar> >(policies_, vector<GRBVar>(arcs_));
+        for (int w = 0; w < policies_; ++w) {
+            for (int a = 0; a < arcs_; a++)
+            {
+                string varname = "x_" + to_string(w) + "_" + to_string(a);
+                x_var_[w][a] = benders_model_->addVar(0, 1, 0, GRB_BINARY, varname);
+            }
+        } 
+        // Add Budget Constraints.
+        for (int w = 0; w<policies_; ++w){
+            GRBLinExpr linexpr = 0;
+            for (int a = 0; a < arcs_; a++)
+            {
+                linexpr += x_var_[w][a];
+            }
+            benders_model_->addConstr(linexpr <= budget_);
+        }
+        // Add Set Partitioning Constraint.
+        for (int q=0; q<scenarios_; ++q){
+            GRBLinExpr linexpr=0;
+            for (int w=0; w<policies_; ++w){
+                linexpr+=h_var_[w][q];
+            }
+            benders_model_->addConstr(linexpr == 1);
+        }
+        // Initialize Separation Object, passing decision variables.
+        callback_ = BendersCallback(instance, h_var_, x_var_);
+        callback_.ConfigureSubModels(G, instance);
+        // Add first Benders Cut "Manually" to immediately have an upper bound.
+        // callback_.SolveSubModels();
+        for (int w = 0; w < policies_; ++w) {
+            for (int q = 0; q < scenarios_; ++q) {
+                GRBLinExpr linexpr = 0;
+                for (int a = 0; a < arcs_; ++a) {
+                    // add first cut - need to define stuff in callback object - costs and paths, need to decide how to do update first
+                }
+            }
+        }
+        benders_model_->write("benders.lp");
+
+    }
+    catch (GRBException e)
+    {
+        cout << "Gurobi error number [Benders ConfigureModel]: " << e.getErrorCode() << "\n";
+        cout << e.getMessage() << "\n";
+    }
+    catch (...)
+    {
+        cout << "Non-gurobi error during optimization [Benders ConfigureModel]"
+                  << "\n";
+    }
+}
+
+void SetPartitioningBenders::Solve() {
+    cout << "SetPartitioningBenders::Solve" << endl;
+}
+
+ 
+
+// ------------------- OLD BENDERS ---------------------
+
+// BendersSub::BendersSub(AdaptiveInstance *adaptive_instance)
 // {
 //     // ------ Initialize Basic Parameters ------
-//     n = the_M2Instance->n;
-//     m = the_M2Instance->m;
-//     p = the_M2Instance->p;
+//     n = adaptive_instance->nodes();
+//     m = adaptive_instance->arcs();
+//     p = adaptive_instance->scenarios();
 // 
 //     // ------ Initialize d and c costs ------
 //     for (int a = 0; a < m; a++)
 //     {
-//         d.push_back(the_M2Instance->interdiction_deltas[a]);
+//         d.push_back(adaptive_instance->interdiction_deltas[a]);
 //     }
 // 
 //     for (int q = 0; q < p; q++)
 //     {
-//         c.push_back(the_M2Instance->arc_costs[q]);
-//         c_bar.push_back(the_M2Instance->arc_costs[q]);
+//         c.push_back(adaptive_instance->arc_costs[q]);
+//         c_bar.push_back(adaptive_instance->arc_costs[q]);
 //     }
 // 
 //     // ------ Initialize Environment and Model ------
@@ -457,12 +605,12 @@ void SetPartitioningModel::Solve()
 //             }
 //             for (int a = 0; a < m; a++)
 //             {
-//                 if (the_M2Instance->G.arcs[a].i == i)
+//                 if (adaptive_instance->G.arcs[a].i == i)
 //                 {
 //                     // this arc is an outgoing arc for i
 //                     linexpr += (1) * y[q][a];
 //                 }
-//                 else if (the_M2Instance->G.arcs[a].j == i)
+//                 else if (adaptive_instance->G.arcs[a].j == i)
 //                 {
 //                     // this arc is an outgoing arc for i
 //                     linexpr += (-1) * y[q][a];
@@ -552,27 +700,27 @@ void SetPartitioningModel::Solve()
 //     p = 0;
 // }
 // 
-// BendersSeparation::BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, AdaptiveInstance *the_M2Instance)
+// BendersSeparation::BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, AdaptiveInstance *adaptive_instance)
 // {
 //     try
 //     {
 //         // ------ Initialize Basic Parameters ------
-//         n = the_M2Instance->n;
-//         m = the_M2Instance->m;
-//         p = the_M2Instance->p;
+//         n = adaptive_instance->n;
+//         m = adaptive_instance->m;
+//         p = adaptive_instance->p;
 // 
 //         // ------ Initialize Submodel ------
-//         subproblem = BendersSub(the_M2Instance);
+//         subproblem = BendersSub(adaptive_instance);
 // 
 //         // ------ Initialize d and c costs ------
 //         for (int a = 0; a < m; a++)
 //         {
-//             d.push_back(the_M2Instance->interdiction_deltas[a]);
+//             d.push_back(adaptive_instance->interdiction_deltas[a]);
 //         }
 // 
 //         for (int q = 0; q < p; q++)
 //         {
-//             c.push_back(the_M2Instance->arc_costs[q]);
+//             c.push_back(adaptive_instance->arc_costs[q]);
 //         }
 // 
 //         // ------ Initialize Variable containers ------
@@ -671,14 +819,14 @@ void SetPartitioningModel::Solve()
 //     }
 // }
 // 
-// M2Benders::M2Benders(){int n, m=0;}
+// SetPartitioningBenders::SetPartitioningBenders(){int n, m=0;}
 // 
-// M2Benders::M2Benders(AdaptiveInstance *the_M2Instance)
+// SetPartitioningBenders::SetPartitioningBenders(AdaptiveInstance *adaptive_instance)
 // {
 //     try
 //     {
 //         // ------ Assign Instance ------
-//         M2Instance = the_M2Instance;
+//         adaptive_instance_ = adaptive_instance;
 // 
 //         // ------ Initialize model and environment ------
 //         M2Bendersenv = new GRBEnv();
@@ -689,12 +837,12 @@ void SetPartitioningModel::Solve()
 //         M2Bendersmodel->set(GRB_DoubleParam_TimeLimit, 3600);
 // 
 //         // ------ Variables and int parameters ------
-//         n = M2Instance->n;
-//         m = M2Instance->m;
-//         p = M2Instance->p;
-//         r_0 = M2Instance->r_0;
-//         instance_name = M2Instance->instance_name;
-//         setname = M2Instance->setname;
+//         n = adaptive_instance_->n;
+//         m = adaptive_instance_->m;
+//         p = adaptive_instance_->p;
+//         r_0 = adaptive_instance_->r_0;
+//         instance_name = adaptive_instance_->instance_name;
+//         setname = adaptive_instance_->setname;
 // 
 //         // ------ Decision variables ------
 //         string varname;
@@ -711,7 +859,7 @@ void SetPartitioningModel::Solve()
 //         zeta = M2Bendersmodel->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
 // 
 //         // ------ Initialize separation/callback object ------
-//         sep = BendersSeparation(zeta, x, M2Instance);
+//         sep = BendersSeparation(zeta, x, adaptive_instance_);
 // 
 //         // ------ Only Budget Constraints Initially! ------
 //         linexpr = 0;
@@ -750,7 +898,7 @@ void SetPartitioningModel::Solve()
 //     }
 // }
 // 
-// vector<float> M2Benders::solve()
+// vector<float> SetPartitioningBenders::Solve()
 // {
 //     /*
 //      * Return vector returns the objective value [0] and interdiction policy [1-m+1]
@@ -834,6 +982,8 @@ void SetPartitioningModel::Solve()
 //     }
 //     return sep.xprime;
 // }
+
+// ------------------- OLD BENDERS ---------------------
 
 vector<int> initKappa(int p, int k) {
     // initialize partition vector based on total number in set (p) and exact number of partitions required
