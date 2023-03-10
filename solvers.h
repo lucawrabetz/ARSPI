@@ -138,7 +138,7 @@ public:
     AdaptiveSolution(int policies, int scenarios, const vector<vector<int>>& partition, const vector<Policy>& solution) : policies_(policies), scenarios_(scenarios), partition_(partition), solution_(solution), unbounded_(false) {};
     void LogSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy=true);
     void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index);
-    void ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine=true);
+    void ExtendByOne(AdaptiveInstance& m3, const Graph& G, GRBEnv* env, bool mip_subroutine=true);
     void ComputeAllObjectives(const Graph& G, AdaptiveInstance* m3);
     // Getters.
     int policies() const {return policies_;}
@@ -174,7 +174,7 @@ public:
     // This data will stay throughout the algorithm (all decision variables and non-negativity constraints):
     int scenarios, budget, nodes, arcs; 
 
-    GRBEnv *algo_env;
+    GRBEnv *env_;
     GRBModel *algo_model;
 
     GRBVar z;
@@ -189,8 +189,8 @@ public:
 
     RobustAlgoModel() : 
         scenarios(0), budget(0), nodes(0), arcs(0) {};
-    RobustAlgoModel(AdaptiveInstance& m3) : 
-        scenarios(m3.scenarios()), budget(m3.budget()), nodes(m3.nodes()), arcs(m3.arcs()) {};
+    RobustAlgoModel(AdaptiveInstance& m3, GRBEnv* env) : 
+        scenarios(m3.scenarios()), budget(m3.budget()), nodes(m3.nodes()), arcs(m3.arcs()), env_(env) {};
 
     void configureModel(const Graph& G, AdaptiveInstance& m3);
     void update(vector<int>& subset);
@@ -204,15 +204,15 @@ class SetPartitioningModel
     // Set Partitioning MIP for solving an adaptive instance.
 public:
     SetPartitioningModel() : big_m_(0), scenarios_(0), policies_(0), budget_(0), nodes_(0), arcs_(0) {};
-    SetPartitioningModel(int big_m, AdaptiveInstance& instance) : 
-        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()) {};
+    SetPartitioningModel(int big_m, AdaptiveInstance& instance, GRBEnv* env) : 
+        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), env_(env) {};
     void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
     void Solve();
     AdaptiveSolution current_solution() const {return current_solution_;}
 private:
     const int big_m_;
     int scenarios_, policies_, budget_, nodes_, arcs_;
-    GRBEnv *sp_env_;
+    GRBEnv *env_;
     GRBModel *sp_model_;
     GRBVar z_var_; // Piecewise linearization dummy variable z.
     vector<vector<GRBVar> > h_var_; // Set partitioning variables h[w][q]==1 if q in subset w.
@@ -228,6 +228,7 @@ public:
     double upper_bound_, lower_bound_, epsilon_, temp_bound_;
     vector<vector<GRBVar> > h_var_; // Decision variable for every (w, q), set partitioning variable.
     vector<vector<GRBVar> > x_var_; // Decision variable for every (w, a), interdiction policies.
+    // vector<vector<>> submodels_; // Submodel for every (w, q) policy and scenario.
     BendersCallback() : scenarios_(0), policies_(0), budget_(0), nodes_(0), arcs_(0) {};
     BendersCallback(AdaptiveInstance& instance, vector<vector<GRBVar> >& h_var, vector<vector<GRBVar> >& x_var) : scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), h_var_(h_var), x_var_(x_var), interdiction_delta_() {cout << "BendersCallback::BendersCallback" << endl;};
     void ConfigureSubModels(const Graph& G, AdaptiveInstance& instance);
@@ -244,8 +245,8 @@ private:
 class SetPartitioningBenders {
 public:
     SetPartitioningBenders() : big_m_(0), scenarios_(0), policies_(0), budget_(0), nodes_(0), arcs_(0) {};
-    SetPartitioningBenders (int big_m, AdaptiveInstance& instance) : 
-        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()) {cout << "SetPartitioningBenders::SetPartitioningBenders" << endl;};
+    SetPartitioningBenders (int big_m, AdaptiveInstance& instance, GRBEnv* env) : 
+        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), env_(env) {cout << "SetPartitioningBenders::SetPartitioningBenders" << endl;};
     void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
     void Solve();
     AdaptiveSolution current_solution() const {return current_solution_;}
@@ -253,7 +254,7 @@ private:
     const int big_m_;
     int nodes_, arcs_, budget_, scenarios_, policies_;
     AdaptiveSolution current_solution_;
-    GRBEnv* benders_env_;
+    GRBEnv* env_;
     GRBModel* benders_model_;
     GRBVar z_var_; // Decision variable - objective function.
     vector<vector<GRBVar> > h_var_; // Decision variable for every (w, q), set partitioning variable.
@@ -367,13 +368,13 @@ private:
 
 pair<vector<vector<int> >, vector<Policy> > mergeEnumSols(pair<vector<vector<int> >, vector<Policy> >& sol1, pair<vector<vector<int> >, vector<Policy> >& sol2, int w_index);
 
-AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G);
+AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env);
 
 double UpdateCurrentObjectiveGivenSolution(AdaptiveSolution* current_solution, AdaptiveInstance* m3, const Graph& G);
 
-vector<Policy> InitializeKPolicies(AdaptiveInstance* m3, const Graph& G);
+vector<Policy> InitializeKPolicies(AdaptiveInstance* m3, const Graph& G, GRBEnv* env);
 
-AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G);
+AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G, GRBEnv* env);
 
 // pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const Graph& G);
 

@@ -200,9 +200,7 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G, AdaptiveInstance& ins
         // ------ Initialize solution to appropriate size -----
         current_solution_ = AdaptiveSolution(policies_, scenarios_);
         // ------ Initialize model and environment ------
-        sp_env_ = new GRBEnv();
-        sp_model_ = new GRBModel(*sp_env_);
-        sp_model_->getEnv().set(GRB_DoubleParam_TimeLimit, 3600); // set time limit to 1 hour
+        sp_model_ = new GRBModel(*env_);
         sp_model_->set(GRB_IntParam_OutputFlag, 0);
         
         // ------ Decision variables ------
@@ -453,9 +451,7 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& i
     try {
         // Initialize Model/Environment, and Solution.
         current_solution_ = AdaptiveSolution(policies_, scenarios_);
-        benders_env_ = new GRBEnv();
-        benders_model_ = new GRBModel(*benders_env_); 
-        benders_model_->getEnv().set(GRB_DoubleParam_TimeLimit, 3600); // set time limit to 1 hour
+        benders_model_ = new GRBModel(env_); 
         benders_model_->set(GRB_IntParam_OutputFlag, 0);
         
         // Add Decision variables - z, h(w)(q) and x(w).
@@ -998,8 +994,7 @@ vector<int> initKappa(int p, int k) {
 
 void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
     // Construct baseline model with no constraints
-    algo_env = new GRBEnv();
-    algo_model = new GRBModel(*algo_env);
+    algo_model = new GRBModel(env_);
     algo_model->set(GRB_IntParam_OutputFlag, 0);
 
     // Decision Variables
@@ -1288,7 +1283,7 @@ pair<vector<vector<int> >, vector<Policy> > MergeEnumSols(pair<vector<vector<int
     return sol1;
 }
 
-AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
+AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env){
     // Pass a AdaptiveInstance and solve using enumeration algorithm
     // Enumeration maintained as in Orlov paper
     // OLD Return: pair:
@@ -1312,7 +1307,7 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
     // initialize static robust model
     try {
         long begin = getCurrentTime();
-        RobustAlgoModel static_robust = RobustAlgoModel(m3);
+        RobustAlgoModel static_robust = RobustAlgoModel(m3, env);
         static_robust.configureModel(G, m3);
 
         // objective value maintained here (and optimal partition)
@@ -1381,7 +1376,7 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G){
     return dummy_solution;
 }
 
-void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mip_subroutine) {
+void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, GRBEnv* env, bool mip_subroutine) {
     // Use an optimal solution found for k, to find a good solution for k+1
     // Take the worst subset in the optimal partition and "split it in 2"
     // "Split it in two": solve that subset for k = 2
@@ -1424,14 +1419,14 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
         AdaptiveSolution k_prime_solution;
 
         if (mip_subroutine) {
-            SetPartitioningModel m3prime_model = SetPartitioningModel(500, m3_prime);
+            SetPartitioningModel m3prime_model = SetPartitioningModel(500, m3_prime, env);
             m3prime_model.ConfigureSolver(G, m3_prime);
             m3prime_model.Solve();
             k_prime_solution = m3prime_model.current_solution();
             k_prime_solution.ComputeAllObjectives(G, &m3_prime);
         }
         else {
-            k_prime_solution = enumSolve(m3_prime, G);
+            k_prime_solution = enumSolve(m3_prime, G, env);
         }
 
         // auto final_solution = MergeEnumSols(k_solution, k_prime_solution, min_subset_windex);
@@ -1442,10 +1437,10 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, bool mi
     }
 }
 
-vector<Policy> InitializeKPolicies(AdaptiveInstance* m3, const Graph& G) {
+vector<Policy> InitializeKPolicies(AdaptiveInstance* m3, const Graph& G, GRBEnv* env) {
     unordered_set<int> centers;
     int k = m3->policies();
-    RobustAlgoModel spi_model = RobustAlgoModel(*m3);
+    RobustAlgoModel spi_model = RobustAlgoModel(*m3, env);
     vector<Policy> initial_policies;
     spi_model.configureModel(G, *m3);
     // Choose the first scenario to solve SPI for arbitrarily (we'll just use index 0).
@@ -1501,19 +1496,19 @@ double UpdateCurrentObjectiveGivenSolution(AdaptiveSolution* current_solution, A
     return min_max_objective;
 }
 
-AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G) {
+AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G, GRBEnv* env) {
     // Use the KMeans - Style heuristic to solve an Adaptive Instance.
     long begin = getCurrentTime();
     double z_previous = DBL_MIN;
     // Initialize the first solution - solving the non-robust model for k followers chosen at random
     // out of p.
-    vector<Policy> first_solution = InitializeKPolicies(m3, G);
+    vector<Policy> first_solution = InitializeKPolicies(m3, G, env);
     vector<vector<int>> partitions(m3->policies());
     AdaptiveSolution current_solution = AdaptiveSolution(m3->policies(), m3->scenarios(), partitions, first_solution);
     // Update the objective (and initialize the current objective).
     current_solution.ComputeAllObjectives(G, m3);
     double z_current = current_solution.worst_case_objective();
-    RobustAlgoModel static_model = RobustAlgoModel(*m3);
+    RobustAlgoModel static_model = RobustAlgoModel(*m3, env);
     static_model.configureModel(G, *m3);
     int counter = 0;
     while (z_previous < z_current) {
