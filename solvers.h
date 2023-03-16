@@ -53,21 +53,26 @@ class Graph
     // Class to read an arc list from a file and represent it as linked lists.
 public:
     Graph(const string &filename, int nodes);
-    void PrintArc(int a, int i, int index) const;
-    void PrintGraph() const;
+    void PrintArc(int a, int i, int index, bool rev=false) const;
+    void PrintGraph(bool rev=false) const;
     void PrintGraphWithCosts(const vector<vector<int>>& costs, int interdiction_delta) const;
     // Getters.
     int nodes() const {return nodes_;}
     int arcs() const {return arcs_;}
     vector<vector<int>> arc_index_hash() const {return arc_index_hash_;}
     vector<vector<int>> adjacency_list() const {return adjacency_list_;}
+    vector<vector<int>> rev_arc_index_hash() const {return rev_arc_index_hash_;}
+    vector<vector<int>> rev_adjacency_list() const {return rev_adjacency_list_;}
 private:
     int nodes_, arcs_;
     const string filename_;
-    // Arc vectors - adjacency_list_ is a linked list representation of the arc list.
+    // Arc vectors - adjacency_list_ is a linked list representation of the arc list (outgoing arcs).
     // The vector arc_index_hash_ directly maps every arc j = adjacency_list_[i] to its index a in 0,...,m-1.
     vector<vector<int>> arc_index_hash_; 
     vector<vector<int>> adjacency_list_;
+    // Similarly, rev_adjacency_list and rev_arc_index_hash represent a linked list representation of incoming arcs.
+    vector<vector<int>> rev_arc_index_hash_;
+    vector<vector<int>> rev_adjacency_list_;
 };
 
 class AdaptiveInstance
@@ -228,32 +233,33 @@ public:
     double upper_bound_, lower_bound_, epsilon_, temp_bound_;
     vector<vector<GRBVar> > h_var_; // Decision variable for every (w, q), set partitioning variable.
     vector<vector<GRBVar> > x_var_; // Decision variable for every (w, a), interdiction policies.
-    // vector<vector<>> submodels_; // Submodel for every (w, q) policy and scenario.
+    GRBEnv* env_;
+    vector<vector<GRBModel*>> submodels_; // Submodel for every (w, q) policy and scenario.
+    vector<vector<vector<GRBVar>>> y_var_; // Shortest path decision variable for every (w, q, a).
     BendersCallback() : scenarios_(0), policies_(0), budget_(0), nodes_(0), arcs_(0) {};
-    BendersCallback(AdaptiveInstance& instance, vector<vector<GRBVar> >& h_var, vector<vector<GRBVar> >& x_var) : scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), h_var_(h_var), x_var_(x_var), interdiction_delta_() {cout << "BendersCallback::BendersCallback" << endl;};
+    BendersCallback(AdaptiveInstance& instance, vector<vector<GRBVar> >& h_var, vector<vector<GRBVar> >& x_var, GRBEnv* env) : scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), h_var_(h_var), x_var_(x_var), interdiction_delta_(), env_(env) {cout << "BendersCallback::BendersCallback" << endl;};
     void ConfigureSubModels(const Graph& G, AdaptiveInstance& instance);
+    void SolveSubModels();
 protected:
     void callback();
 private:
+    AdaptiveSolution current_solution_;
     int nodes_, arcs_, budget_, scenarios_, policies_;
     int interdiction_delta_;
     void ConfigureIndividualSubModel(const Graph& G, AdaptiveInstance& instance, int w, int q);
-    void UpdateSubmodels();
-    void SolveSubModels();
+    void UpdateSubModels();
 };
 
 class SetPartitioningBenders {
 public:
     SetPartitioningBenders() : big_m_(0), scenarios_(0), policies_(0), budget_(0), nodes_(0), arcs_(0) {};
     SetPartitioningBenders (int big_m, AdaptiveInstance& instance, GRBEnv* env) : 
-        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), env_(env) {cout << "SetPartitioningBenders::SetPartitioningBenders" << endl;};
+        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), interdiction_delta_(instance.interdiction_delta()), env_(env) {cout << "SetPartitioningBenders::SetPartitioningBenders" << endl;};
     void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
     void Solve();
-    AdaptiveSolution current_solution() const {return current_solution_;}
 private:
     const int big_m_;
-    int nodes_, arcs_, budget_, scenarios_, policies_;
-    AdaptiveSolution current_solution_;
+    int nodes_, arcs_, budget_, scenarios_, policies_, interdiction_delta_;
     GRBEnv* env_;
     GRBModel* benders_model_;
     GRBVar z_var_; // Decision variable - objective function.

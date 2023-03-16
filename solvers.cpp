@@ -16,6 +16,8 @@ Graph::Graph(const string &filename, int nodes) {
         int arc_index = 0;
         arc_index_hash_ = vector<vector<int>>(nodes_);
         adjacency_list_ = vector<vector<int>>(nodes_);
+        rev_arc_index_hash_ = vector<vector<int>>(nodes_);
+        rev_adjacency_list_ = vector<vector<int>>(nodes_);
         while (getline(myfile, line)) {
             int counter = 0;
             int i, j;
@@ -27,18 +29,26 @@ Graph::Graph(const string &filename, int nodes) {
             }
             adjacency_list_[i].push_back(j);
             arc_index_hash_[i].push_back(arc_index);
+            rev_adjacency_list_[j].push_back(i);
+            rev_arc_index_hash_[j].push_back(arc_index);
             ++arc_index; 
         }
         arcs_ = arc_index;
     }
 }
 
-void Graph::PrintArc(int a, int i, int index) const {
-    int j = adjacency_list_[i][index]; 
-    cout << a << ": (" << i << ", " << j << ")";
+void Graph::PrintArc(int a, int i, int index, bool rev) const {
+    if (rev) {
+        int j = rev_adjacency_list_[i][index]; 
+        cout << a << ": (" << j << ", " << i << ")";
+    }
+    else {
+        int j = adjacency_list_[i][index]; 
+        cout << a << ": (" << i << ", " << j << ")";
+    }
 }
 
-void Graph::PrintGraph() const {
+void Graph::PrintGraph(bool rev) const {
     // Print arc summary of a graph.
     cout << "n: " << nodes_ << ", m: " << arcs_ << endl;
     for (int i = 0; i < nodes_; i++) {
@@ -49,6 +59,18 @@ void Graph::PrintGraph() const {
             index++;
         }
     }
+    // In case you want to test that adjacency_list_ and rev_adjacency_list_ match for sanity. 
+    if (rev) {
+        for (int i = 0; i < nodes_; i++) {
+            int index = 0;
+            for (int a : rev_arc_index_hash_[i]) {
+                PrintArc(a, i, index, true);
+                cout << endl;
+                index++;
+            }
+        }
+    }    
+
 }
 
 void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs,int interdiction_delta) const {
@@ -403,20 +425,42 @@ void SetPartitioningModel::Solve()
 //     // problems? Would it be worth it to write a clean shortest path solution
 //     // struct or class like the AdaptiveSolution or Policy ones?
 // }
-
 void BendersCallback::ConfigureIndividualSubModel(const Graph& G, AdaptiveInstance& instance, int w, int q) {
-
+    // Add decision variables.
+    for (int a=0; a<arcs_; ++a) {
+         string varname = "y_" + to_string(w) + "_" + to_string(q) + "_" + to_string(a);
+         y_var_[w][q][a] = submodels_[w][q]->addVar(0, 1, instance.arc_costs()[w][a], GRB_CONTINUOUS, varname);
+    }
+    // Add flow constraints.
+    for (int i=0; i<nodes_; ++i) {
+        if (G.arc_index_hash()[i].empty() &&
+                G.rev_arc_index_hash()[i].empty()) continue;
+        GRBLinExpr lhs = 0;
+        int rhs = 0;
+        if (i == 0) rhs = 1; 
+        else if (i == nodes_-1) rhs = -1;
+        for (int index=0; index<G.arc_index_hash()[i].size(); index++) {
+            int a = G.arc_index_hash()[i][index];
+            lhs += (1) * y_var_[w][q][a];
+        }
+        for (int index=0; index<G.rev_arc_index_hash()[i].size(); index++) {
+            int a = G.rev_arc_index_hash()[i][index];
+            lhs += (-1) * y_var_[w][q][a];
+        }
+        submodels_[w][q]->addConstr(lhs == rhs);
+    }
 }
 
 void BendersCallback::ConfigureSubModels(const Graph& G, AdaptiveInstance& instance) {
     cout << "BendersCallback::ConfigureSubModels" << endl;
-    // Initialize environments and models (k x p).
-    for (int w=0; w<policies_; ++w) {
-        for (int q=0; q<scenarios_; ++q) {
-
-        }
-    }
-    
+    // Initialize current_solution_.
+    current_solution_ = AdaptiveSolution(policies_, scenarios_);
+    // Initialize models (k x p).
+    submodels_ = vector<vector<GRBModel*>>(policies_,
+            vector<GRBModel*>(scenarios_, new GRBModel(*env_)));
+    y_var_ = vector<vector<vector<GRBVar>>>(policies_, 
+            vector<vector<GRBVar>>(scenarios_, 
+                vector<GRBVar>(arcs_)));
     // Configure each individual submodel.
     for (int w=0; w<policies_; ++w) {
         for (int q=0; q<scenarios_; ++q) {
@@ -425,17 +469,29 @@ void BendersCallback::ConfigureSubModels(const Graph& G, AdaptiveInstance& insta
     }
 }
 
+void BendersCallback::UpdateSubModels() {
+
+}
+
+void BendersCallback::SolveSubModels() {
+    for (int w=0; w<policies_; ++w) {
+        for (int q=0; q<policies_; ++q) {
+            submodels_[w][q]->optimize();
+        }
+    }
+}
+
 void BendersCallback::callback() {
     if (where == GRB_CB_MIPSOL) {
         if (upper_bound_ - lower_bound_ >= epsilon_) {
-            // Solve subproblem for every follower for every interdiction policy
-            // in current x.
+            // Solve all subproblems with x_var_.
+            UpdateSubModels();
+            SolveSubModels();
 
             if (lower_bound_ < temp_bound_) {
                 // Update lower bound.
                 lower_bound_ = temp_bound_;
-                // Set x_prime (final interdiction solution) to solution
-                // that was passed to the subproblem.
+                // Set x_prime (final interdiction solution) to solution x_var_ that was used for the subproblems.
             }
 
             // Add lazy cut to master problem for every new path (of which there
@@ -449,8 +505,7 @@ void BendersCallback::callback() {
 
 void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& instance) {
     try {
-        // Initialize Model/Environment, and Solution.
-        current_solution_ = AdaptiveSolution(policies_, scenarios_);
+        // Initialize Model/Environment.
         benders_model_ = new GRBModel(env_); 
         benders_model_->set(GRB_IntParam_OutputFlag, 0);
         
@@ -489,16 +544,20 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& i
             benders_model_->addConstr(linexpr == 1);
         }
         // Initialize Separation Object, passing decision variables.
-        callback_ = BendersCallback(instance, h_var_, x_var_);
+        callback_ = BendersCallback(instance, h_var_, x_var_, env_);
         callback_.ConfigureSubModels(G, instance);
         // Add first Benders Cut "Manually" to immediately have an upper bound.
-        // callback_.SolveSubModels();
+        callback_.SolveSubModels();
         for (int w = 0; w < policies_; ++w) {
             for (int q = 0; q < scenarios_; ++q) {
-                GRBLinExpr linexpr = 0;
+                GRBLinExpr lhs = z_var_ - big_m_ * (1-h_var_[w][q]);
+                GRBLinExpr rhs = 0;
                 for (int a = 0; a < arcs_; ++a) {
-                    // add first cut - need to define stuff in callback object - costs and paths, need to decide how to do update first
+                    if (callback_.y_var_[w][q][a].get(GRB_DoubleAttr_X) > 0.5) {
+                        rhs += instance.arc_costs()[q][a] + interdiction_delta_*x_var_[w][a];
+                    }
                 }
+                benders_model_->addConstr(lhs <= rhs);
             }
         }
         benders_model_->write("benders.lp");
