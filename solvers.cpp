@@ -70,7 +70,6 @@ void Graph::PrintGraph(bool rev) const {
             }
         }
     }    
-
 }
 
 void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs,int interdiction_delta) const {
@@ -106,15 +105,15 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* adaptive_instance, vector<i
     }
 }
 
-void AdaptiveInstance::ReadCosts() {
-    // Read arc costs and interdiction delta from a file.
+void AdaptiveInstance::ReadCosts(int interdiction_delta) {
+    // Read arc costs from a file.
+    interdiction_delta_=interdiction_delta;
     string line, word;
     string filename = directory_ + name_ + "-costs_" + to_string(scenarios_) + ".csv";
     ifstream myfile(filename);
     int q = 0;
     vector<int> v;
     int cost;
-
     if (myfile.is_open())
     {
         while(getline(myfile, line)) {
@@ -126,9 +125,6 @@ void AdaptiveInstance::ReadCosts() {
             }
             if (q < scenarios_) {
                 arc_costs_.push_back(v);
-            }
-            else {
-                interdiction_delta_ = v[0];
             }
             ++q;
         }

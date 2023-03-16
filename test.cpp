@@ -14,12 +14,13 @@ int main(int argc, char*argv[]) {
     int p = 1;
     int k = 1;
     int budget = 1;
-    int M = 50;
+    int M = 100;
+    int interdiction_delta = 10;
     const string name1 = set_name + "-" + to_string(n) + "_" + to_string(k_0);
     const string filename1 = directory + name1 + ".txt";
     const Graph G1 = Graph(filename1, n);
     AdaptiveInstance test1(p, k, budget, G1, directory, name1);
-    test1.ReadCosts();
+    test1.ReadCosts(interdiction_delta);
     GRBEnv* env = new GRBEnv(); // Initialize global gurobi environment.
     env->set(GRB_DoubleParam_TimeLimit, 3600); // Set time limit to 1 hour.
     SetPartitioningBenders benders = SetPartitioningBenders(M, test1, env);

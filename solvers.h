@@ -83,7 +83,7 @@ public:
         nodes_(G.nodes()), arcs_(G.arcs()), scenarios_(scenarios), policies_(policies), budget_(budget), directory_(directory), name_(name) {};
     // Copy constructor with a different U (only a subset of scenarios to keep).
     AdaptiveInstance(AdaptiveInstance* adaptive_instance, vector<int>& keep_scenarios);
-    void ReadCosts();
+    void ReadCosts(int interdiction_delta);
     void PrintInstance(const Graph &G) const;
     int Dijkstra(int q, const Graph &G);
     void ApplyInterdiction(const vector<double>& x_bar, bool rev=false);
@@ -95,9 +95,9 @@ public:
     int scenarios() const {return scenarios_;}
     int policies() const {return policies_;}
     int budget() const {return budget_;}
-    int interdiction_delta() const {return interdiction_delta_;} // ?
+    int interdiction_delta() const {return interdiction_delta_;}
     vector<vector<int>> arc_costs() const {return arc_costs_;} // ?
-    vector<int> scenario_index_map() const {return scenario_index_map_;} // ?
+    vector<int> scenario_index_map() const {return scenario_index_map_;}
     // Setters.
     // No setter for scenarios_ - functionality reserved for change copy constructor.
     void set_policies(int policies){policies_ = policies;}
