@@ -96,6 +96,7 @@ public:
     int policies() const {return policies_;}
     int budget() const {return budget_;}
     int interdiction_delta() const {return interdiction_delta_;}
+    string name() const {return name_;}
     vector<vector<int>> arc_costs() const {return arc_costs_;} // ?
     vector<int> scenario_index_map() const {return scenario_index_map_;}
     // Setters.
@@ -230,31 +231,37 @@ private:
 class BendersCallback : public GRBCallback
 {
 public:
-    double upper_bound_, lower_bound_, epsilon_, temp_bound_;
+    double epsilon_ = 0.000001;
+    double upper_bound_, lower_bound_;
+    GRBVar z_var_; // Decision variable, objective val.
     vector<vector<GRBVar> > h_var_; // Decision variable for every (w, q), set partitioning variable.
     vector<vector<GRBVar> > x_var_; // Decision variable for every (w, a), interdiction policies.
     GRBEnv* env_;
     vector<vector<GRBModel*>> submodels_; // Submodel for every (w, q) policy and scenario.
     vector<vector<vector<GRBVar>>> y_var_; // Shortest path decision variable for every (w, q, a).
-    BendersCallback() : scenarios_(0), policies_(0), budget_(0), nodes_(0), arcs_(0) {};
-    BendersCallback(AdaptiveInstance& instance, vector<vector<GRBVar> >& h_var, vector<vector<GRBVar> >& x_var, GRBEnv* env) : scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), h_var_(h_var), x_var_(x_var), interdiction_delta_(), env_(env) {cout << "BendersCallback::BendersCallback" << endl;};
+    BendersCallback() : scenarios_(0), policies_(0), budget_(0), nodes_(0), arcs_(0), big_m_(0), lazy_cuts_rounds_(0), lazy_cuts_total_(0) {};
+    BendersCallback(AdaptiveInstance& instance, int big_m, GRBVar z_var, vector<vector<GRBVar> >& h_var, vector<vector<GRBVar> >& x_var, GRBEnv* env) : upper_bound_(DBL_MAX), lower_bound_(DBL_MIN), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), big_m_(big_m), z_var_(z_var), h_var_(h_var), x_var_(x_var), interdiction_delta_(instance.interdiction_delta()), arc_costs_(instance.arc_costs()), env_(env) {cout << "BendersCallback::BendersCallback" << endl; cout << lazy_cuts_rounds_ << lazy_cuts_total_ << endl;};
     void ConfigureSubModels(const Graph& G, AdaptiveInstance& instance);
     void SolveSubModels();
 protected:
     void callback();
 private:
     AdaptiveSolution current_solution_;
+    int big_m_;
     int nodes_, arcs_, budget_, scenarios_, policies_;
+    int lazy_cuts_rounds_, lazy_cuts_total_;
+    vector<vector<int>> arc_costs_;
     int interdiction_delta_;
     void ConfigureIndividualSubModel(const Graph& G, AdaptiveInstance& instance, int w, int q);
-    void UpdateSubModels();
+    void UpdateSubModels(bool rev=false);
+    void AddLazyCuts();
 };
 
 class SetPartitioningBenders {
 public:
     SetPartitioningBenders() : big_m_(0), scenarios_(0), policies_(0), budget_(0), nodes_(0), arcs_(0) {};
     SetPartitioningBenders (int big_m, AdaptiveInstance& instance, GRBEnv* env) : 
-        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), interdiction_delta_(instance.interdiction_delta()), env_(env) {cout << "SetPartitioningBenders::SetPartitioningBenders" << endl;};
+        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), interdiction_delta_(instance.interdiction_delta()), env_(env), callback_(BendersCallback(instance, big_m_, z_var_, h_var_, x_var_, env_)) {cout << "SetPartitioningBenders::SetPartitioningBenders" << endl;};
     void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
     void Solve();
 private:

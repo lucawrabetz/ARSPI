@@ -5,6 +5,43 @@
 // Every test prints the algorithm and instance name1 followed by "PASS" if it passes, "FAIL" if it fails.
 // CURRENT: just running sp, need to add enum and benders.
 
+enum ASPI_Solver {
+    MIP,
+    BENDERS,
+    ENUMERATION,
+    GREEDY
+};
+
+void SolveAndPrint(const Graph& G,
+        AdaptiveInstance& instance,
+        vector<ASPI_Solver>& solvers,
+        GRBEnv* env,
+        int big_m) {
+    for (const auto& solver : solvers) {
+        switch (solver) {
+            case MIP:
+                {
+                SetPartitioningModel sp = SetPartitioningModel(big_m, instance, env);
+                sp.ConfigureSolver(G, instance);
+                sp.Solve();
+                AdaptiveSolution sp_solution = sp.current_solution();
+                // sp_solution.ComputeAllObjectives(G, &instance);
+                cout << "Instance " << instance.name() << 
+                    ", k = " << instance.policies() <<
+                    ", budget = " << instance.budget() <<
+                    ", objective: " << sp_solution.worst_case_objective() << endl;
+                    // ", objective: " << sp. << endl;
+                }
+            case BENDERS:
+                {
+                SetPartitioningBenders benders = SetPartitioningBenders(big_m, instance, env);
+                benders.ConfigureSolver(G, instance);
+                benders.Solve();
+                }
+        }
+    }
+}
+
 int main(int argc, char*argv[]) {
     const string set_name = "tests";
     const string directory = "dat/" + set_name + "/";
@@ -23,10 +60,12 @@ int main(int argc, char*argv[]) {
     test1.ReadCosts(interdiction_delta);
     GRBEnv* env = new GRBEnv(); // Initialize global gurobi environment.
     env->set(GRB_DoubleParam_TimeLimit, 3600); // Set time limit to 1 hour.
-    SetPartitioningBenders benders = SetPartitioningBenders(M, test1, env);
-    benders.ConfigureSolver(G1, test1);
+    // SetPartitioningBenders benders = SetPartitioningBenders(M, test1, env);
+    // benders.ConfigureSolver(G1, test1);
     // benders.Solve();
 
+    vector<ASPI_Solver> solvers{MIP, BENDERS};
+    SolveAndPrint(G1, test1, solvers, env, M);
     // SetPartitioningModel sp = SetPartitioningModel(M, test1, env);
     // sp.ConfigureSolver(G1, test1);
     // sp.Solve();

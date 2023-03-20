@@ -360,6 +360,7 @@ void SetPartitioningModel::Solve()
                     x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
                 }
                 // Policy.objective taken care of later in ComputeAllObjectives.
+                cout << "OBJECTIVE FROM INSIDE: " << sp_model_->get(GRB_DoubleAttr_ObjVal) << endl;
                 Policy temp_policy = Policy(arcs_, -1, x_vector);
                 current_solution_.set_solution_policy(w, temp_policy);
                 for (int q=0; q<scenarios_; q++) {
@@ -422,6 +423,7 @@ void SetPartitioningModel::Solve()
 //     // struct or class like the AdaptiveSolution or Policy ones?
 // }
 void BendersCallback::ConfigureIndividualSubModel(const Graph& G, AdaptiveInstance& instance, int w, int q) {
+    submodels_[w][q]->set(GRB_IntParam_OutputFlag, 0);
     // Add decision variables.
     for (int a=0; a<arcs_; ++a) {
          string varname = "y_" + to_string(w) + "_" + to_string(q) + "_" + to_string(a);
@@ -465,8 +467,25 @@ void BendersCallback::ConfigureSubModels(const Graph& G, AdaptiveInstance& insta
     }
 }
 
-void BendersCallback::UpdateSubModels() {
-
+void BendersCallback::UpdateSubModels(bool rev) {
+    for (int w=0; w<policies_; ++w) {
+        for (int a=0; a<arcs_; ++a) {
+            if (getSolution(x_var_[w][a]) > 0.5) {
+                for (int q=0; q<scenarios_; ++q) {
+                    int current_cost = y_var_[w][q][a].get(GRB_DoubleAttr_Obj);
+                    if (rev) {
+                        int new_cost = current_cost - interdiction_delta_;
+                        y_var_[w][q][a].set(GRB_DoubleAttr_Obj, new_cost);
+                    }
+                    else {
+                        int new_cost = current_cost + interdiction_delta_;
+                        y_var_[w][q][a].set(GRB_DoubleAttr_Obj, new_cost);
+                    }
+                    submodels_[w][q]->write("updatetest.lp");
+                }
+            }
+        }
+    }
 }
 
 void BendersCallback::SolveSubModels() {
@@ -477,22 +496,61 @@ void BendersCallback::SolveSubModels() {
     }
 }
 
+void BendersCallback::AddLazyCuts() {
+    for (int w=0; w<policies_; ++w) {
+        for (int q=0; q<scenarios_; ++q) {
+            GRBLinExpr lhs = z_var_ - big_m_ * (1-h_var_[w][q]);
+            GRBLinExpr rhs = 0;
+            for (int a = 0; a < arcs_; ++a) {
+                if (y_var_[w][q][a].get(GRB_DoubleAttr_X) > 0.5) {
+                    rhs += arc_costs_[q][a] + interdiction_delta_*x_var_[w][a];
+                }
+            }
+            addLazy(lhs <= rhs);
+            lazy_cuts_total_++;
+        }
+    }
+    lazy_cuts_rounds_++;
+}
+
 void BendersCallback::callback() {
     if (where == GRB_CB_MIPSOL) {
+        cout << "BendersCallback::Callback" << endl;
+        cout << "upper_bound_: " << upper_bound_ << endl;
+        cout << "lower_bound_: " << lower_bound_ << endl;
+        cout << "z: " << getSolution(z_var_) << endl;
+        // Updating upper_bound_ here, as this feels equivalent to the "end" of the loop iteration in the paper algorithm (i.e. gurobi just resolved the master problem, which happens at the end of an iteration in the algorithm, right after we do the subproblems and add cuts, and right before we update the upper bound.
+        upper_bound_ = getSolution(z_var_);
         if (upper_bound_ - lower_bound_ >= epsilon_) {
-            // Solve all subproblems with x_var_.
             UpdateSubModels();
             SolveSubModels();
-
-            if (lower_bound_ < temp_bound_) {
-                // Update lower bound.
-                lower_bound_ = temp_bound_;
-                // Set x_prime (final interdiction solution) to solution x_var_ that was used for the subproblems.
+            // temp_bound is equal to:
+            // min_q max_w submodel_objective[w][q]
+            double temp_bound = DBL_MAX;
+            for (int q=0; q<scenarios_; ++q) {
+                double incumbent = DBL_MIN;
+                for (int w=0; w<policies_; ++w) {
+                    double obj = submodels_[w][q]->get(GRB_DoubleAttr_ObjVal);
+                    if (obj > incumbent) incumbent = obj;
+                }
+                if (incumbent < temp_bound) temp_bound = incumbent;
             }
-
-            // Add lazy cut to master problem for every new path (of which there
-            // are p*k).
-        
+            if (lower_bound_ < temp_bound) {
+                // Update lower bound.
+                lower_bound_ = temp_bound;
+                // Set current_solution_/x_prime (final interdiction solution) to solution x_var_ that was used for the subproblems.
+                for (int w=0; w<policies_; ++w) {
+                    vector<double> binary_policy(arcs_);
+                    for (int a=0; a<arcs_; ++a) {
+                        if (getSolution(x_var_[w][a]) > 0.5) binary_policy[a] = 1;
+                        else binary_policy[a] = 0;
+                    }
+                    Policy policy(arcs_, 0, binary_policy);
+                    current_solution_.set_solution_policy(w, policy);
+                }
+            }
+            AddLazyCuts();
+            UpdateSubModels(true);
         }
     }
 }
@@ -504,7 +562,7 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& i
         // Initialize Model/Environment.
         benders_model_ = new GRBModel(env_); 
         benders_model_->set(GRB_IntParam_OutputFlag, 0);
-        
+        benders_model_->getEnv().set(GRB_IntParam_LazyConstraints, 1);
         // Add Decision variables - z, h(w)(q) and x(w).
         z_var_ = benders_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, "z");
         h_var_ = vector<vector<GRBVar> >(policies_, vector<GRBVar>(scenarios_));
@@ -540,7 +598,7 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& i
             benders_model_->addConstr(linexpr == 1);
         }
         // Initialize Separation Object, passing decision variables.
-        callback_ = BendersCallback(instance, h_var_, x_var_, env_);
+        // callback_ = BendersCallback(instance, big_m_, z_var_, h_var_, x_var_, env_);
         callback_.ConfigureSubModels(G, instance);
         // Add first Benders Cut "Manually" to immediately have an upper bound.
         callback_.SolveSubModels();
@@ -573,6 +631,14 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& i
 
 void SetPartitioningBenders::Solve() {
     cout << "SetPartitioningBenders::Solve" << endl;
+    try {
+        benders_model_->setCallback(&callback_);
+        benders_model_->optimize();
+    }
+    catch (GRBException e) {
+        cout << "Gurobi error number [SetPartitioningBenders::Solve]: " << e.getErrorCode() << "\n";
+        cout << e.getMessage() << "\n";
+    }
 }
 
  
