@@ -225,7 +225,6 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G, AdaptiveInstance& ins
         vector<GRBVar> new_vector;
         // set partitioning variables
         for (int w = 0; w < policies_; ++w){
-            // cout << "in model constructor" << endl;
             h_var_.push_back(new_vector);
             for (int q =0; q<scenarios_; ++q){
                 string varname = "H_" + to_string(w) + "_" + to_string(q);
@@ -332,12 +331,12 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G, AdaptiveInstance& ins
     }
     catch (GRBException e)
     {
-        cout << "Gurobi error number [sp_model_, constructor]: " << e.getErrorCode() << "\n";
+        cout << "Gurobi error number [SetPartitioningModel::ConfigureModel]: " << e.getErrorCode() << "\n";
         cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        cout << "Non-gurobi error during optimization [sp_model_]"
+        cout << "Non-gurobi error during optimization [SetPartitioningModel::ConfigureModel]"
                   << "\n";
     }
 }
@@ -360,7 +359,6 @@ void SetPartitioningModel::Solve()
                     x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
                 }
                 // Policy.objective taken care of later in ComputeAllObjectives.
-                cout << "OBJECTIVE FROM INSIDE: " << sp_model_->get(GRB_DoubleAttr_ObjVal) << endl;
                 Policy temp_policy = Policy(arcs_, -1, x_vector);
                 current_solution_.set_solution_policy(w, temp_policy);
                 for (int q=0; q<scenarios_; q++) {
@@ -369,6 +367,7 @@ void SetPartitioningModel::Solve()
                     }
                 }
             }
+            cout << "OBJECTIVE FROM INSIDE: " << sp_model_->get(GRB_DoubleAttr_ObjVal) << endl;
         }
         catch (GRBException e) {
             if (e.getErrorCode() == 10005 || e.getErrorCode() == 10013) {
@@ -377,19 +376,19 @@ void SetPartitioningModel::Solve()
             }
 
             else {
-                cout << "Gurobi error number [SetPartitioningModel::solve]: " << e.getErrorCode() << "\n";
+                cout << "Gurobi error number [SetPartitioningModel::Solve]: " << e.getErrorCode() << "\n";
                 cout << e.getMessage() << "\n";
             }
         }
     }
     catch (GRBException e)
     {
-        cout << "Gurobi error number [SetPartitioningModel::solve]: " << e.getErrorCode() << "\n";
+        cout << "Gurobi error number [SetPartitioningModel::Solve]: " << e.getErrorCode() << "\n";
         cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        cout << "Non-gurobi error during optimization [SetPartitioningModel::solve]"
+        cout << "Non-gurobi error during optimization [SetPartitioningModel::Solve]"
                   << "\n";
     }
 }
@@ -427,7 +426,7 @@ void BendersCallback::ConfigureIndividualSubModel(const Graph& G, AdaptiveInstan
     // Add decision variables.
     for (int a=0; a<arcs_; ++a) {
          string varname = "y_" + to_string(w) + "_" + to_string(q) + "_" + to_string(a);
-         y_var_[w][q][a] = submodels_[w][q]->addVar(0, 1, instance.arc_costs()[w][a], GRB_CONTINUOUS, varname);
+         y_var_[w][q].push_back(submodels_[w][q]->addVar(0, 1, arc_costs_[q][a], GRB_CONTINUOUS, varname));
     }
     // Add flow constraints.
     for (int i=0; i<nodes_; ++i) {
@@ -447,18 +446,23 @@ void BendersCallback::ConfigureIndividualSubModel(const Graph& G, AdaptiveInstan
         }
         submodels_[w][q]->addConstr(lhs == rhs);
     }
+    submodels_[w][q]->write("submodel_"+to_string(w)+"_"+to_string(q)+".lp");
 }
 
 void BendersCallback::ConfigureSubModels(const Graph& G, AdaptiveInstance& instance) {
-    cout << "BendersCallback::ConfigureSubModels" << endl;
     // Initialize current_solution_.
     current_solution_ = AdaptiveSolution(policies_, scenarios_);
     // Initialize models (k x p).
-    submodels_ = vector<vector<GRBModel*>>(policies_,
-            vector<GRBModel*>(scenarios_, new GRBModel(*env_)));
+    // submodels_ = vector<vector<GRBModel*>>(policies_,
+    //         vector<GRBModel*>(scenarios_, new GRBModel(*env_)));
+    for (int w=0; w<policies_; ++w) {
+        submodels_.push_back(vector<GRBModel*>());
+        for (int q=0; q<scenarios_; ++q) {
+            submodels_[w].push_back(new GRBModel(*env_));
+        }
+    }
     y_var_ = vector<vector<vector<GRBVar>>>(policies_, 
-            vector<vector<GRBVar>>(scenarios_, 
-                vector<GRBVar>(arcs_)));
+            vector<vector<GRBVar>>(scenarios_)); 
     // Configure each individual submodel.
     for (int w=0; w<policies_; ++w) {
         for (int q=0; q<scenarios_; ++q) {
@@ -490,7 +494,7 @@ void BendersCallback::UpdateSubModels(bool rev) {
 
 void BendersCallback::SolveSubModels() {
     for (int w=0; w<policies_; ++w) {
-        for (int q=0; q<policies_; ++q) {
+        for (int q=0; q<scenarios_; ++q) {
             submodels_[w][q]->optimize();
         }
     }
@@ -515,11 +519,7 @@ void BendersCallback::AddLazyCuts() {
 
 void BendersCallback::callback() {
     if (where == GRB_CB_MIPSOL) {
-        cout << "BendersCallback::Callback" << endl;
-        cout << "upper_bound_: " << upper_bound_ << endl;
-        cout << "lower_bound_: " << lower_bound_ << endl;
-        cout << "z: " << getSolution(z_var_) << endl;
-        // Updating upper_bound_ here, as this feels equivalent to the "end" of the loop iteration in the paper algorithm (i.e. gurobi just resolved the master problem, which happens at the end of an iteration in the algorithm, right after we do the subproblems and add cuts, and right before we update the upper bound.
+        // Updating upper_bound_ here, as this is equivalent to the "end" of the loop iteration in the paper algorithm (i.e. gurobi just resolved the master problem, which happens at the end of an iteration in the algorithm, right after we do the subproblems and add cuts, and right before we update the upper bound.
         upper_bound_ = getSolution(z_var_);
         if (upper_bound_ - lower_bound_ >= epsilon_) {
             UpdateSubModels();
@@ -598,7 +598,7 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& i
             benders_model_->addConstr(linexpr == 1);
         }
         // Initialize Separation Object, passing decision variables.
-        // callback_ = BendersCallback(instance, big_m_, z_var_, h_var_, x_var_, env_);
+        callback_ = BendersCallback(instance, big_m_, z_var_, h_var_, x_var_, env_);
         callback_.ConfigureSubModels(G, instance);
         // Add first Benders Cut "Manually" to immediately have an upper bound.
         callback_.SolveSubModels();
@@ -619,21 +619,23 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& i
     }
     catch (GRBException e)
     {
-        cout << "Gurobi error number [Benders ConfigureModel]: " << e.getErrorCode() << "\n";
+        cout << "Gurobi error number [SetPartitioningBenders::ConfigureModel]: " << e.getErrorCode() << "\n";
         cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        cout << "Non-gurobi error during optimization [Benders ConfigureModel]"
+        cout << "Non-gurobi error during optimization [SetPartitioningBenders::ConfigureModel]"
                   << "\n";
     }
 }
 
 void SetPartitioningBenders::Solve() {
-    cout << "SetPartitioningBenders::Solve" << endl;
     try {
         benders_model_->setCallback(&callback_);
         benders_model_->optimize();
+        lazy_cuts_rounds_ = callback_.lazy_cuts_rounds();
+        lazy_cuts_total_ = callback_.lazy_cuts_total();
+        cout << "z_var_: " << z_var_.get(GRB_DoubleAttr_X) << endl;
     }
     catch (GRBException e) {
         cout << "Gurobi error number [SetPartitioningBenders::Solve]: " << e.getErrorCode() << "\n";
