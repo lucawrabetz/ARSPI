@@ -22,26 +22,21 @@ void SolveAndPrint(const Graph& G,
                 {
                 SetPartitioningModel sp = SetPartitioningModel(big_m, instance, env);
                 sp.ConfigureSolver(G, instance);
-                sp.Solve();
-                AdaptiveSolution sp_solution = sp.current_solution();
+                AdaptiveSolution sp_solution = sp.Solve();
                 // sp_solution.ComputeAllObjectives(G, &instance);
-                cout << "Instance " << instance.name() << 
-                    ", k = " << instance.policies() <<
-                    ", budget = " << instance.budget() <<
-                    ", objective: " << sp_solution.worst_case_objective() << endl;
-                    // ", objective: " << sp. << endl;
+                sp_solution.LogSolution(G, "MIP - " + instance.name(), false);
                 }
         else if (solver==BENDERS)
                 {
                 SetPartitioningBenders benders = SetPartitioningBenders(big_m, instance, env);
                 benders.ConfigureSolver(G, instance);
-                benders.Solve();
-                cout << "rounds of lazy cuts: "<< benders.lazy_cuts_rounds() << endl;
+                AdaptiveSolution benders_solution = benders.Solve();
+                benders_solution.LogSolution(G, "Benders - " + instance.name(), false);
                 }
         }
 }
 
-int main(int argc, char*argv[]) {
+int main() {
     GRBEnv* env = new GRBEnv(); // Initialize global gurobi environment.
     env->set(GRB_DoubleParam_TimeLimit, 3600); // Set time limit to 1 hour.
     const string set_name = "tests";
@@ -65,5 +60,27 @@ int main(int argc, char*argv[]) {
         AdaptiveInstance test2(p, k, budget, G2, directory, name2);
         test2.ReadCosts(interdiction_delta);
         SolveAndPrint(G2, test2, solvers, env, M);
+    }
+    const string synthetic_set = "aspi_testbed";
+    const string synthetic_dir = "dat/" + synthetic_set + "/";
+    // Synthetic test 1:
+    k_0 = 3; n = 52; p = 5; budget = 3;
+    M = 1000; interdiction_delta = 100;
+    const string name3 = synthetic_set + "-" + to_string(n) + "_" + to_string(k_0);
+    const string filename3 = synthetic_dir + name3 + ".txt";
+    const Graph G3 = Graph(filename3, n);
+    for (int k=1; k<4; ++k) {
+        AdaptiveInstance test3(p, k, budget, G3, synthetic_dir, name3);
+        test3.ReadCosts(interdiction_delta);
+        SolveAndPrint(G3, test3, solvers, env, M);
+    }
+    k_0 = 5;
+    const string name4 = synthetic_set + "-" + to_string(n) + "_" + to_string(k_0);
+    const string filename4 = synthetic_dir + name4 + ".txt";
+    const Graph G4 = Graph(filename4, n);
+    for (int k=1; k<4; ++k) {
+        AdaptiveInstance test4(p, k, budget, G4, synthetic_dir, name4);
+        test4.ReadCosts(interdiction_delta);
+        SolveAndPrint(G4, test4, solvers, env, M);
     }
 }

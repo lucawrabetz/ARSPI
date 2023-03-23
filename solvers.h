@@ -137,38 +137,42 @@ private:
 class AdaptiveSolution
 {
     // Full solution - i.e. a vector of k policy objects with extra info, including the partition.
+    // TODO: are all the constructors needed?
+    // TODO: default initializations of stuff for different solvers (approximation and enumeration algorithm).
 public:
-    AdaptiveSolution() : policies_(0), scenarios_(0), partition_(vector<vector<int>>(0)), solution_(vector<Policy>(0)){};
-    AdaptiveSolution(bool unbounded) : unbounded_(unbounded){};
-    AdaptiveSolution(int policies, int scenarios) : policies_(policies), scenarios_(scenarios), partition_(vector<vector<int>>(policies)), solution_(vector<Policy>(policies)) {};
-    AdaptiveSolution(int policies, int scenarios, const vector<vector<int>>& partition, const vector<Policy>& solution) : policies_(policies), scenarios_(scenarios), partition_(partition), solution_(solution), unbounded_(false) {};
-    void LogSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy=true);
+    AdaptiveSolution() : unbounded_(false), benders_(false) {};
+    AdaptiveSolution(bool unbounded, bool benders) : unbounded_(unbounded), benders_(benders) {};
+    AdaptiveSolution(bool benders, int policies, int scenarios) : unbounded_(false), benders_(benders), policies_(policies), scenarios_(scenarios), partition_(vector<vector<int>>(policies)), solution_(vector<Policy>(policies)) {};
+    AdaptiveSolution(bool benders, int policies, int scenarios, const vector<vector<int>>& partition, const vector<Policy>& solution) : unbounded_(false), benders_(benders), policies_(policies), scenarios_(scenarios), partition_(partition), solution_(solution) {};
+    void LogSolution(const Graph& G, string title, bool policy=false);
     void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index);
     void ExtendByOne(AdaptiveInstance& m3, const Graph& G, GRBEnv* env, bool mip_subroutine=true);
-    void ComputeAllObjectives(const Graph& G, AdaptiveInstance* m3);
+    void ComputeAllObjectives(const Graph& G, AdaptiveInstance* instance, bool compute_adaptive_objective=false);
     // Getters.
     int policies() const {return policies_;}
     double worst_case_objective() const {return worst_case_objective_;}
     vector<vector<int>> partition() const {return partition_;}
     vector<Policy> solution() const {return solution_;}
-    long most_recent_solution_time() const {return most_recent_solution_time_;}
+    long solution_time() const {return solution_time_;}
     // Setters.
     void set_policies(int policies){policies_=policies;}
     void set_scenarios(int scenarios){scenarios_=scenarios;}
-    void set_worst_case_objective(int worst_case_objective){worst_case_objective_=worst_case_objective;}
-    void set_most_recent_solution_time(long most_recent_solution_time) {most_recent_solution_time_=most_recent_solution_time;}
+    void set_worst_case_objective(double worst_case_objective){worst_case_objective_=worst_case_objective;}
+    void set_solution_time(long solution_time) {solution_time_=solution_time;}
     void set_solution_policy(int index, Policy policy) {solution_[index]=policy;}
     void set_partition(const vector<vector<int>>& partition) {partition_=partition;}
     void set_unbounded(bool unbounded) {unbounded_=unbounded;}
+    void set_cuts(int cuts) {lazy_cuts_rounds_=cuts;}
     void add_to_partition(int index, int scenario) {partition_[index].push_back(scenario);}
 private:
+    bool unbounded_, benders_;
     int policies_, scenarios_;
-    double worst_case_objective_;
-    double average_objective_;
-    vector<Policy> solution_;
     vector<vector<int>> partition_;
-    long most_recent_solution_time_;
-    bool unbounded_;
+    vector<Policy> solution_;
+    long solution_time_;
+    double worst_case_objective_;
+    double average_objective_; // can we remove this?
+    int lazy_cuts_rounds_;
 };
 
 class RobustAlgoModel
@@ -213,7 +217,7 @@ public:
     SetPartitioningModel(int big_m, AdaptiveInstance& instance, GRBEnv* env) : 
         big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), env_(env) {};
     void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
-    void Solve();
+    AdaptiveSolution Solve();
     AdaptiveSolution current_solution() const {return current_solution_;}
 private:
     const int big_m_;
@@ -231,46 +235,41 @@ private:
 class BendersCallback : public GRBCallback
 {
 public:
+    BendersCallback() : upper_bound_(DBL_MAX) {};
+    BendersCallback(int big_m, AdaptiveInstance& instance, GRBVar& z_var, vector<vector<GRBVar> >& h_var, vector<vector<GRBVar> >& x_var, GRBEnv* env) : upper_bound_(DBL_MAX), lower_bound_(DBL_MIN), big_m_(big_m), nodes_(instance.nodes()), arcs_(instance.arcs()), budget_(instance.budget()), scenarios_(instance.scenarios()), policies_(instance.policies()), arc_costs_(instance.arc_costs()), lazy_cuts_rounds_(0), interdiction_delta_(instance.interdiction_delta()), z_var_(z_var), h_var_(h_var), x_var_(x_var),  env_(env){};
+    void ConfigureSubModels(const Graph& G, AdaptiveInstance& instance);
+    void SolveSubModels();
+    int lazy_cuts_rounds() const {return lazy_cuts_rounds_;}
+protected:
+    void callback();
+private:
     double epsilon_ = 0.000001;
     double upper_bound_, lower_bound_;
-    GRBVar z_var_; // Decision variable, objective val.
+    int big_m_, nodes_, arcs_, budget_, scenarios_, policies_;
+    vector<vector<int>> arc_costs_;
+    int lazy_cuts_rounds_, interdiction_delta_;
+    void ConfigureIndividualSubModel(const Graph& G, AdaptiveInstance& instance, int w, int q);
+    void UpdateSubModels(bool rev=false);
+    void AddLazyCuts();
+public:
+    GRBVar z_var_; // Decision variable - objective value.
     vector<vector<GRBVar> > h_var_; // Decision variable for every (w, q), set partitioning variable.
     vector<vector<GRBVar> > x_var_; // Decision variable for every (w, a), interdiction policies.
     GRBEnv* env_;
     vector<vector<GRBModel*>> submodels_; // Submodel for every (w, q) policy and scenario.
     vector<vector<vector<GRBVar>>> y_var_; // Shortest path decision variable for every (w, q, a).
-    BendersCallback() : big_m_(0) {};
-    BendersCallback(AdaptiveInstance& instance, int big_m, GRBVar z_var, vector<vector<GRBVar> >& h_var, vector<vector<GRBVar> >& x_var, GRBEnv* env) : upper_bound_(DBL_MAX), lower_bound_(DBL_MIN), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), big_m_(big_m), lazy_cuts_total_(0), lazy_cuts_rounds_(0), z_var_(z_var), h_var_(h_var), x_var_(x_var), interdiction_delta_(instance.interdiction_delta()), arc_costs_(instance.arc_costs()), env_(env) {};
-    void ConfigureSubModels(const Graph& G, AdaptiveInstance& instance);
-    void SolveSubModels();
-    int lazy_cuts_rounds() const {return lazy_cuts_rounds_;}
-    int lazy_cuts_total() const {return lazy_cuts_total_;}
-protected:
-    void callback();
-private:
     AdaptiveSolution current_solution_;
-    int big_m_;
-    int nodes_, arcs_, budget_, scenarios_, policies_;
-    int lazy_cuts_rounds_, lazy_cuts_total_;
-    vector<vector<int>> arc_costs_;
-    int interdiction_delta_;
-    void ConfigureIndividualSubModel(const Graph& G, AdaptiveInstance& instance, int w, int q);
-    void UpdateSubModels(bool rev=false);
-    void AddLazyCuts();
 };
 
 class SetPartitioningBenders {
 public:
     SetPartitioningBenders() : big_m_(0) {};
     SetPartitioningBenders (int big_m, AdaptiveInstance& instance, GRBEnv* env) : 
-        big_m_(big_m), scenarios_(instance.scenarios()), policies_(instance.policies()), budget_(instance.budget()), nodes_(instance.nodes()), arcs_(instance.arcs()), interdiction_delta_(instance.interdiction_delta()), env_(env) {};
+        big_m_(big_m), nodes_(instance.nodes()), arcs_(instance.arcs()), budget_(instance.budget()), scenarios_(instance.scenarios()), policies_(instance.policies()), interdiction_delta_(instance.interdiction_delta()), env_(env) {};
     void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
-    void Solve();
-    int lazy_cuts_rounds() const {return lazy_cuts_rounds_;}
-    int lazy_cuts_total() const {return lazy_cuts_total_;}
+    AdaptiveSolution Solve();
 private:
     const int big_m_;
-    int lazy_cuts_rounds_, lazy_cuts_total_;
     int nodes_, arcs_, budget_, scenarios_, policies_, interdiction_delta_;
     GRBEnv* env_;
     GRBModel* benders_model_;
@@ -279,110 +278,6 @@ private:
     vector<vector<GRBVar> > x_var_; // Decision variable for every (w, a), interdiction policies.
     BendersCallback callback_;
 };
-
-// -------- OLD BENDERS ----------
-// class BendersSub
-// {
-// public:
-//     int n;
-//     int m;
-//     int p;
-//     vector<GRBEnv *> Subenvs;
-//     vector<GRBModel *> Submodels;
-// 
-//     vector<vector<int> > c_bar; // this is the current objective function cost vector
-//     // i.e. - the objective function is c_bar \cdot y
-//     // computed during solution tree based on graph costs (c^q and d) and the current
-//     // x_bar from the master problem
-// 
-//     vector<vector<int> > c; // base costs
-//     vector<int> d;              // interdiction costs
-// 
-//     GRBConstr *obj_constr;              // array of constraints for the objective lower bounding constraints over the qs
-//                                         // need this as an array to update it
-//     vector<GRBVar> zeta_subs;      // dummy objective function variable because we have to argmin over q
-//     vector<vector<GRBVar> > y; // main decision variable - arc path selection/flow (one y vector for every q)
-//     vector<GRBVar> y_dummy;        // just to construct and push_back y
-//     vector<float> y_dummy2;        // just to construct and push_back yhat
-//     GRBLinExpr linexpr;                 // when adding the flow constraints, we use this one for outgoing arcs
-//     GRBLinExpr linexpr2;                // when adding the flow constraints, we use this one for incoming arcs
-//     int rhs;                            // use this also for generating flow constraints
-//     string varname;
-// 
-//     BendersSub() : n(0), m(0), p(0) {};
-//     BendersSub(AdaptiveInstance *adaptive_instance);
-//     vector<vector<float> > solve(int counter); // now returns a vector of vectors of size p+1, where the first is a singleton with the obj value
-//     void update(vector<int> &xhat);
-// };
-// 
-// class BendersSeparation : public GRBCallback
-// {
-// public:
-//     int n;
-//     int m;
-//     int p;
-//     int counter = 0;
-//     int cut_count = 0;
-// 
-//     vector<vector<int> > c; // base costs
-//     vector<int> d;              // interdiction costs
-// 
-//     // a hat vector is numbers, a bar vector is GRBVars
-//     GRBLinExpr new_cut;                   // linexpr object for new cut to add to master formulation
-//     GRBVar zetabar;                       // 'connecting' GRBVar for zeta
-//     vector<GRBVar> xbar;             // 'connecting' GRBVars for x
-//     vector<int> xhat;                // current xhat to solve with, i.e. interdiction policy we are subject to
-//     vector<float> xprime;            // current best interdiction policy (includes extra x[0] for obj)
-//     vector<vector<float> > yhat; // yhat from subproblem, i.e. shortest path given xhat policy (includes extra y[q][0] for objective for each q), it is of size p (vectors), first element of each flow is the objective
-// 
-//     BendersSub subproblem;
-// 
-//     // upper and lower bounds and epsilon
-//     float zeta_u = GRB_INFINITY;
-//     float zeta_l = -GRB_INFINITY;
-//     float zeta_temp;
-//     float epsilon = 0.000001;
-// 
-//     BendersSeparation();
-//     BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, AdaptiveInstance *adaptive_instance);
-// 
-// protected:
-//     void callback();
-//     void printSep();
-// };
-// 
-// class SetPartitioningBenders
-// {
-// public:
-//     int s = 0;
-//     int n;
-//     int m;
-//     int p;
-//     int r_0;
-//     string instance_name;
-//     string setname;
-//     string modelname;
-// 
-//     float running_time;
-//     float optimality_gap;
-//     int cut_count;
-// 
-//     AdaptiveInstance* adaptive_instance_;
-//     BendersSeparation sep;
-// 
-//     GRBEnv *M2Bendersenv;
-//     GRBModel *M2Bendersmodel;
-// 
-//     vector<GRBVar> x; // decision variable - shortest path solution
-//     GRBVar zeta;           // objective function
-//     GRBLinExpr linexpr;
-// 
-//     SetPartitioningBenders();
-//     SetPartitioningBenders(AdaptiveInstance *adaptive_instance);
-//     vector<float> Solve();
-// };
-
-// -------- OLD BENDERS ----------
 
 pair<vector<vector<int> >, vector<Policy> > mergeEnumSols(pair<vector<vector<int> >, vector<Policy> >& sol1, pair<vector<vector<int> >, vector<Policy> >& sol2, int w_index);
 
@@ -396,7 +291,7 @@ AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G, GRBEnv* e
 
 // pair<vector<vector<int> >, vector<Policy> > extendByOne(pair<vector<vector<int> >, vector<Policy> >& k_solution, AdaptiveInstance& m3, const Graph& G);
 
-long getCurrentTime();
+long GetCurrentTime();
 
 void printSolution(pair<vector<vector<int> >, vector<Policy> >& sol, string solname="");
 

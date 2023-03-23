@@ -1,6 +1,6 @@
 #include "solvers.h"
 
-long getCurrentTime() {
+long GetCurrentTime() {
     // Helper function to get current time.
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
@@ -216,7 +216,7 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G, AdaptiveInstance& ins
     try
     {
         // ------ Initialize solution to appropriate size -----
-        current_solution_ = AdaptiveSolution(policies_, scenarios_);
+        current_solution_ = AdaptiveSolution(false, policies_, scenarios_);
         // ------ Initialize model and environment ------
         sp_model_ = new GRBModel(*env_);
         sp_model_->set(GRB_IntParam_OutputFlag, 0);
@@ -331,96 +331,46 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G, AdaptiveInstance& ins
     }
     catch (GRBException e)
     {
-        cout << "Gurobi error number [SetPartitioningModel::ConfigureModel]: " << e.getErrorCode() << "\n";
+        cout << "Gurobi error number [SetPartitioningModel::ConfigureSolver]: " << e.getErrorCode() << "\n";
         cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        cout << "Non-gurobi error during optimization [SetPartitioningModel::ConfigureModel]"
+        cout << "Non-gurobi error during optimization [SetPartitioningModel::ConfigureSolver]"
                   << "\n";
     }
 }
 
-void SetPartitioningModel::Solve()
-{
+AdaptiveSolution SetPartitioningModel::Solve() {
     // Updates current solution to latest solution, or sets unbounded to true.
-    // Compute objectives after solving with AdaptiveSolution::ComputeAllObjectives.
-    try
-    {
-        long begin = getCurrentTime();
-        sp_model_->optimize();
-        long time = getCurrentTime() - begin;
-        current_solution_.set_most_recent_solution_time(time);
-        try {
-            for (int w=0; w<policies_; ++w){
-                vector<double> x_vector;
-                for (int a = 0; a < arcs_; a++)
-                {
-                    x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
-                }
-                // Policy.objective taken care of later in ComputeAllObjectives.
-                Policy temp_policy = Policy(arcs_, -1, x_vector);
-                current_solution_.set_solution_policy(w, temp_policy);
-                for (int q=0; q<scenarios_; q++) {
-                    if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
-                        current_solution_.add_to_partition(w, q);
-                    }
-                }
+    // Returns current solution.
+    // Compute objectives (of each partition) after solving with AdaptiveSolution::ComputeAllObjectives.
+    long begin = GetCurrentTime();
+    sp_model_->optimize();
+    long time = GetCurrentTime() - begin;
+    current_solution_.set_solution_time(time);
+    if (sp_model_->get(GRB_IntAttr_Status) == 2) {
+        current_solution_.set_unbounded(false);
+        for (int w=0; w<policies_; ++w){
+            vector<double> x_vector;
+            for (int a = 0; a < arcs_; a++)
+            {
+                x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
             }
-            cout << "OBJECTIVE FROM INSIDE: " << sp_model_->get(GRB_DoubleAttr_ObjVal) << endl;
-        }
-        catch (GRBException e) {
-            if (e.getErrorCode() == 10005 || e.getErrorCode() == 10013) {
-                // Error - model unbounded.
-                current_solution_.set_unbounded(true);
-            }
-
-            else {
-                cout << "Gurobi error number [SetPartitioningModel::Solve]: " << e.getErrorCode() << "\n";
-                cout << e.getMessage() << "\n";
+            current_solution_.set_worst_case_objective(-sp_model_->get(GRB_DoubleAttr_ObjVal));
+            Policy temp_policy = Policy(arcs_, -1, x_vector);
+            current_solution_.set_solution_policy(w, temp_policy);
+            for (int q=0; q<scenarios_; q++) {
+                if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
+                    current_solution_.add_to_partition(w, q);
+                }
             }
         }
     }
-    catch (GRBException e)
-    {
-        cout << "Gurobi error number [SetPartitioningModel::Solve]: " << e.getErrorCode() << "\n";
-        cout << e.getMessage() << "\n";
-    }
-    catch (...)
-    {
-        cout << "Non-gurobi error during optimization [SetPartitioningModel::Solve]"
-                  << "\n";
-    }
+    else if (sp_model_->get(GRB_IntAttr_Status) == 5) current_solution_.set_unbounded(true);
+    return current_solution_;
 }
 
-// void BendersSubProblem::ConfigureSolver(const Graph& G, AdaptiveInstance& instance) {
-//     // Initialize p x k SubEnvironments and SubModels
-//     //
-//     // Initialize Decision Variables:
-//     // z[w][q] and y[w][q].
-//     //
-//     // Constraints:
-//     // Lower Bound on z[w][q] (these are held in an array of constraints so we
-//     // can directly modify them as the cost function changes based on interdiction).
-//     //
-//     // Flow Constraints:
-// }
-// 
-// void BendersSubProblem::Update(vector<int> x_hat) {
-//     // Loop through all submodels and change coefficients of interdicted arcs.
-//     // Qs:
-//     // Can we do this without looking at every arc every time when we write it?
-//     // Maybe pass the previous x_hat as well, and reverse it then only do the 
-//     // interdicted arcs. Or always reverse it after it has been used.
-// }
-
-// (? not sure) BendersSubProblem::Solve(int counter) {
-//     // Optimize submodel and return shortest paths.
-//     // Qs:
-//     // What is best to return here? Are we using dijsktra to solve shortest path
-//     // problems? Would it be worth it to write a clean shortest path solution
-//     // struct or class like the AdaptiveSolution or Policy ones?
-// }
 void BendersCallback::ConfigureIndividualSubModel(const Graph& G, AdaptiveInstance& instance, int w, int q) {
     submodels_[w][q]->set(GRB_IntParam_OutputFlag, 0);
     // Add decision variables.
@@ -451,7 +401,7 @@ void BendersCallback::ConfigureIndividualSubModel(const Graph& G, AdaptiveInstan
 
 void BendersCallback::ConfigureSubModels(const Graph& G, AdaptiveInstance& instance) {
     // Initialize current_solution_.
-    current_solution_ = AdaptiveSolution(policies_, scenarios_);
+    current_solution_ = AdaptiveSolution(true, policies_, scenarios_);
     // Initialize models (k x p).
     // submodels_ = vector<vector<GRBModel*>>(policies_,
     //         vector<GRBModel*>(scenarios_, new GRBModel(*env_)));
@@ -511,7 +461,6 @@ void BendersCallback::AddLazyCuts() {
                 }
             }
             addLazy(lhs <= rhs);
-            lazy_cuts_total_++;
         }
     }
     lazy_cuts_rounds_++;
@@ -555,8 +504,6 @@ void BendersCallback::callback() {
     }
 }
 
-// SetPartitioningBenders::SetPartitioningBenders(AdaptiveInstance& instance) {}
-
 void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& instance) {
     try {
         // Initialize Model/Environment.
@@ -598,7 +545,7 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& i
             benders_model_->addConstr(linexpr == 1);
         }
         // Initialize Separation Object, passing decision variables.
-        callback_ = BendersCallback(instance, big_m_, z_var_, h_var_, x_var_, env_);
+        callback_ = BendersCallback(big_m_, instance, z_var_, h_var_, x_var_, env_);
         callback_.ConfigureSubModels(G, instance);
         // Add first Benders Cut "Manually" to immediately have an upper bound.
         callback_.SolveSubModels();
@@ -615,494 +562,36 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G, AdaptiveInstance& i
             }
         }
         benders_model_->write("benders.lp");
-
     }
     catch (GRBException e)
     {
-        cout << "Gurobi error number [SetPartitioningBenders::ConfigureModel]: " << e.getErrorCode() << "\n";
+        cout << "Gurobi error number [SetPartitioningBenders::ConfigureSolver]: " << e.getErrorCode() << "\n";
         cout << e.getMessage() << "\n";
     }
     catch (...)
     {
-        cout << "Non-gurobi error during optimization [SetPartitioningBenders::ConfigureModel]"
+        cout << "Non-gurobi error during optimization [SetPartitioningBenders::ConfigureSolver]"
                   << "\n";
     }
 }
 
-void SetPartitioningBenders::Solve() {
-    try {
-        benders_model_->setCallback(&callback_);
-        benders_model_->optimize();
-        lazy_cuts_rounds_ = callback_.lazy_cuts_rounds();
-        lazy_cuts_total_ = callback_.lazy_cuts_total();
-        cout << "z_var_: " << z_var_.get(GRB_DoubleAttr_X) << endl;
+AdaptiveSolution SetPartitioningBenders::Solve() {
+    benders_model_->setCallback(&callback_);
+    long begin = GetCurrentTime();
+    benders_model_->optimize();
+    long time = GetCurrentTime() - begin;
+    if (benders_model_->get(GRB_IntAttr_Status) == 2) {
+        callback_.current_solution_.set_unbounded(false);
+        callback_.current_solution_.set_solution_time(time);
+        callback_.current_solution_.set_worst_case_objective(-benders_model_->get(GRB_DoubleAttr_ObjVal));
+        callback_.current_solution_.set_cuts(callback_.lazy_cuts_rounds());
     }
-    catch (GRBException e) {
-        cout << "Gurobi error number [SetPartitioningBenders::Solve]: " << e.getErrorCode() << "\n";
-        cout << e.getMessage() << "\n";
+    else if (benders_model_->get(GRB_IntAttr_Status) == 5) {
+        callback_.current_solution_.set_unbounded(true);
+        callback_.current_solution_.set_solution_time(time);
     }
+    return callback_.current_solution_;
 }
-
- 
-
-// ------------------- OLD BENDERS ---------------------
-
-// BendersSub::BendersSub(AdaptiveInstance *adaptive_instance)
-// {
-//     // ------ Initialize Basic Parameters ------
-//     n = adaptive_instance->nodes();
-//     m = adaptive_instance->arcs();
-//     p = adaptive_instance->scenarios();
-// 
-//     // ------ Initialize d and c costs ------
-//     for (int a = 0; a < m; a++)
-//     {
-//         d.push_back(adaptive_instance->interdiction_deltas[a]);
-//     }
-// 
-//     for (int q = 0; q < p; q++)
-//     {
-//         c.push_back(adaptive_instance->arc_costs[q]);
-//         c_bar.push_back(adaptive_instance->arc_costs[q]);
-//     }
-// 
-//     // ------ Initialize Environment and Model ------
-//     for (int q = 0; q < p; ++q)
-//     {
-//         Subenvs.push_back(new GRBEnv());
-//         Submodels.push_back(new GRBModel(*Subenvs[q]));
-//         Submodels[q]->set(GRB_IntParam_OutputFlag, 0);
-//     }
-// 
-//     // ------ Decision Variables ------
-//     for (int q = 0; q < p; ++q)
-//     {
-//         varname = "zeta_sub_" + to_string(q);
-//         zeta_subs.push_back(Submodels[q]->addVar(0, GRB_INFINITY, 1, GRB_CONTINUOUS, varname));
-//     }
-//     for (int q = 0; q < p; ++q)
-//     {
-//         y_dummy = {};
-//         y.push_back(y_dummy);
-//         for (int a = 0; a < m; ++a)
-//         {
-//             varname = "y_" + to_string(q) + "_" + to_string(a);
-//             y[q].push_back(Submodels[q]->addVar(0, 1, 0, GRB_CONTINUOUS, varname));
-//         }
-//     }
-// 
-//     // ------ Constraints ------
-//     // constraints to bound objective value over q
-//     obj_constr = new GRBConstr[p];
-//     for (int q = 0; q < p; ++q)
-//     {
-//         linexpr = 0;
-//         for (int a = 0; a < m; ++a)
-//         {
-//             linexpr += c_bar[q][a] * y[q][a];
-//         }
-//         obj_constr[q] = Submodels[q]->addConstr(zeta_subs[q] >= linexpr);
-//     }
-// 
-//     // flow constraints
-//     for (int q = 0; q < p; ++q)
-//     {
-//         for (int i = 0; i < n; ++i)
-//         {
-//             linexpr = 0;
-//             if (i == 0)
-//             {
-//                 rhs = 1;
-//             }
-//             else if (i == n - 1)
-//             {
-//                 rhs = -1;
-//             }
-//             else
-//             {
-//                 rhs = 0;
-//             }
-//             for (int a = 0; a < m; a++)
-//             {
-//                 if (adaptive_instance->G.arcs[a].i == i)
-//                 {
-//                     // this arc is an outgoing arc for i
-//                     linexpr += (1) * y[q][a];
-//                 }
-//                 else if (adaptive_instance->G.arcs[a].j == i)
-//                 {
-//                     // this arc is an outgoing arc for i
-//                     linexpr += (-1) * y[q][a];
-//                 }
-//                 else
-//                 {
-//                     // this arc does not include i as an endpoint
-//                     continue;
-//                 }
-//             }
-//             Submodels[q]->addConstr(linexpr == rhs);
-//         }
-//         Submodels[q]->update();
-//     }
-// }
-// 
-// void BendersSub::update(vector<int> &xhat)
-// {
-//     // cout << "\nsubmodel: updating based on xbar, new interdiction policy: \n";
-//     // for (int a = 0; a < m; ++a)
-//     // {
-//     //     cout << "xbar_" << a << ": " << xhat[a] << "\n";
-//     // }
-// 
-//     // update array of constraints instead of only the parameter vector
-//     for (int q = 0; q < p; ++q)
-//     {
-//         for (int a = 0; a < m; ++a)
-//         {
-//             // model.chgCoeff(obj_constr[q], variable, new cost)
-//             if (xhat[a] > 0.5)
-//             {
-//                 Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a] + d[a]));
-//             }
-//             else
-//             {
-//                 Submodels[q]->chgCoeff(obj_constr[q], y[q][a], -(c[q][a]));
-//             }
-//         }
-//         Submodels[q]->update();
-//     }
-// }
-// 
-// vector<vector<float> > BendersSub::solve(int counter)
-// {
-//     try
-//     {
-//         // yhat has q elements - each one has m+1 elements (first is the objective, rest is the flow)
-//         vector<vector<float> > yhat;
-// 
-//         for (int q = 0; q < p; ++q)
-//         {
-//             y_dummy2 = {};
-//             yhat.push_back(y_dummy2);
-//             // string modelname = "submodel_" + to_string(counter) + "q=" + to_string(q) + ".lp";
-//             // Submodels[q]->write(modelname);
-//             Submodels[q]->optimize();
-// 
-//             yhat[q].push_back(Submodels[q]->get(GRB_DoubleAttr_ObjVal));
-//             // cout << "\nq = " + to_string(q);
-//             // cout << "\nsubmodel obj: " << yhat[q][0];
-//             // cout << "\narc values: \n";
-//             for (int a = 0; a < m; ++a)
-//             {
-//                 yhat[q].push_back(y[q][a].get(GRB_DoubleAttr_X));
-//                 // cout << "y_" << q << "_" << a << ": " << y[q][a].get(GRB_DoubleAttr_X) << "\n";
-//             }
-//         }
-//         return yhat;
-//     }
-//     catch (GRBException e)
-//     {
-//         cout << "Gurobi error number [BendersSub::solve]: " << e.getErrorCode() << "\n";
-//         cout << e.getMessage() << "\n";
-//     }
-//     catch (...)
-//     {
-//         cout << "Non-gurobi error during optimization [BendersSub::Solve]"
-//                   << "\n";
-//     }
-// }
-// 
-// BendersSeparation::BendersSeparation()
-// {
-//     n = 0;
-//     m = 0;
-//     p = 0;
-// }
-// 
-// BendersSeparation::BendersSeparation(GRBVar &the_zetabar, vector<GRBVar> &the_xbar, AdaptiveInstance *adaptive_instance)
-// {
-//     try
-//     {
-//         // ------ Initialize Basic Parameters ------
-//         n = adaptive_instance->n;
-//         m = adaptive_instance->m;
-//         p = adaptive_instance->p;
-// 
-//         // ------ Initialize Submodel ------
-//         subproblem = BendersSub(adaptive_instance);
-// 
-//         // ------ Initialize d and c costs ------
-//         for (int a = 0; a < m; a++)
-//         {
-//             d.push_back(adaptive_instance->interdiction_deltas[a]);
-//         }
-// 
-//         for (int q = 0; q < p; q++)
-//         {
-//             c.push_back(adaptive_instance->arc_costs[q]);
-//         }
-// 
-//         // ------ Initialize Variable containers ------
-//         xbar = the_xbar;
-//         zetabar = the_zetabar;
-//         xprime.push_back(0);
-// 
-//         for (int q = 0; q < p; ++q)
-//         {
-//             if (q == 0)
-//             {
-//                 for (int a = 0; a < m; ++a)
-//                 {
-//                     xhat.push_back(0);
-//                     xprime.push_back(0);
-//                 }
-//             }
-//         }
-//     }
-//     catch (GRBException e)
-//     {
-//         cout << "Gurobi error number [BendersSeparation, constructor]: " << e.getErrorCode() << "\n";
-//         cout << e.getMessage() << "\n";
-//     }
-//     catch (...)
-//     {
-//         cout << "Non-gurobi error during optimization [BendersSeparation]"
-//                   << "\n";
-//     }
-// }
-// 
-// void BendersSeparation::callback()
-// {
-//     if (where == GRB_CB_MIPSOL)
-//     {
-//         // zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJBST); // ??????? 
-// 
-//         if (zeta_u - zeta_l >= epsilon)
-//         {
-//             cout << "in callback" << endl;
-//             counter++;
-//             // xhat = current solution from master problem, then update subproblem
-//             for (int a = 0; a < m; ++a)
-//             {
-//                 xhat[a] = getSolution(xbar[a]);
-//             }
-//             subproblem.update(xhat);
-//             // zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJ); // ??????? 
-// 
-//             // cout << "\n\n\n\nsolving sub from callback: \n\n\n\n";
-//             yhat = subproblem.solve(counter);
-//             zeta_temp = GRB_INFINITY;
-// 
-//             for (int q = 0; q < p; ++q)
-//             {
-//                 cout << "sub q=" << q << ": " << yhat[q][0] << endl;
-//                 if (zeta_temp > yhat[q][0])
-//                 {
-//                     zeta_temp = yhat[q][0]; // first element of yhat[q] is the objective
-//                 }
-//             }
-//             cout << "zeta_temp: " << zeta_temp << endl;
-// 
-//             // use yhat[(q-l)+1][1-m] to create new cut from LinExpr
-//             for (int q = 0; q < p; ++q)
-//             {
-//                 new_cut = 0;
-//                 for (int a = 0; a < m; ++a)
-//                 {
-//                     new_cut += (c[q][a] + d[a] * xbar[a]) * yhat[q][a + 1];
-//                 }
-//                 // add lazy cut to main model
-//                 try
-//                 {
-//                     addLazy(zetabar <= new_cut);
-//                     // cout << "\nadded cut: "
-//                          // << "zetabar"
-//                          // << "<=" << new_cut << "\n";
-//                     ++cut_count;
-//                 }
-//                 catch (GRBException e)
-//                 {
-//                     cout << "Gurobi error number [BendersSeparation, addLazy]: " << e.getErrorCode() << "\n";
-//                     cout << e.getMessage() << "\n";
-//                 }
-//             }
-// 
-//             if (zeta_l < zeta_temp)
-//             {
-//                 zeta_l = zeta_temp;
-//             }
-//             cout << "zeta_l: " << zeta_l << endl;
-//             zeta_u = -getDoubleInfo(GRB_CB_MIPSOL_OBJBND); // ??????? 
-//             cout << "zeta_u: " << zeta_u << endl;
-//         }
-//     }
-// }
-// 
-// SetPartitioningBenders::SetPartitioningBenders(){int n, m=0;}
-// 
-// SetPartitioningBenders::SetPartitioningBenders(AdaptiveInstance *adaptive_instance)
-// {
-//     try
-//     {
-//         // ------ Assign Instance ------
-//         adaptive_instance_ = adaptive_instance;
-// 
-//         // ------ Initialize model and environment ------
-//         M2Bendersenv = new GRBEnv();
-//         M2Bendersmodel = new GRBModel(*M2Bendersenv);
-// 
-//         M2Bendersmodel->getEnv().set(GRB_IntParam_LazyConstraints, 1);
-//         M2Bendersmodel->set(GRB_IntParam_OutputFlag, 0);
-//         M2Bendersmodel->set(GRB_DoubleParam_TimeLimit, 3600);
-// 
-//         // ------ Variables and int parameters ------
-//         n = adaptive_instance_->n;
-//         m = adaptive_instance_->m;
-//         p = adaptive_instance_->p;
-//         r_0 = adaptive_instance_->r_0;
-//         instance_name = adaptive_instance_->instance_name;
-//         setname = adaptive_instance_->setname;
-// 
-//         // ------ Decision variables ------
-//         string varname;
-// 
-//         // interdiction variable 'x'
-//         for (int a = 0; a < m; a++)
-//         {
-//             varname = "x_" + to_string(a);
-//             x.push_back(M2Bendersmodel->addVar(0, 1, 0, GRB_BINARY, varname));
-//         }
-// 
-//         // objective function variable 'zeta'
-//         varname = "zeta";
-//         zeta = M2Bendersmodel->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, varname);
-// 
-//         // ------ Initialize separation/callback object ------
-//         sep = BendersSeparation(zeta, x, adaptive_instance_);
-// 
-//         // ------ Only Budget Constraints Initially! ------
-//         linexpr = 0;
-//         for (int a = 0; a < m; a++)
-//         {
-//             linexpr += x[a];
-//         }
-//         M2Bendersmodel->addConstr(linexpr <= r_0);
-// 
-//         // ------ Trying to add the first lazy contraint ------
-//         // cout << "\n\n\n\nsolving sub from constructor: \n\n\n\n";
-//         sep.yhat = sep.subproblem.solve(0);
-//         for (int q = 0; q < p; ++q)
-//         {
-//             linexpr = 0;
-//             for (int a = 0; a < m; ++a)
-//             {
-//                 linexpr += (sep.c[q][a] + (sep.d[a] * x[a])) * sep.yhat[q][a + 1];
-//             }
-//             M2Bendersmodel->addConstr(zeta <= linexpr);
-//         }
-// 
-//         modelname = "modelfiles/" + setname + "/" + instance_name + "-M2BendersModel.lp";
-//         M2Bendersmodel->write(modelname);
-// 
-//     }
-//     catch (GRBException e)
-//     {
-//         cout << "Gurobi error number [M2Benders, constructor]: " << e.getErrorCode() << "\n";
-//         cout << e.getMessage() << "\n";
-//     }
-//     catch (...)
-//     {
-//         cout << "Non-gurobi error during optimization [BendersSPSub]"
-//                   << "\n";
-//     }
-// }
-// 
-// vector<float> SetPartitioningBenders::Solve()
-// {
-//     /*
-//      * Return vector returns the objective value [0] and interdiction policy [1-m+1]
-//      * Again for computational experiments this can be ignored and not assigned as run stats are class vars
-//      */ 
-// 
-//     // ------ Set Callback on Master Model
-//     M2Bendersmodel->setCallback(&sep);
-// 
-// 
-//     // ------ Optimize Inside Benders Scheme -------
-// 
-//     try
-//     {
-//         clock_t model_begin = clock();
-//         M2Bendersmodel->optimize();
-//         running_time = float(clock() - model_begin) / CLOCKS_PER_SEC;
-// 
-//         try {
-//             optimality_gap = M2Bendersmodel->get(GRB_DoubleAttr_MIPGap);
-//             sep.xprime[0] = M2Bendersmodel->get(GRB_DoubleAttr_ObjVal);
-// 
-//             for (int a = 0; a < m; ++a)
-//             {
-//                 sep.xprime[a + 1] = x[a].get(GRB_DoubleAttr_X);
-//             }
-// 
-//         }
-// 
-//         catch (GRBException e) {
-// 
-//             if (e.getErrorCode() == 10005 || e.getErrorCode() == 10013) {
-//                 // in this case the error is because the model was unbounded
-//                 // set the optimality gap to -1 and we'll list as unbounded 
-//                 // put objective value as -infinity (objectives are negated min -z)
-//                 // set arc interdiction values as -1 - gurobi won't give us a solution one unboundedness is proven
-//                 optimality_gap = -1;
-//                 sep.xprime[0] = -GRB_INFINITY;
-// 
-//                 for (int a = 0; a < m; ++a)
-//                 {
-//                     sep.xprime[a + 1] = -1;
-//                 }
-//             }
-// 
-//             else {
-//                 cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
-//                 cout << e.getMessage() << "\n";
-//             }
-// 
-//         }
-//         
-//         cut_count = sep.cut_count;
-//     }
-// 
-//     catch (GRBException e)
-//     {
-//         cout << "Gurobi error number [M2Benders.optimize()]: " << e.getErrorCode() << "\n";
-//         cout << e.getMessage() << "\n";
-//     }
-//     catch (...)
-//     {
-//         cout << "Non-gurobi error during optimization [M2Benders.optimize()]"
-//                   << "\n";
-//     }
-// 
-// 
-//     // for submodel testing and stuff
-//     // vector<int> test_xhat = {1, 1, 0};
-// 
-//     // sep.subproblem.Submodel->write("spmodel.lp");
-//     // sep.yhat = sep.subproblem.solve(0);
-//     // sep.subproblem.update(test_xhat);
-//     // sep.subproblem.Submodel->write("spmodelupdated.lp");
-// 
-//     delete sep.subproblem.obj_constr;
-//     for (int q = 0; q < p; ++q)
-//     {
-//         delete sep.subproblem.Subenvs[q];
-//         delete sep.subproblem.Submodels[q];
-//     }
-//     return sep.xprime;
-// }
-
-// ------------------- OLD BENDERS ---------------------
 
 vector<int> initKappa(int p, int k) {
     // initialize partition vector based on total number in set (p) and exact number of partitions required
@@ -1184,7 +673,6 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
 void RobustAlgoModel::update(vector<int>& subset) {
     // add constraints to model for subset in partition
     for (int q : subset) {
-        // cout << "q = " << q << endl;
         string zero_name = "zero_" + to_string(q);
         string z_name = "z_" + to_string(q);
         algo_model->addConstr(pi[q][0]==0, zero_name);
@@ -1243,13 +731,14 @@ int max_int(int a, int b){
     else {return a;}
 }
 
-void AdaptiveSolution::ComputeAllObjectives(const Graph& G, AdaptiveInstance* m3) {
+void AdaptiveSolution::ComputeAllObjectives(const Graph& G, AdaptiveInstance* instance, bool compute_adaptive_objective) {
 // Populate / recompute the all_objectives vector based on interdiction policies and follower costs.
 // Worst case objective for every policy will be assigned to solution[w].objective (in the Policy struct).
 // Note: this requires knowing the optimal partition, which is part of the AdaptiveSolution class.
 // If the unbounded bool is true, it will set the objective to DBL_MAX.
 // THIS FUNCTION IS NOT STABLE.
     if (unbounded_) {
+        cout << "unbounded" << endl;
         worst_case_objective_ = DBL_MAX;
     }
     else {
@@ -1260,9 +749,8 @@ void AdaptiveSolution::ComputeAllObjectives(const Graph& G, AdaptiveInstance* m3
             double max_objective_this_scenario = DBL_MIN;
             int subset_assignment = -1;
             for (int w = 0; w < policies_; w++) {
-                double objective = m3->ComputeObjectiveOfPolicyForScenario(solution_[w].binary_policy(), G, q);
+                double objective = instance->ComputeObjectiveOfPolicyForScenario(solution_[w].binary_policy(), G, q);
                 all_objectives[w][q] = objective;
-                // cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
                 if (objective > max_objective_this_scenario) {
                     subset_assignment = w;
                     max_objective_this_scenario = objective;
@@ -1281,26 +769,23 @@ void AdaptiveSolution::ComputeAllObjectives(const Graph& G, AdaptiveInstance* m3
             w++;
         }
         partition_=new_partition;
-        worst_case_objective_=min_max_objective;
+        if (compute_adaptive_objective) worst_case_objective_=min_max_objective;
     }
 }
 
-void AdaptiveSolution::LogSolution(const Graph& G, AdaptiveInstance& m3, string title, bool policy) {
-    int arcs = solution_[0].binary_policy().size();
-    // print subsets and objectives
+void AdaptiveSolution::LogSolution(const Graph& G, string title, bool policy) {
     cout << endl;
-    if (title == ""){cout << "solution:" << endl;}
-    else {cout << title << ":" << endl;} 
+    if (title == ""){cout << "Solution, time (ms): " << solution_time_ << " ms";}
+    else {cout << title << ", time: " << solution_time_ << " ms";} 
+    cout << ", k = " << policies_ << ", p = " << scenarios_ << endl;
     cout << "Worst Case Objective: " << worst_case_objective_ << endl;
-    int k = partition_.size();
-
-    for (int w=0; w<k; ++w){
-        cout << "subset: { ";
-        for (int q : partition_[w]){
-            cout << q << " ";
-        }
-        cout << "} - objective: " << solution_[w].objective() << endl;
+    for (int w=0; w<partition_.size(); ++w){
         if (policy) {
+            cout << "subset: { ";
+            for (int q : partition_[w]){
+                cout << q << " ";
+            }
+            cout << "} - objective: " << solution_[w].objective() << endl;
             cout << "interdicted arcs: ";
             vector<vector<int>> arc_index_hash = G.arc_index_hash();
             vector<vector<int>> adjacency_list = G.adjacency_list();
@@ -1317,7 +802,7 @@ void AdaptiveSolution::LogSolution(const Graph& G, AdaptiveInstance& m3, string 
             cout << endl;
         }
     }
-    cout << endl;
+    if (benders_) cout << "Rounds of lazy cuts: " << lazy_cuts_rounds_ << endl;
 }
 
 void AdaptiveSolution::MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2, int split_index) {
@@ -1429,7 +914,7 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env){
 
     // initialize static robust model
     try {
-        long begin = getCurrentTime();
+        long begin = GetCurrentTime();
         RobustAlgoModel static_robust = RobustAlgoModel(m3, env);
         static_robust.configureModel(G, m3);
 
@@ -1481,10 +966,10 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env){
         // OLD 
         // auto final_solution = make_pair(best_worstcase_partition, final_policies); 
         // NEW
-        AdaptiveSolution final_solution = AdaptiveSolution(k, p, best_worstcase_partition, final_policies);
+        AdaptiveSolution final_solution = AdaptiveSolution(false, k, p, best_worstcase_partition, final_policies);
         final_solution.set_worst_case_objective(best_worstcase_objective);
-        long time = getCurrentTime() - begin;
-        final_solution.set_most_recent_solution_time(time);
+        long time = GetCurrentTime() - begin;
+        final_solution.set_solution_time(time);
         return final_solution;
     }
     catch (GRBException e) {
@@ -1507,19 +992,12 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, GRBEnv*
     // Naming - m3_prime is the copy of m3, and anything_prime is associated with m3_prime
     // int values
     cout << "heuristic - extend by one policy" << endl;
-    // cout << "m3: " << endl;
-    long begin = getCurrentTime();
-    int k = policies_;
-    int p = scenarios_;
-    int m = m3.arcs();
-    int k_prime = k+1;
-
-    
+    long begin = GetCurrentTime();
     // find worst subset in optimal partition
     double min_subset_obj = GRB_INFINITY;
     int min_subset_windex;
 
-    for (int w=0; w<k; ++w){
+    for (int w=0; w<policies_; ++w){
         if (solution_[w].objective() < min_subset_obj) {
             min_subset_obj = solution_[w].objective();
             min_subset_windex = w;
@@ -1553,10 +1031,10 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G, GRBEnv*
         }
 
         // auto final_solution = MergeEnumSols(k_solution, k_prime_solution, min_subset_windex);
-        long time = getCurrentTime() - begin;
+        long time = GetCurrentTime() - begin;
 
         MergeEnumSols(k_prime_solution, &m3_prime, min_subset_windex);
-        most_recent_solution_time_ = time;
+        solution_time_ = time;
     }
 }
 
@@ -1621,13 +1099,13 @@ double UpdateCurrentObjectiveGivenSolution(AdaptiveSolution* current_solution, A
 
 AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G, GRBEnv* env) {
     // Use the KMeans - Style heuristic to solve an Adaptive Instance.
-    long begin = getCurrentTime();
+    long begin = GetCurrentTime();
     double z_previous = DBL_MIN;
     // Initialize the first solution - solving the non-robust model for k followers chosen at random
     // out of p.
     vector<Policy> first_solution = InitializeKPolicies(m3, G, env);
     vector<vector<int>> partitions(m3->policies());
-    AdaptiveSolution current_solution = AdaptiveSolution(m3->policies(), m3->scenarios(), partitions, first_solution);
+    AdaptiveSolution current_solution = AdaptiveSolution(false, m3->policies(), m3->scenarios(), partitions, first_solution);
     // Update the objective (and initialize the current objective).
     current_solution.ComputeAllObjectives(G, m3);
     double z_current = current_solution.worst_case_objective();
@@ -1663,7 +1141,7 @@ AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G, GRBEnv* e
         counter++;
     }
     cout << "objective, iteration " << counter << ": " << z_current << endl;
-    long runtime = getCurrentTime() - begin;
-    current_solution.set_most_recent_solution_time(runtime);
+    long runtime = GetCurrentTime() - begin;
+    current_solution.set_solution_time(runtime);
     return current_solution;
 }
