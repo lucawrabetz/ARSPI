@@ -46,10 +46,6 @@ using std::uniform_int_distribution;
 using std::unordered_set;
 using std::vector;
 
-// WHY:
-// Can we replace some explicit setters with with "updaters" that set internally
-// (e.g. Policy.objective)
-
 class Graph {
   // Class to read an arc list from a file and represent it as linked lists.
  public:
