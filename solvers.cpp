@@ -7,26 +7,26 @@ long GetCurrentTime() {
   return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-Graph::Graph(const string& filename, int nodes) {
+Graph::Graph(const std::string& filename, int nodes) {
   // Graph constructor - read arc list from file.
-  string line, word;
-  ifstream myfile(filename);
+  std::string line, word;
+  std::ifstream myfile(filename);
   if (myfile.is_open()) {
     nodes_ = nodes;
     int arc_index = 0;
-    arc_index_hash_ = vector<vector<int>>(nodes_);
-    adjacency_list_ = vector<vector<int>>(nodes_);
-    rev_arc_index_hash_ = vector<vector<int>>(nodes_);
-    rev_adjacency_list_ = vector<vector<int>>(nodes_);
+    arc_index_hash_ = std::vector<std::vector<int>>(nodes_);
+    adjacency_list_ = std::vector<std::vector<int>>(nodes_);
+    rev_arc_index_hash_ = std::vector<std::vector<int>>(nodes_);
+    rev_adjacency_list_ = std::vector<std::vector<int>>(nodes_);
     while (getline(myfile, line)) {
       int counter = 0;
       int i, j;
-      stringstream str(line);
+      std::stringstream str(line);
       while (getline(str, word, ' ')) {
         if (counter == 0) {
-          i = stoi(word);
+          i = std::stoi(word);
         } else if (counter == 1) {
-          j = stoi(word);
+          j = std::stoi(word);
         }
         ++counter;
       }
@@ -43,21 +43,21 @@ Graph::Graph(const string& filename, int nodes) {
 void Graph::PrintArc(int a, int i, int index, bool rev) const {
   if (rev) {
     int j = rev_adjacency_list_[i][index];
-    cout << a << ": (" << j << ", " << i << ")";
+    std::cout << a << ": (" << j << ", " << i << ")";
   } else {
     int j = adjacency_list_[i][index];
-    cout << a << ": (" << i << ", " << j << ")";
+    std::cout << a << ": (" << i << ", " << j << ")";
   }
 }
 
 void Graph::PrintGraph(bool rev) const {
   // Print arc summary of a graph.
-  cout << "n: " << nodes_ << ", m: " << arcs_ << endl;
+  std::cout << "n: " << nodes_ << ", m: " << arcs_ << std::endl;
   for (int i = 0; i < nodes_; i++) {
     int index = 0;
     for (int a : arc_index_hash_[i]) {
       PrintArc(a, i, index);
-      cout << endl;
+      std::cout << std::endl;
       index++;
     }
   }
@@ -68,33 +68,33 @@ void Graph::PrintGraph(bool rev) const {
       int index = 0;
       for (int a : rev_arc_index_hash_[i]) {
         PrintArc(a, i, index, true);
-        cout << endl;
+        std::cout << std::endl;
         index++;
       }
     }
   }
 }
 
-void Graph::PrintGraphWithCosts(const vector<vector<int>>& costs,
+void Graph::PrintGraphWithCosts(const std::vector<std::vector<int>>& costs,
                                 int interdiction_delta) const {
   // Print arc summary of a graph with costs.
-  cout << "n: " << nodes_ << ", m: " << arcs_ << endl;
+  std::cout << "n: " << nodes_ << ", m: " << arcs_ << std::endl;
   int scenarios = costs.size();
   for (int i = 0; i < nodes_; i++) {
     int index = 0;
     for (int a : arc_index_hash_[i]) {
       PrintArc(a, i, index);
-      cout << ", costs: ";
+      std::cout << ", costs: ";
       for (int q = 0; q < scenarios; q++) {
-        cout << q + 1 << ": " << costs[q][a] << ", ";
+        std::cout << q + 1 << ": " << costs[q][a] << ", ";
       }
-      cout << "interdiction delta: " << interdiction_delta << endl;
+      std::cout << "interdiction delta: " << interdiction_delta << std::endl;
     }
   }
 }
 
 AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* adaptive_instance,
-                                   vector<int>& keep_scenarios) {
+                                   std::vector<int>& keep_scenarios) {
   // Copy constructor only keeping a subset of the scenarios
   scenarios_ = keep_scenarios.size();
   policies_ = adaptive_instance->policies_;
@@ -102,8 +102,8 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* adaptive_instance,
   nodes_ = adaptive_instance->nodes_;
   arcs_ = adaptive_instance->arcs_;
   interdiction_delta_ = adaptive_instance->interdiction_delta_;
-  arc_costs_ = vector<vector<int>>(scenarios_);
-  scenario_index_map_ = vector<int>(scenarios_);
+  arc_costs_ = std::vector<std::vector<int>>(scenarios_);
+  scenario_index_map_ = std::vector<int>(scenarios_);
   for (int q = 0; q < scenarios_; q++) {
     arc_costs_[q] = adaptive_instance->arc_costs_[keep_scenarios[q]];
     scenario_index_map_[q] = keep_scenarios[q];
@@ -113,19 +113,19 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* adaptive_instance,
 void AdaptiveInstance::ReadCosts(int interdiction_delta) {
   // Read arc costs from a file.
   interdiction_delta_ = interdiction_delta;
-  string line, word;
-  string filename =
-      directory_ + name_ + "-costs_" + to_string(scenarios_) + ".csv";
-  ifstream myfile(filename);
+  std::string line, word;
+  std::string filename =
+      directory_ + name_ + "-costs_" + std::to_string(scenarios_) + ".csv";
+  std::ifstream myfile(filename);
   int q = 0;
-  vector<int> v;
+  std::vector<int> v;
   int cost;
   if (myfile.is_open()) {
     while (getline(myfile, line)) {
       v.clear();
-      stringstream str(line);
+      std::stringstream str(line);
       while (getline(str, word, ',')) {
-        cost = stoi(word);
+        cost = std::stoi(word);
         v.push_back(cost);
       }
       if (q < scenarios_) {
@@ -138,19 +138,19 @@ void AdaptiveInstance::ReadCosts(int interdiction_delta) {
 
 void AdaptiveInstance::PrintInstance(const Graph& G) const {
   // Print Summary of Problem Instance
-  cout << "k: " << policies_ << endl;
-  cout << "p: " << scenarios_ << endl;
+  std::cout << "k: " << policies_ << std::endl;
+  std::cout << "p: " << scenarios_ << std::endl;
   G.PrintGraphWithCosts(arc_costs_, interdiction_delta_);
 }
 
 int AdaptiveInstance::Dijkstra(int q, const Graph& G) {
   // Compute shortest path 0-n-1 and just return its objective (we never
   // actually need the path).
-  vector<int> pred(nodes_), distance(nodes_);
+  std::vector<int> pred(nodes_), distance(nodes_);
   // First item in the pair is the weight/cost, second is the vertex.
   // std::greater allows the smallest distance to appear at top.
-  std::priority_queue<pair<int, int>, vector<pair<int, int>>,
-                      std::greater<pair<int, int>>>
+  std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>,
+                      std::greater<std::pair<int, int>>>
       pq;
   std::unordered_set<int> visited;
   visited.insert(0);
@@ -166,11 +166,11 @@ int AdaptiveInstance::Dijkstra(int q, const Graph& G) {
     int node_distance = pq.top().first;
     pq.pop();
     visited.insert(node);
-    for (int i = 0; i < G.arc_index_hash()[node].size(); ++i) {
+    for (size_t i = 0; i < G.arc_index_hash()[node].size(); ++i) {
       int arc = G.arc_index_hash()[node][i];
       int v = G.adjacency_list()[node][i];
       if (node_distance + arc_costs_[q][arc] < distance[v]) {
-        pq.push(make_pair(node_distance + arc_costs_[q][arc], v));
+        pq.push(std::make_pair(node_distance + arc_costs_[q][arc], v));
         pred[v] = node;
         distance[v] = node_distance + arc_costs_[q][arc];
       }
@@ -179,7 +179,7 @@ int AdaptiveInstance::Dijkstra(int q, const Graph& G) {
   return distance[nodes_ - 1];
 }
 
-void AdaptiveInstance::ApplyInterdiction(const vector<double>& x_bar,
+void AdaptiveInstance::ApplyInterdiction(const std::vector<double>& x_bar,
                                          bool rev) {
   // Receive interdiction policy and update costs for the M3 instance
   // If rev, we are "removing" the interdiction policy and returning the
@@ -198,14 +198,15 @@ void AdaptiveInstance::ApplyInterdiction(const vector<double>& x_bar,
 }
 
 double AdaptiveInstance::ComputeObjectiveOfPolicyForScenario(
-    const vector<double>& binary_policy, const Graph& G, int q) {
+    const std::vector<double>& binary_policy, const Graph& G, int q) {
   ApplyInterdiction(binary_policy);
   int objective = Dijkstra(q, G);
   ApplyInterdiction(binary_policy, true);
   return objective;
 }
 
-double AdaptiveInstance::ValidatePolicy(vector<double>& x_bar, const Graph& G) {
+double AdaptiveInstance::ValidatePolicy(std::vector<double>& x_bar,
+                                        const Graph& G) {
   // Solve shortest path on interdicted graph - check objectives match.
   double objective = DBL_MAX;
   int sp_result;
@@ -231,12 +232,13 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G,
     sp_model_->set(GRB_IntParam_OutputFlag, 0);
 
     // ------ Decision variables ------
-    vector<GRBVar> new_vector;
+    std::vector<GRBVar> new_vector;
     // set partitioning variables
     for (int w = 0; w < policies_; ++w) {
       h_var_.push_back(new_vector);
       for (int q = 0; q < scenarios_; ++q) {
-        string varname = "H_" + to_string(w) + "_" + to_string(q);
+        std::string varname =
+            "H_" + std::to_string(w) + "_" + std::to_string(q);
         h_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
       }
     }
@@ -246,21 +248,22 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G,
       x_var_.push_back(new_vector);
 
       for (int a = 0; a < arcs_; a++) {
-        string varname = "x_" + to_string(w) + "_" + to_string(a);
+        std::string varname =
+            "x_" + std::to_string(w) + "_" + std::to_string(a);
         x_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
       }
     }
     // objective func dummy 'z'
     z_var_ = sp_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
-    vector<vector<GRBVar>> newnew_vector;
+    std::vector<std::vector<GRBVar>> newnew_vector;
     // post interdiction flow 'pi'
     for (int w = 0; w < policies_; ++w) {
       pi_var_.push_back(newnew_vector);
       for (int q = 0; q < scenarios_; q++) {
         pi_var_[w].push_back(new_vector);
         for (int i = 0; i < nodes_; i++) {
-          string varname =
-              "pi_" + to_string(w) + "_" + to_string(q) + "_" + to_string(i);
+          std::string varname = "pi_" + std::to_string(w) + "_" +
+                                std::to_string(q) + "_" + std::to_string(i);
           pi_var_[w][q].push_back(sp_model_->addVar(
               -GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
         }
@@ -272,8 +275,8 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G,
       for (int q = 0; q < scenarios_; q++) {
         lambda_var_[w].push_back(new_vector);
         for (int a = 0; a < arcs_; a++) {
-          string varname = "lambda_" + to_string(w) + "_" + to_string(q) + "_" +
-                           to_string(a);
+          std::string varname = "lambda_" + std::to_string(w) + "_" +
+                                std::to_string(q) + "_" + std::to_string(a);
           lambda_var_[w][q].push_back(
               sp_model_->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
         }
@@ -305,13 +308,12 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G,
     }
     // main constraint for each arc
     int i;
-    int j;   // looping index
     int jn;  // node j
     int a;
     for (int w = 0; w < policies_; ++w) {
       for (int q = 0; q < scenarios_; ++q) {
         for (i = 0; i < nodes_; ++i) {
-          for (j = 0; j < G.adjacency_list()[i].size(); ++j) {
+          for (size_t j = 0; j < G.adjacency_list()[i].size(); ++j) {
             jn = G.adjacency_list()[i][j];
             a = G.arc_index_hash()[i][j];
             // add constraint
@@ -339,13 +341,13 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G,
     }
     sp_model_->update();
   } catch (GRBException e) {
-    cout << "Gurobi error number [SetPartitioningModel::ConfigureSolver]: "
-         << e.getErrorCode() << "\n";
-    cout << e.getMessage() << "\n";
+    std::cout << "Gurobi error number [SetPartitioningModel::ConfigureSolver]: "
+              << e.getErrorCode() << "\n";
+    std::cout << e.getMessage() << "\n";
   } catch (...) {
-    cout << "Non-gurobi error during optimization "
-            "[SetPartitioningModel::ConfigureSolver]"
-         << "\n";
+    std::cout << "Non-gurobi error during optimization "
+                 "[SetPartitioningModel::ConfigureSolver]"
+              << "\n";
   }
 }
 
@@ -361,13 +363,13 @@ AdaptiveSolution SetPartitioningModel::Solve() {
   if (sp_model_->get(GRB_IntAttr_Status) == 2) {
     current_solution_.set_unbounded(false);
     for (int w = 0; w < policies_; ++w) {
-      vector<double> x_vector;
+      std::vector<double> x_vector;
       for (int a = 0; a < arcs_; a++) {
         x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
       }
       current_solution_.set_worst_case_objective(
           -sp_model_->get(GRB_DoubleAttr_ObjVal));
-      Policy temp_policy = Policy(arcs_, -1, x_vector);
+      Policy temp_policy = Policy(-1, x_vector);
       current_solution_.set_solution_policy(w, temp_policy);
       for (int q = 0; q < scenarios_; q++) {
         if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
@@ -380,14 +382,13 @@ AdaptiveSolution SetPartitioningModel::Solve() {
   return current_solution_;
 }
 
-void BendersCallback::ConfigureIndividualSubModel(const Graph& G,
-                                                  AdaptiveInstance& instance,
-                                                  int w, int q) {
+void BendersCallback::ConfigureIndividualSubModel(const Graph& G, int w,
+                                                  int q) {
   submodels_[w][q]->set(GRB_IntParam_OutputFlag, 0);
   // Add decision variables.
   for (int a = 0; a < arcs_; ++a) {
-    string varname =
-        "y_" + to_string(w) + "_" + to_string(q) + "_" + to_string(a);
+    std::string varname = "y_" + std::to_string(w) + "_" + std::to_string(q) +
+                          "_" + std::to_string(a);
     y_var_[w][q].push_back(submodels_[w][q]->addVar(0, 1, arc_costs_[q][a],
                                                     GRB_CONTINUOUS, varname));
   }
@@ -401,18 +402,16 @@ void BendersCallback::ConfigureIndividualSubModel(const Graph& G,
       rhs = 1;
     else if (i == nodes_ - 1)
       rhs = -1;
-    for (int index = 0; index < G.arc_index_hash()[i].size(); index++) {
+    for (size_t index = 0; index < G.arc_index_hash()[i].size(); index++) {
       int a = G.arc_index_hash()[i][index];
       lhs += (1) * y_var_[w][q][a];
     }
-    for (int index = 0; index < G.rev_arc_index_hash()[i].size(); index++) {
+    for (size_t index = 0; index < G.rev_arc_index_hash()[i].size(); index++) {
       int a = G.rev_arc_index_hash()[i][index];
       lhs += (-1) * y_var_[w][q][a];
     }
     submodels_[w][q]->addConstr(lhs == rhs);
   }
-  submodels_[w][q]->write("submodel_" + to_string(w) + "_" + to_string(q) +
-                          ".lp");
 }
 
 void BendersCallback::ConfigureSubModels(const Graph& G,
@@ -420,20 +419,20 @@ void BendersCallback::ConfigureSubModels(const Graph& G,
   // Initialize current_solution_.
   current_solution_ = AdaptiveSolution(true, instance, policies_, scenarios_);
   // Initialize models (k x p).
-  // submodels_ = vector<vector<GRBModel*>>(policies_,
-  //         vector<GRBModel*>(scenarios_, new GRBModel(*env_)));
+  // submodels_ = std::vector<std::vector<GRBModel*>>(policies_,
+  //         std::vector<GRBModel*>(scenarios_, new GRBModel(*env_)));
   for (int w = 0; w < policies_; ++w) {
-    submodels_.push_back(vector<GRBModel*>());
+    submodels_.push_back(std::vector<GRBModel*>());
     for (int q = 0; q < scenarios_; ++q) {
       submodels_[w].push_back(new GRBModel(*env_));
     }
   }
-  y_var_ = vector<vector<vector<GRBVar>>>(policies_,
-                                          vector<vector<GRBVar>>(scenarios_));
+  y_var_ = std::vector<std::vector<std::vector<GRBVar>>>(
+      policies_, std::vector<std::vector<GRBVar>>(scenarios_));
   // Configure each individual submodel.
   for (int w = 0; w < policies_; ++w) {
     for (int q = 0; q < scenarios_; ++q) {
-      ConfigureIndividualSubModel(G, instance, w, q);
+      ConfigureIndividualSubModel(G, w, q);
     }
   }
 }
@@ -451,7 +450,6 @@ void BendersCallback::UpdateSubModels(bool rev) {
             int new_cost = current_cost + interdiction_delta_;
             y_var_[w][q][a].set(GRB_DoubleAttr_Obj, new_cost);
           }
-          submodels_[w][q]->write("updatetest.lp");
         }
       }
     }
@@ -510,14 +508,14 @@ void BendersCallback::callback() {
         // Set current_solution_/x_prime (final interdiction solution) to
         // solution x_var_ that was used for the subproblems.
         for (int w = 0; w < policies_; ++w) {
-          vector<double> binary_policy(arcs_);
+          std::vector<double> binary_policy(arcs_);
           for (int a = 0; a < arcs_; ++a) {
             if (getSolution(x_var_[w][a]) > 0.5)
               binary_policy[a] = 1;
             else
               binary_policy[a] = 0;
           }
-          Policy policy(arcs_, 0, binary_policy);
+          Policy policy(0, binary_policy);
           current_solution_.set_solution_policy(w, policy);
         }
       }
@@ -536,17 +534,21 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G,
     benders_model_->getEnv().set(GRB_IntParam_LazyConstraints, 1);
     // Add Decision variables - z, h(w)(q) and x(w).
     z_var_ = benders_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS, "z");
-    h_var_ = vector<vector<GRBVar>>(policies_, vector<GRBVar>(scenarios_));
+    h_var_ = std::vector<std::vector<GRBVar>>(policies_,
+                                              std::vector<GRBVar>(scenarios_));
     for (int w = 0; w < policies_; ++w) {
       for (int q = 0; q < scenarios_; ++q) {
-        string varname = "H_" + to_string(w) + "_" + to_string(q);
+        std::string varname =
+            "H_" + std::to_string(w) + "_" + std::to_string(q);
         h_var_[w][q] = benders_model_->addVar(0, 1, 0, GRB_BINARY, varname);
       }
     }
-    x_var_ = vector<vector<GRBVar>>(policies_, vector<GRBVar>(arcs_));
+    x_var_ =
+        std::vector<std::vector<GRBVar>>(policies_, std::vector<GRBVar>(arcs_));
     for (int w = 0; w < policies_; ++w) {
       for (int a = 0; a < arcs_; a++) {
-        string varname = "x_" + to_string(w) + "_" + to_string(a);
+        std::string varname =
+            "x_" + std::to_string(w) + "_" + std::to_string(a);
         x_var_[w][a] = benders_model_->addVar(0, 1, 0, GRB_BINARY, varname);
       }
     }
@@ -584,15 +586,15 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G,
         benders_model_->addConstr(lhs <= rhs);
       }
     }
-    benders_model_->write("benders.lp");
   } catch (GRBException e) {
-    cout << "Gurobi error number [SetPartitioningBenders::ConfigureSolver]: "
-         << e.getErrorCode() << "\n";
-    cout << e.getMessage() << "\n";
+    std::cout
+        << "Gurobi error number [SetPartitioningBenders::ConfigureSolver]: "
+        << e.getErrorCode() << "\n";
+    std::cout << e.getMessage() << "\n";
   } catch (...) {
-    cout << "Non-gurobi error during optimization "
-            "[SetPartitioningBenders::ConfigureSolver]"
-         << "\n";
+    std::cout << "Non-gurobi error during optimization "
+                 "[SetPartitioningBenders::ConfigureSolver]"
+              << "\n";
   }
 }
 
@@ -614,10 +616,10 @@ AdaptiveSolution SetPartitioningBenders::Solve() {
   return callback_.current_solution_;
 }
 
-vector<int> initKappa(int p, int k) {
+std::vector<int> initKappa(int p, int k) {
   // initialize partition vector based on total number in set (p) and exact
   // number of partitions required
-  vector<int> kappa(p, 0);
+  std::vector<int> kappa(p, 0);
 
   for (int q = (p - k + 1); q < p; ++q) {
     kappa[q] = (q - (p - k));
@@ -632,19 +634,19 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
   algo_model->set(GRB_IntParam_OutputFlag, 0);
 
   // Decision Variables
-  string varname = "z";
+  std::string varname = "z";
   z = algo_model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS,
                          varname);  // objective function dummy variable
   for (int a = 0; a < arcs; ++a) {
-    varname = "x_" + to_string(a);
+    varname = "x_" + std::to_string(a);
     x.push_back(algo_model->addVar(0, 1, 0, GRB_BINARY, varname));
   }  // interdiction policy on arcs
 
-  vector<GRBVar> tempvector;
+  std::vector<GRBVar> tempvector;
   for (int q = 0; q < scenarios; ++q) {
     pi.push_back(tempvector);  // post interdiction s-i best path (for every q)
     for (int i = 0; i < nodes; ++i) {
-      varname = "pi_" + to_string(q) + "_" + to_string(i);
+      varname = "pi_" + std::to_string(q) + "_" + std::to_string(i);
       pi[q].push_back(algo_model->addVar(-GRB_INFINITY, GRB_INFINITY, 0,
                                          GRB_CONTINUOUS, varname));
     }
@@ -653,7 +655,7 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
   for (int q = 0; q < scenarios; ++q) {
     lambda.push_back(tempvector);  // lambda variable on arcs (for every q)
     for (int a = 0; a < arcs; ++a) {
-      varname = "lambda_" + to_string(q) + "_" + to_string(a);
+      varname = "lambda_" + std::to_string(q) + "_" + std::to_string(a);
       lambda[q].push_back(
           algo_model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
     }
@@ -677,10 +679,10 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
   // Populate Global Constraints
   // Arc/Dual Constraints
   for (int q = 0; q < scenarios; ++q) {
-    dual_constraints.push_back(vector<GRBTempConstr>());
+    dual_constraints.push_back(std::vector<GRBTempConstr>());
 
     for (int i = 0; i < nodes; ++i) {
-      for (int j = 0; j < G.adjacency_list()[i].size(); ++j) {
+      for (size_t j = 0; j < G.adjacency_list()[i].size(); ++j) {
         int next = G.adjacency_list()[i][j];
         int a = G.arc_index_hash()[i][j];
 
@@ -705,18 +707,19 @@ void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
   }
 }
 
-void RobustAlgoModel::update(vector<int>& subset) {
+void RobustAlgoModel::update(std::vector<int>& subset) {
   // add constraints to model for subset in partition
   for (int q : subset) {
-    string zero_name = "zero_" + to_string(q);
-    string z_name = "z_" + to_string(q);
+    std::string zero_name = "zero_" + std::to_string(q);
+    std::string z_name = "z_" + std::to_string(q);
     algo_model->addConstr(pi[q][0] == 0, zero_name);
     algo_model->addConstr(z_constraints[q], z_name);
 
     int a = 0;
-    // cout << "about to loop through dual constraints" << endl;
+    // std::cout << "about to loop through dual constraints" << std::endl;
     for (GRBTempConstr constraint : dual_constraints[q]) {
-      string dual_name = "dual_" + to_string(q) + "_" + to_string(a);
+      std::string dual_name =
+          "dual_" + std::to_string(q) + "_" + std::to_string(a);
       algo_model->addConstr(constraint, dual_name);
       ++a;
     }
@@ -725,12 +728,12 @@ void RobustAlgoModel::update(vector<int>& subset) {
   algo_model->update();
 }
 
-void RobustAlgoModel::reverse_update(vector<int>& subset) {
+void RobustAlgoModel::reverse_update(std::vector<int>& subset) {
   // remove all constraints from model - i.e. all constraints associated with
   // this subset
   for (int q : subset) {
-    string zero_name = "zero_" + to_string(q);
-    string z_name = "z_" + to_string(q);
+    std::string zero_name = "zero_" + std::to_string(q);
+    std::string z_name = "z_" + std::to_string(q);
 
     GRBConstr zero_constraint = algo_model->getConstrByName(zero_name);
     GRBConstr z_constraint = algo_model->getConstrByName(z_name);
@@ -739,7 +742,8 @@ void RobustAlgoModel::reverse_update(vector<int>& subset) {
 
     int a = 0;
     for (GRBTempConstr constraint : dual_constraints[q]) {
-      string dual_name = "dual_" + to_string(q) + "_" + to_string(a);
+      std::string dual_name =
+          "dual_" + std::to_string(q) + "_" + std::to_string(a);
       GRBConstr dual_constraint = algo_model->getConstrByName(dual_name);
       algo_model->remove(dual_constraint);
       ++a;
@@ -752,13 +756,13 @@ void RobustAlgoModel::reverse_update(vector<int>& subset) {
 Policy RobustAlgoModel::Solve() {
   // solve static model, return policy and objective value
   algo_model->optimize();
-  vector<double> binary_policy(arcs, 0);
+  std::vector<double> binary_policy(arcs, 0);
   double objective = -algo_model->get(GRB_DoubleAttr_ObjVal);
   for (int a = 0; a < arcs; ++a) {
     binary_policy[a] = x[a].get(GRB_DoubleAttr_X);
   }
   algo_model->reset();
-  Policy solution = Policy(arcs, objective, binary_policy);
+  Policy solution = Policy(objective, binary_policy);
   return solution;
 }
 
@@ -780,12 +784,12 @@ void AdaptiveSolution::ComputeAllObjectives(const Graph& G,
   // AdaptiveSolution class. If the unbounded bool is true, it will set the
   // objective to DBL_MAX. THIS FUNCTION IS NOT STABLE.
   if (unbounded_) {
-    cout << "unbounded" << endl;
+    std::cout << "unbounded" << std::endl;
     worst_case_objective_ = DBL_MAX;
   } else {
-    vector<vector<int>> new_partition(policies_);
-    vector<vector<double>> all_objectives(policies_,
-                                          vector<double>(scenarios_));
+    std::vector<std::vector<int>> new_partition(policies_);
+    std::vector<std::vector<double>> all_objectives(
+        policies_, std::vector<double>(scenarios_));
     double min_max_objective = DBL_MAX;
     for (int q = 0; q < scenarios_; q++) {
       double max_objective_this_scenario = DBL_MIN;
@@ -804,7 +808,7 @@ void AdaptiveSolution::ComputeAllObjectives(const Graph& G,
       new_partition[subset_assignment].push_back(q);
     }
     int w = 0;
-    for (const vector<int>& subset : new_partition) {
+    for (const std::vector<int>& subset : new_partition) {
       double min_objective_this_policy = DBL_MAX;
       for (int q : subset) {
         if (min_objective_this_policy > all_objectives[w][q])
@@ -818,40 +822,42 @@ void AdaptiveSolution::ComputeAllObjectives(const Graph& G,
   }
 }
 
-void AdaptiveSolution::LogSolution(const Graph& G, string title, bool policy) {
-  cout << endl;
+void AdaptiveSolution::LogSolution(const Graph& G, std::string title,
+                                   bool policy) {
+  std::cout << std::endl;
   if (title == "") {
-    cout << "Solution, time (ms): " << solution_time_ << " ms";
+    std::cout << "Solution, time (ms): " << solution_time_ << " ms";
   } else {
-    cout << title << ", time: " << solution_time_ << " ms";
+    std::cout << title << ", time: " << solution_time_ << " ms";
   }
-  cout << ", k = " << policies_ << ", p = " << scenarios_;
-  cout << ", nodes = " << nodes_ << ", arcs = " << arcs_ << endl;
-  cout << "Worst Case Objective: " << worst_case_objective_ << endl;
-  for (int w = 0; w < partition_.size(); ++w) {
+  std::cout << ", k = " << policies_ << ", p = " << scenarios_;
+  std::cout << ", nodes = " << nodes_ << ", arcs = " << arcs_ << std::endl;
+  std::cout << "Worst Case Objective: " << worst_case_objective_ << std::endl;
+  for (size_t w = 0; w < partition_.size(); ++w) {
     if (policy) {
-      cout << "subset: { ";
+      std::cout << "subset: { ";
       for (int q : partition_[w]) {
-        cout << q << " ";
+        std::cout << q << " ";
       }
-      cout << "} - objective: " << solution_[w].objective() << endl;
-      cout << "interdicted arcs: ";
-      vector<vector<int>> arc_index_hash = G.arc_index_hash();
-      vector<vector<int>> adjacency_list = G.adjacency_list();
+      std::cout << "} - objective: " << solution_[w].objective() << std::endl;
+      std::cout << "interdicted arcs: ";
+      std::vector<std::vector<int>> arc_index_hash = G.arc_index_hash();
+      std::vector<std::vector<int>> adjacency_list = G.adjacency_list();
       for (int i = 0; i < G.nodes(); ++i) {
         int index = 0;
         for (int a : arc_index_hash[i]) {
           if (solution_[w].binary_policy()[a] > 0.5) {
             G.PrintArc(a, i, index);
-            cout << " ";
+            std::cout << " ";
           }
           index++;
         }
       }
-      cout << endl;
+      std::cout << std::endl;
     }
   }
-  if (benders_) cout << "Rounds of lazy cuts: " << lazy_cuts_rounds_ << endl;
+  if (benders_)
+    std::cout << "Rounds of lazy cuts: " << lazy_cuts_rounds_ << std::endl;
 }
 
 void AdaptiveSolution::MergeEnumSols(AdaptiveSolution sol2,
@@ -869,12 +875,14 @@ void AdaptiveSolution::MergeEnumSols(AdaptiveSolution sol2,
   // a map of the original indices (sol2 has this map)
   set_policies(policies_ + 1);
   // reindexed copy of sol2.partition
-  vector<vector<int>> reindexed_partition(sol2.policies());
-  for (int w = 0; w < sol2.policies(); w++) {
-    for (int i : sol2.partition()[w]) {
+  std::vector<std::vector<int>> reindexed_partition(sol2.policies());
+  int w = 0;
+  for (auto& subset : sol2.partition()) {
+    for (int i : subset) {
       int q = instance2->scenario_index_map()[i];
       reindexed_partition[w].push_back(q);
     }
+    ++w;
   }
   // replace and push_back in partition
   partition_[split_index] = reindexed_partition[0];
@@ -888,7 +896,7 @@ void AdaptiveSolution::MergeEnumSols(AdaptiveSolution sol2,
   }
 }
 
-bool nextKappa(vector<int>& kappa, vector<int>& max, int k, int p) {
+bool nextKappa(std::vector<int>& kappa, std::vector<int>& max, int k, int p) {
   // update kappa and max place to next partition
   // if this is the last one, return false
 
@@ -903,8 +911,8 @@ bool nextKappa(vector<int>& kappa, vector<int>& max, int k, int p) {
       }
 
       for (int u = (p - (k - max[q])) + 1; u < p; ++u) {
-        // cout << "second half pass loop" << endl;
-        // cout << "u: " << u << endl;
+        // std::cout << "second half pass loop" << std::endl;
+        // std::cout << "u: " << u << std::endl;
         kappa[u] = (k - (p - u));
         max[u] = kappa[u];
       }
@@ -915,10 +923,11 @@ bool nextKappa(vector<int>& kappa, vector<int>& max, int k, int p) {
   return false;
 }
 
-vector<vector<int>> kappa_to_partition(vector<int>& kappa, int k, int p) {
+std::vector<std::vector<int>> kappa_to_partition(std::vector<int>& kappa, int k,
+                                                 int p) {
   // convert a kappa vector to a partition of subsets
-  vector<int> subset;
-  vector<vector<int>> partition(k, subset);
+  std::vector<int> subset;
+  std::vector<std::vector<int>> partition(k, subset);
 
   for (int q = 0; q < p; ++q) {
     int subset_index = kappa[q];
@@ -928,9 +937,10 @@ vector<vector<int>> kappa_to_partition(vector<int>& kappa, int k, int p) {
   return partition;
 }
 
-pair<vector<vector<int>>, vector<Policy>> MergeEnumSols(
-    pair<vector<vector<int>>, vector<Policy>>& sol1,
-    pair<vector<vector<int>>, vector<Policy>>& sol2, int w_index) {
+std::pair<std::vector<std::vector<int>>, std::vector<Policy>> MergeEnumSols(
+    std::pair<std::vector<std::vector<int>>, std::vector<Policy>>& sol1,
+    std::pair<std::vector<std::vector<int>>, std::vector<Policy>>& sol2,
+    int w_index) {
   // Merge 2 solutions e.g. when extending an enum solve, combine the new split
   // worst subset w_index is the position of the split subset in the original
   // solution (sol1)
@@ -963,12 +973,12 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env) {
   int m = m3.arcs();
   // initialize partitioning 'string' vector as in Orlov Paper
   // initialize corresponding max vector
-  vector<int> kappa = initKappa(p, k);
-  vector<int> max = kappa;
+  std::vector<int> kappa = initKappa(p, k);
+  std::vector<int> max = kappa;
 
   // initialize solution vector
-  vector<double> arc_vec(m, 0);
-  vector<vector<double>> sol(k, arc_vec);
+  std::vector<double> arc_vec(m, 0);
+  std::vector<std::vector<double>> sol(k, arc_vec);
 
   // initialize static robust model
   try {
@@ -978,17 +988,15 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env) {
 
     // objective value maintained here (and optimal partition)
     double best_worstcase_objective = 0;
-    vector<double> final_objectives(k, 0);
-    vector<vector<int>> best_worstcase_partition;
-
-    int counter = 0;
+    std::vector<double> final_objectives(k, 0);
+    std::vector<std::vector<int>> best_worstcase_partition;
 
     // enumerate while not 'failing' to get next partition
     while (next) {
-      vector<vector<double>> temp_sol(k, arc_vec);
+      std::vector<std::vector<double>> temp_sol(k, arc_vec);
       double temp_worst_objective = DBL_MAX;
-      vector<double> temp_objectives(k, 0);
-      vector<vector<int>> partition = kappa_to_partition(kappa, k, p);
+      std::vector<double> temp_objectives(k, 0);
+      std::vector<std::vector<int>> partition = kappa_to_partition(kappa, k, p);
 
       for (int w = 0; w < k; ++w) {
         // for every subset in partition, solve M2 for k=1
@@ -996,7 +1004,6 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env) {
         Policy temp_single_solution = static_robust.Solve();
         temp_objectives[w] = temp_single_solution.objective();
         static_robust.reverse_update(partition[w]);
-        ++counter;
 
         // update temp_worst_objective and temp_sol if this subset is worse
         if (temp_objectives[w] < temp_worst_objective) {
@@ -1014,17 +1021,17 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env) {
       next = nextKappa(kappa, max, k, p);
     }
 
-    vector<Policy> final_policies(k, Policy(m));
+    std::vector<Policy> final_policies(k, Policy(m));
 
     for (int w = 0; w < k; ++w) {
       final_policies[w].set_policy(sol[w]);
       final_policies[w].set_objective(final_objectives[w]);
     }
 
-    // vector<int> final_obj(1, best_worstcase_solution);
+    // std::vector<int> final_obj(1, best_worstcase_solution);
     // best_worstcase_partition.insert(best_worstcase_partition.begin(),
-    // final_obj); OLD auto final_solution = make_pair(best_worstcase_partition,
-    // final_policies); NEW
+    // final_obj); OLD auto final_solution =
+    // std::make_pair(best_worstcase_partition, final_policies); NEW
     AdaptiveSolution final_solution = AdaptiveSolution(
         false, k, p, m3, best_worstcase_partition, final_policies);
     final_solution.set_worst_case_objective(best_worstcase_objective);
@@ -1032,11 +1039,13 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env) {
     final_solution.set_solution_time(time);
     return final_solution;
   } catch (GRBException e) {
-    cout << "Gurobi error number [EnumSolve]: " << e.getErrorCode() << endl;
-    cout << e.getMessage() << endl;
+    std::cout << "Gurobi error number [EnumSolve]: " << e.getErrorCode()
+              << std::endl;
+    std::cout << e.getMessage() << std::endl;
   } catch (...) {
-    cout << "Non Gurobi error during construction of static robust model object"
-         << endl;
+    std::cout
+        << "Non Gurobi error during construction of static robust model object"
+        << std::endl;
   }
 
   AdaptiveSolution dummy_solution;
@@ -1051,7 +1060,7 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G,
   // Return format will always be exactly the same as enum solve, just for k
   // greater than one Naming - m3_prime is the copy of m3, and anything_prime is
   // associated with m3_prime int values
-  cout << "heuristic - extend by one policy" << endl;
+  std::cout << "heuristic - extend by one policy" << std::endl;
   long begin = GetCurrentTime();
   // find worst subset in optimal partition
   double min_subset_obj = GRB_INFINITY;
@@ -1069,17 +1078,17 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G,
                               // that we will work on
 
   if (p_prime > 1) {
-    cout << "Subset to split: { ";
+    std::cout << "Subset to split: { ";
     for (int q : partition_[min_subset_windex]) {
-      cout << q << " ";
+      std::cout << q << " ";
     }
-    cout << "}" << endl;
+    std::cout << "}" << std::endl;
     AdaptiveInstance m3_prime =
         AdaptiveInstance(&m3, partition_[min_subset_windex]);
     // careful - m3_prime always has k=2 because we are just extending by ONE
     m3_prime.set_policies(2);
-    // cout << endl << endl;
-    // cout << "m3 prime: " << endl;
+    // std::cout << std::endl << std::endl;
+    // std::cout << "m3 prime: " << std::endl;
     // m3_prime.printInstance(G);
 
     AdaptiveSolution k_prime_solution;
@@ -1104,25 +1113,25 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G,
   }
 }
 
-vector<Policy> InitializeKPolicies(AdaptiveInstance* m3, const Graph& G,
-                                   GRBEnv* env) {
-  unordered_set<int> centers;
-  int k = m3->policies();
+std::vector<Policy> InitializeKPolicies(AdaptiveInstance* m3, const Graph& G,
+                                        GRBEnv* env) {
+  std::unordered_set<int> centers;
   RobustAlgoModel spi_model = RobustAlgoModel(*m3, env);
-  vector<Policy> initial_policies;
+  std::vector<Policy> initial_policies;
   spi_model.configureModel(G, *m3);
   // Choose the first scenario to solve SPI for arbitrarily (we'll just use
   // index 0).
   centers.insert(0);
-  vector<int> update_vector(1);
+  std::vector<int> update_vector(1);
   spi_model.update(update_vector);
   Policy single_policy = spi_model.Solve();
   spi_model.reverse_update(update_vector);
   initial_policies.push_back(single_policy);
-  while (centers.size() < k) {
+  size_t policies = m3->policies();
+  while (centers.size() < policies) {
     // Evaluate all non center scenarios against the current policies,
     // maintaining the minimum one.
-    pair<int, double> min_subset = {-1, DBL_MAX};
+    std::pair<int, double> min_subset = {-1, DBL_MAX};
     for (int q = 0; q < m3->scenarios(); q++) {
       if (centers.count(q) == 1) continue;
       for (const Policy& policy : initial_policies) {
@@ -1148,7 +1157,7 @@ double UpdateCurrentObjectiveGivenSolution(AdaptiveSolution* current_solution,
                                            const Graph& G) {
   int k = m3->policies();
   int p = m3->scenarios();
-  vector<vector<int>> partition(k);
+  std::vector<std::vector<int>> partition(k);
   double min_max_objective = DBL_MAX;
   for (int q = 0; q < p; q++) {
     double max_objective_this_scenario = DBL_MIN;
@@ -1156,7 +1165,8 @@ double UpdateCurrentObjectiveGivenSolution(AdaptiveSolution* current_solution,
     for (int w = 0; w < k; w++) {
       double objective = m3->ComputeObjectiveOfPolicyForScenario(
           current_solution->solution()[w].binary_policy(), G, q);
-      // cout << "q: " << q << ", w: " << w << ", obj: "<< objective << endl;
+      // std::cout << "q: " << q << ", w: " << w << ", obj: "<< objective <<
+      // std::endl;
       if (objective > max_objective_this_scenario) {
         subset_assignment = w;
         max_objective_this_scenario = objective;
@@ -1178,8 +1188,8 @@ AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G,
   double z_previous = DBL_MIN;
   // Initialize the first solution - solving the non-robust model for k
   // followers chosen at random out of p.
-  vector<Policy> first_solution = InitializeKPolicies(m3, G, env);
-  vector<vector<int>> partitions(m3->policies());
+  std::vector<Policy> first_solution = InitializeKPolicies(m3, G, env);
+  std::vector<std::vector<int>> partitions(m3->policies());
   AdaptiveSolution current_solution = AdaptiveSolution(
       false, m3->policies(), m3->scenarios(), *m3, partitions, first_solution);
   // Update the objective (and initialize the current objective).
@@ -1189,7 +1199,8 @@ AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G,
   static_model.configureModel(G, *m3);
   int counter = 0;
   while (z_previous < z_current) {
-    cout << "objective, iteration " << counter << ": " << z_current << endl;
+    std::cout << "objective, iteration " << counter << ": " << z_current
+              << std::endl;
     // ONLY UPDATE MIN OBJECTIVE POLICY
     double min_objective = DBL_MAX;
     int subset = -1;
@@ -1216,7 +1227,8 @@ AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G,
     z_current = current_solution.worst_case_objective();
     counter++;
   }
-  cout << "objective, iteration " << counter << ": " << z_current << endl;
+  std::cout << "objective, iteration " << counter << ": " << z_current
+            << std::endl;
   long runtime = GetCurrentTime() - begin;
   current_solution.set_solution_time(runtime);
   return current_solution;

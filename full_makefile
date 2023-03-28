@@ -1,70 +1,36 @@
-# Makefile for ARSPI
+# Makefile for ARSPI.
+# Paths/Environmental Variables.
+# Project Folder Directories.
+BIN = ./bin/
+DAT = ./dat/
 
-# Paths/Environmental Variables
-# Project Folder Directories
-SRCPATH	  = ./src/
-BINPATH	  = ./bin/
-DATPATH	  = ./dat/
-INCPATH   = ./inc/
-
-# LUCA MACBOOKPRO PATHS (MBP)
-GRBMBPPATH = /Library/gurobi902/mac64
-GRBINCMBP = $(GRBMBPPATH)/include
-CPPLIBMBP = -L$(GRBMBPPATH)/lib/ -lgurobi_c++ -lgurobi90 $(CPPSTDLIB) -lpthread -lm
-
-# BENEDUM SMOD04 PATHS (SMD)
-GRBSMDPATH = /home/luw28/gurobi950/linux64
-GRBINCSMD = $(GRBSMDPATH)/include
-CPPLIBSMD = -L$(GRBSMDPATH)/lib/ -lgurobi_g++5.2 -lgurobi95 $(CPPSTDLIB) -lpthread -lm
-
-# JOURDAIN MAC PATHS (JMP)
-GRBJMPPATH = /Library/gurobi902/mac64
-GRBINCJMP = $(GRBJMPPATH)/include
-CPPLIBJMP = -L$(GRBJMPPATH)/lib/ -lgurobi_c++ -lgurobi90 $(CPPSTDLIB) -lpthread -lm
+# Gurobi/Libraries.
+GRBPATH = <your_path_to>/gurobi<xxx>/<your_platform> # for example: ~/gurobi1001/linux64
+GRBINC = $(GRBPATH)/include
+CPPLIB = -L$(GRBPATH)/lib/ -lgurobi_c++ -lgurobi<xx> $(CPPSTDLIB) -lpthread -lm # for example: -lgurobi100
 
 # *****************************************************
-# Variables to control Makefile operation
-
-CXXMAC = clang++
-CXXFLAGSMAC = -Wall -g -std=c++11
-
-CXXSMD = g++
-CXXFLAGSSMD = -m64 -std=c++14 -g -Wall -Wextra -pedantic
-
+# Compiler/Flags.
+CXX = clang++
+CXXFLAGS = -m64 -std=c++11 -g -Wall -Wextra -pedantic
 # ****************************************************
 
-# FOR MBP 
-# main:
-# 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)main $(SRCPATH)main.cpp -I$(GRBINCMBP) $(CPPLIBMBP) 
-# 
-# sp:
-# 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)sp $(SRCPATH)sp.cpp -I$(GRBINCMBP) $(CPPLIBMBP) 
-# 
-# enum:
-# 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)enum $(SRCPATH)enum.cpp -I$(GRBINCMBP) $(CPPLIBMBP) 
+format:
+	clang-format -i *.cpp *.h
 
+main:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)main main.cpp -I$(GRBINC) $(CPPLIB) 
 
-# FOR JMP 
-# main:
-# 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)main $(SRCPATH)main.cpp -I$(GRBINCJMP) $(CPPLIBJMP) 
-# 
-# sp:
-# 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)sp $(SRCPATH)sp.cpp -I$(GRBINCJMP) $(CPPLIBJMP) 
-# 
-# enum:
-# 	$(CXXMAC) $(CXXFLAGSMAC) $(SRCPATH)M3.cpp -o $(BINPATH)enum $(SRCPATH)enum.cpp -I$(GRBINCJMP) $(CPPLIBJMP) 
+test:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)test test.cpp -I$(GRBINC) $(CPPLIB) 
 
+sp:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)sp sp.cpp -I$(GRBINC) $(CPPLIB) 
 
-# FOR SMD 
-# main:
-# 	$(CXXSMD) $(CXXFLAGSSMD) $(SRCPATH)M3.cpp -o $(BINPATH)main $(SRCPATH)main.cpp -I$(GRBINCSMD) $(CPPLIBSMD) 
-# 
-# sp:
-# 	$(CXXSMD) $(CXXFLAGSSMD) $(SRCPATH)M3.cpp -o $(BINPATH)sp $(SRCPATH)sp.cpp -I$(GRBINCSMD) $(CPPLIBSMD) 
-# 
-# enum:
-# 	$(CXXSMD) $(CXXFLAGSSMD) $(SRCPATH)M3.cpp -o $(BINPATH)enum $(SRCPATH)enum.cpp -I$(GRBINCSMD) $(CPPLIBSMD) 
+enum:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)enum enum.cpp -I$(GRBINC) $(CPPLIB) 
 
-# FOR ANY UNIX LIKE
 clean:
-	rm -rf *.lp *.o $(BINPATH)*.dSYM $(BINPATH)main
+	rm -rf *.lp *.o $(BIN)*.dSYM $(BIN)main $(BIN)test
+
+

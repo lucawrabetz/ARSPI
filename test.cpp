@@ -8,7 +8,7 @@
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
 
 void SolveAndPrint(const Graph& G, AdaptiveInstance& instance,
-                   vector<ASPI_Solver>& solvers, GRBEnv* env, int big_m) {
+                   std::vector<ASPI_Solver>& solvers, GRBEnv* env, int big_m) {
   for (const auto& solver : solvers) {
     if (solver == MIP) {
       SetPartitioningModel sp = SetPartitioningModel(big_m, instance, env);
@@ -29,8 +29,8 @@ void SolveAndPrint(const Graph& G, AdaptiveInstance& instance,
 int main() {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
   env->set(GRB_DoubleParam_TimeLimit, 3600);  // Set time limit to 1 hour.
-  const string set_name = "tests";
-  const string directory = "dat/" + set_name + "/";
+  const std::string set_name = "tests";
+  const std::string directory = "dat/" + set_name + "/";
   // First test - 5 node instance with 1 follower:
   int k_0 = 1;
   int n = 5;
@@ -39,27 +39,29 @@ int main() {
   int budget = 1;
   int M = 100;
   int interdiction_delta = 10;
-  const string name1 = set_name + "-" + to_string(n) + "_" + to_string(k_0);
-  const string filename1 = directory + name1 + ".txt";
+  const std::string name1 =
+      set_name + "-" + std::to_string(n) + "_" + std::to_string(k_0);
+  const std::string filename1 = directory + name1 + ".txt";
   const Graph G1 = Graph(filename1, n);
   AdaptiveInstance test1(p, k, budget, G1, directory, name1);
   test1.ReadCosts(interdiction_delta);
-  vector<ASPI_Solver> solvers{MIP, BENDERS};
+  std::vector<ASPI_Solver> solvers{MIP, BENDERS};
   SolveAndPrint(G1, test1, solvers, env, M);
   // Second test - 6 node instance with 3 followers, k = 1,...,3:
   k_0 = 3;
   n = 6;
   p = 3;
-  const string name2 = set_name + "-" + to_string(n) + "_" + to_string(k_0);
-  const string filename2 = directory + name2 + ".txt";
+  const std::string name2 =
+      set_name + "-" + std::to_string(n) + "_" + std::to_string(k_0);
+  const std::string filename2 = directory + name2 + ".txt";
   const Graph G2 = Graph(filename2, n);
   for (int k = 1; k < 4; ++k) {
     AdaptiveInstance test2(p, k, budget, G2, directory, name2);
     test2.ReadCosts(interdiction_delta);
     SolveAndPrint(G2, test2, solvers, env, M);
   }
-  const string synthetic_set = "aspi_testbed";
-  const string synthetic_dir = "dat/" + synthetic_set + "/";
+  const std::string synthetic_set = "aspi_testbed";
+  const std::string synthetic_dir = "dat/" + synthetic_set + "/";
   // Synthetic test 1:
   k_0 = 3;
   n = 52;
@@ -67,9 +69,9 @@ int main() {
   budget = 3;
   M = 1000;
   interdiction_delta = 100;
-  const string name3 =
-      synthetic_set + "-" + to_string(n) + "_" + to_string(k_0);
-  const string filename3 = synthetic_dir + name3 + ".txt";
+  const std::string name3 =
+      synthetic_set + "-" + std::to_string(n) + "_" + std::to_string(k_0);
+  const std::string filename3 = synthetic_dir + name3 + ".txt";
   const Graph G3 = Graph(filename3, n);
   for (int k = 1; k < 4; ++k) {
     AdaptiveInstance test3(p, k, budget, G3, synthetic_dir, name3);
@@ -77,9 +79,9 @@ int main() {
     SolveAndPrint(G3, test3, solvers, env, M);
   }
   k_0 = 5;
-  const string name4 =
-      synthetic_set + "-" + to_string(n) + "_" + to_string(k_0);
-  const string filename4 = synthetic_dir + name4 + ".txt";
+  const std::string name4 =
+      synthetic_set + "-" + std::to_string(n) + "_" + std::to_string(k_0);
+  const std::string filename4 = synthetic_dir + name4 + ".txt";
   const Graph G4 = Graph(filename4, n);
   for (int k = 1; k < 4; ++k) {
     AdaptiveInstance test4(p, k, budget, G4, synthetic_dir, name4);
