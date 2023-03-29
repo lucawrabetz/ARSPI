@@ -629,166 +629,143 @@ AdaptiveSolution SetPartitioningBenders::Solve() {
   return callback_.current_solution_;
 }
 
-std::vector<int> initKappa(int p, int k) {
-  // initialize partition vector based on total number in set (p) and exact
-  // number of partitions required
+std::vector<int> InitKappa(int p, int k) {
+  // Initialize partition vector based on total number in set (p) and exact
+  // number of partitions required.
   std::vector<int> kappa(p, 0);
-
   for (int q = (p - k + 1); q < p; ++q) {
     kappa[q] = (q - (p - k));
   }
-
   return kappa;
 }
 
-void RobustAlgoModel::configureModel(const Graph& G, AdaptiveInstance& m3) {
-  // Construct baseline model with no constraints
-  algo_model = new GRBModel(env_);
-  algo_model->set(GRB_IntParam_OutputFlag, 0);
-
-  // Decision Variables
+void RobustAlgoModel::ConfigureModel(const Graph& G,
+                                     AdaptiveInstance& instance) {
+  // Construct baseline model with no constraints.
+  algo_model_ = new GRBModel(env_);
+  algo_model_->set(GRB_IntParam_OutputFlag, 0);
+  // Decision Variables.
   std::string varname = "z";
-  z = algo_model->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS,
-                         varname);  // objective function dummy variable
-  for (int a = 0; a < arcs; ++a) {
+  z_var_ = algo_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS,
+                               varname);  // objective function dummy variable.
+  for (int a = 0; a < arcs_; ++a) {
     varname = "x_" + std::to_string(a);
-    x.push_back(algo_model->addVar(0, 1, 0, GRB_BINARY, varname));
-  }  // interdiction policy on arcs
-
+    x_var_.push_back(algo_model_->addVar(0, 1, 0, GRB_BINARY, varname));
+  }  // interdiction policy on arcs.
   std::vector<GRBVar> tempvector;
-  for (int q = 0; q < scenarios; ++q) {
-    pi.push_back(tempvector);  // post interdiction s-i best path (for every q)
-    for (int i = 0; i < nodes; ++i) {
+  for (int q = 0; q < scenarios_; ++q) {
+    pi_var_.push_back(
+        tempvector);  // post interdiction s-i best path (for every q).
+    for (int i = 0; i < nodes_; ++i) {
       varname = "pi_" + std::to_string(q) + "_" + std::to_string(i);
-      pi[q].push_back(algo_model->addVar(-GRB_INFINITY, GRB_INFINITY, 0,
-                                         GRB_CONTINUOUS, varname));
+      pi_var_[q].push_back(algo_model_->addVar(-GRB_INFINITY, GRB_INFINITY, 0,
+                                               GRB_CONTINUOUS, varname));
     }
   }
-
-  for (int q = 0; q < scenarios; ++q) {
-    lambda.push_back(tempvector);  // lambda variable on arcs (for every q)
-    for (int a = 0; a < arcs; ++a) {
+  for (int q = 0; q < scenarios_; ++q) {
+    lambda_var_.push_back(
+        tempvector);  // lambda variable on arcs (for every q).
+    for (int a = 0; a < arcs_; ++a) {
       varname = "lambda_" + std::to_string(q) + "_" + std::to_string(a);
-      lambda[q].push_back(
-          algo_model->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+      lambda_var_[q].push_back(
+          algo_model_->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
     }
   }
-
-  // Add budget Constraint
+  // Add Budget Constraint.
   GRBLinExpr linexpr = 0;
-  for (int a = 0; a < arcs; a++) {
-    linexpr += x[a];
+  for (int a = 0; a < arcs_; a++) {
+    linexpr += x_var_[a];
   }
-  algo_model->addConstr(linexpr <= budget, "budget");
-  algo_model->update();
-
-  // constraint blocking interdiction of connecting arcs
-  // for (int a=0; a<arcs; a++) {
-  //     if (G.arcs[a].sub == -1) {
-  //         algo_model->addConstr(x[a] == 0);
-  //     }
-  // }
-
-  // Populate Global Constraints
-  // Arc/Dual Constraints
-  for (int q = 0; q < scenarios; ++q) {
-    dual_constraints.push_back(std::vector<GRBTempConstr>());
-
-    for (int i = 0; i < nodes; ++i) {
+  algo_model_->addConstr(linexpr <= budget_, "budget");
+  algo_model_->update();
+  // Arc/Dual Constraints.
+  for (int q = 0; q < scenarios_; ++q) {
+    dual_constraints_.push_back(std::vector<GRBTempConstr>());
+    for (int i = 0; i < nodes_; ++i) {
       for (size_t j = 0; j < G.adjacency_list()[i].size(); ++j) {
         int next = G.adjacency_list()[i][j];
         int a = G.arc_index_hash()[i][j];
-
         GRBTempConstr constraint =
-            pi[q][next] - pi[q][i] - lambda[q][a] <=
-            m3.arc_costs()[q][a] + (m3.interdiction_delta() * x[a]);
-        dual_constraints[q].push_back(constraint);
+            pi_var_[q][next] - pi_var_[q][i] - lambda_var_[q][a] <=
+            instance.arc_costs()[q][a] +
+                (instance.interdiction_delta() * x_var_[a]);
+        dual_constraints_[q].push_back(constraint);
       }
     }
   }
-
-  // Objective Constraints
-  for (int q = 0; q < scenarios; ++q) {
+  // Objective Constraints.
+  for (int q = 0; q < scenarios_; ++q) {
     GRBLinExpr linexpr = 0;
-    linexpr += (pi[q][nodes - 1] - pi[q][0]);  // b^\top pi
-
-    for (int a = 0; a < arcs; ++a) {
-      linexpr += -lambda[q][a];  // u^\top \cdot lambda
+    linexpr += (pi_var_[q][nodes_ - 1] - pi_var_[q][0]);  // b^\top pi.
+    for (int a = 0; a < arcs_; ++a) {
+      linexpr += -lambda_var_[q][a];  // u^\top \cdot lambda.
     }
-
-    z_constraints.push_back(z <= linexpr);
+    z_constraints_.push_back(z_var_ <= linexpr);
   }
 }
 
-void RobustAlgoModel::update(std::vector<int>& subset) {
-  // add constraints to model for subset in partition
+void RobustAlgoModel::Update(std::vector<int>& subset) {
+  // Add constraints to model for subset in partition.
   for (int q : subset) {
     std::string zero_name = "zero_" + std::to_string(q);
     std::string z_name = "z_" + std::to_string(q);
-    algo_model->addConstr(pi[q][0] == 0, zero_name);
-    algo_model->addConstr(z_constraints[q], z_name);
-
+    algo_model_->addConstr(pi_var_[q][0] == 0, zero_name);
+    algo_model_->addConstr(z_constraints_[q], z_name);
     int a = 0;
-    // std::cout << "about to loop through dual constraints" << std::endl;
-    for (GRBTempConstr constraint : dual_constraints[q]) {
+    for (GRBTempConstr constraint : dual_constraints_[q]) {
       std::string dual_name =
           "dual_" + std::to_string(q) + "_" + std::to_string(a);
-      algo_model->addConstr(constraint, dual_name);
+      algo_model_->addConstr(constraint, dual_name);
       ++a;
     }
   }
-
-  algo_model->update();
+  algo_model_->update();
 }
 
-void RobustAlgoModel::reverse_update(std::vector<int>& subset) {
-  // remove all constraints from model - i.e. all constraints associated with
-  // this subset
+void RobustAlgoModel::ReverseUpdate(std::vector<int>& subset) {
+  // Remove all constraints from model - i.e. all constraints associated with
+  // this subset.
   for (int q : subset) {
     std::string zero_name = "zero_" + std::to_string(q);
     std::string z_name = "z_" + std::to_string(q);
-
-    GRBConstr zero_constraint = algo_model->getConstrByName(zero_name);
-    GRBConstr z_constraint = algo_model->getConstrByName(z_name);
-    algo_model->remove(zero_constraint);
-    algo_model->remove(z_constraint);
-
+    GRBConstr zero_constraint = algo_model_->getConstrByName(zero_name);
+    GRBConstr z_constraint = algo_model_->getConstrByName(z_name);
+    algo_model_->remove(zero_constraint);
+    algo_model_->remove(z_constraint);
     int a = 0;
-    for (GRBTempConstr constraint : dual_constraints[q]) {
+    for (GRBTempConstr constraint : dual_constraints_[q]) {
       std::string dual_name =
           "dual_" + std::to_string(q) + "_" + std::to_string(a);
-      GRBConstr dual_constraint = algo_model->getConstrByName(dual_name);
-      algo_model->remove(dual_constraint);
+      GRBConstr dual_constraint = algo_model_->getConstrByName(dual_name);
+      algo_model_->remove(dual_constraint);
       ++a;
     }
   }
-
-  algo_model->update();
+  algo_model_->update();
 }
 
 Policy RobustAlgoModel::Solve() {
-  // solve static model, return policy and objective value
-  algo_model->optimize();
-  std::vector<double> binary_policy(arcs, 0);
-  double objective = -algo_model->get(GRB_DoubleAttr_ObjVal);
-  for (int a = 0; a < arcs; ++a) {
-    binary_policy[a] = x[a].get(GRB_DoubleAttr_X);
+  // Solve static model, return policy and objective value.
+  algo_model_->optimize();
+  std::vector<double> binary_policy(arcs_, 0);
+  double objective = -algo_model_->get(GRB_DoubleAttr_ObjVal);
+  for (int a = 0; a < arcs_; ++a) {
+    binary_policy[a] = x_var_[a].get(GRB_DoubleAttr_X);
   }
-  algo_model->reset();
+  algo_model_->reset();
   Policy solution = Policy(objective, binary_policy);
   return solution;
 }
 
 int max_int(int a, int b) {
-  if (a <= b) {
+  if (a <= b)
     return b;
-  } else {
+  else
     return a;
-  }
 }
 
 void AdaptiveSolution::ComputeAllObjectives(const Graph& G,
-                                            AdaptiveInstance* instance,
+                                            AdaptiveInstance& instance,
                                             bool compute_adaptive_objective) {
   // Populate / recompute the all_objectives vector based on interdiction
   // policies and follower costs. Worst case objective for every policy will be
@@ -808,7 +785,7 @@ void AdaptiveSolution::ComputeAllObjectives(const Graph& G,
       double max_objective_this_scenario = DBL_MIN;
       int subset_assignment = -1;
       for (int w = 0; w < policies_; w++) {
-        double objective = instance->ComputeObjectiveOfPolicyForScenario(
+        double objective = instance.ComputeObjectiveOfPolicyForScenario(
             solution_[w].binary_policy(), G, q);
         all_objectives[w][q] = objective;
         if (objective > max_objective_this_scenario) {
@@ -971,84 +948,64 @@ std::pair<std::vector<std::vector<int>>, std::vector<Policy>> MergeEnumSols(
   return sol1;
 }
 
-AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env) {
-  // Pass a AdaptiveInstance and solve using enumeration algorithm
-  // Enumeration maintained as in Orlov paper
-  // OLD Return: pair:
-  //      first: vector of vector of ints - optimal partition (optimal objective
-  //      is with policies) second: vector of Policy - k interdiction policies
-  //  NEW Return: Adaptive Solution Struct (basic info, nested vector of
-  //  partitions, vector of policies)
-  // ints and bool
+AdaptiveSolution EnumSolve(AdaptiveInstance& instance, const Graph& G, GRBEnv* env) {
+  // Pass an AdaptiveInstance and solve using enumeration algorithm.
+  // Enumeration maintained as in Orlov paper.
   bool next = true;
-  int p = m3.scenarios();
-  int k = m3.policies();
-  int m = m3.arcs();
-  // initialize partitioning 'string' vector as in Orlov Paper
-  // initialize corresponding max vector
-  std::vector<int> kappa = initKappa(p, k);
+  int p = instance.scenarios();
+  int k = instance.policies();
+  int m = instance.arcs();
+  // Initialize partitioning 'string' vector as in Orlov Paper.
+  // Initialize corresponding max vector.
+  std::vector<int> kappa = InitKappa(p, k);
   std::vector<int> max = kappa;
-
-  // initialize solution vector
+  // Initialize solution vector.
   std::vector<double> arc_vec(m, 0);
   std::vector<std::vector<double>> sol(k, arc_vec);
-
-  // initialize static robust model
+  // Initialize static robust model.
   try {
     long begin = GetCurrentTime();
-    RobustAlgoModel static_robust = RobustAlgoModel(m3, env);
-    static_robust.configureModel(G, m3);
-
-    // objective value maintained here (and optimal partition)
+    RobustAlgoModel static_robust = RobustAlgoModel(instance, env);
+    static_robust.ConfigureModel(G, instance);
+    // Objective value maintained here (and optimal partition).
     double best_worstcase_objective = 0;
     std::vector<double> final_objectives(k, 0);
     std::vector<std::vector<int>> best_worstcase_partition;
-
-    // enumerate while not 'failing' to get next partition
+    // Enumerate while not 'failing' to get next partition.
     while (next) {
       std::vector<std::vector<double>> temp_sol(k, arc_vec);
       double temp_worst_objective = DBL_MAX;
       std::vector<double> temp_objectives(k, 0);
       std::vector<std::vector<int>> partition = kappa_to_partition(kappa, k, p);
-
       for (int w = 0; w < k; ++w) {
-        // for every subset in partition, solve M2 for k=1
-        static_robust.update(partition[w]);
+        // For every subset in partition, solve M2 for k=1.
+        static_robust.Update(partition[w]);
         Policy temp_single_solution = static_robust.Solve();
         temp_objectives[w] = temp_single_solution.objective();
-        static_robust.reverse_update(partition[w]);
-
-        // update temp_worst_objective and temp_sol if this subset is worse
+        temp_sol[w] = temp_single_solution.binary_policy();
+        static_robust.ReverseUpdate(partition[w]);
+        // Update temp_worst_objective and temp_sol if this subset is worse.
         if (temp_objectives[w] < temp_worst_objective) {
           temp_worst_objective = temp_objectives[w];
         }
       }
-
       if (temp_worst_objective > best_worstcase_objective) {
         best_worstcase_objective = temp_worst_objective;
         sol = temp_sol;
         best_worstcase_partition = partition;
         final_objectives = temp_objectives;
       }
-
       next = nextKappa(kappa, max, k, p);
     }
-
+    long time = GetCurrentTime() - begin;
     std::vector<Policy> final_policies(k, Policy(m));
-
     for (int w = 0; w < k; ++w) {
       final_policies[w].set_policy(sol[w]);
       final_policies[w].set_objective(final_objectives[w]);
     }
-
-    // std::vector<int> final_obj(1, best_worstcase_solution);
-    // best_worstcase_partition.insert(best_worstcase_partition.begin(),
-    // final_obj); OLD auto final_solution =
-    // std::make_pair(best_worstcase_partition, final_policies); NEW
     AdaptiveSolution final_solution = AdaptiveSolution(
-        false, k, p, m3, best_worstcase_partition, final_policies);
+        false, k, p, instance, best_worstcase_partition, final_policies);
     final_solution.set_worst_case_objective(best_worstcase_objective);
-    long time = GetCurrentTime() - begin;
     final_solution.set_solution_time(time);
     return final_solution;
   } catch (GRBException e) {
@@ -1060,19 +1017,18 @@ AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env) {
         << "Non Gurobi error during construction of static robust model object"
         << std::endl;
   }
-
   AdaptiveSolution dummy_solution;
   return dummy_solution;
 }
 
-void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G,
+void AdaptiveSolution::ExtendByOne(AdaptiveInstance& instance, const Graph& G,
                                    GRBEnv* env, bool mip_subroutine) {
   // Use an optimal solution found for k, to find a good solution for k+1
   // Take the worst subset in the optimal partition and "split it in 2"
   // "Split it in two": solve that subset for k = 2
   // Return format will always be exactly the same as enum solve, just for k
-  // greater than one Naming - m3_prime is the copy of m3, and anything_prime is
-  // associated with m3_prime int values
+  // greater than one Naming - instance_prime is the copy of instance, and anything_prime is
+  // associated with instance_prime int values
   std::cout << "heuristic - extend by one policy" << std::endl;
   long begin = GetCurrentTime();
   // find worst subset in optimal partition
@@ -1096,120 +1052,86 @@ void AdaptiveSolution::ExtendByOne(AdaptiveInstance& m3, const Graph& G,
       std::cout << q << " ";
     }
     std::cout << "}" << std::endl;
-    AdaptiveInstance m3_prime =
-        AdaptiveInstance(&m3, partition_[min_subset_windex]);
-    // careful - m3_prime always has k=2 because we are just extending by ONE
-    m3_prime.set_policies(2);
+    AdaptiveInstance instance_prime =
+        AdaptiveInstance(&instance, partition_[min_subset_windex]);
+    // careful - instance_prime always has k=2 because we are just extending by ONE
+    instance_prime.set_policies(2);
     // std::cout << std::endl << std::endl;
-    // std::cout << "m3 prime: " << std::endl;
-    // m3_prime.printInstance(G);
+    // std::cout << "instance prime: " << std::endl;
+    // instance_prime.printInstance(G);
 
     AdaptiveSolution k_prime_solution;
-
     if (mip_subroutine) {
-      SetPartitioningModel m3prime_model =
-          SetPartitioningModel(500, m3_prime, env);
-      m3prime_model.ConfigureSolver(G, m3_prime);
-      m3prime_model.Solve();
-      k_prime_solution = m3prime_model.current_solution();
-      k_prime_solution.ComputeAllObjectives(G, &m3_prime);
+      SetPartitioningModel instanceprime_model =
+          SetPartitioningModel(500, instance_prime, env);
+      instanceprime_model.ConfigureSolver(G, instance_prime);
+      instanceprime_model.Solve();
+      k_prime_solution = instanceprime_model.current_solution();
+      k_prime_solution.ComputeAllObjectives(G, instance_prime);
     } else {
-      k_prime_solution = enumSolve(m3_prime, G, env);
+      k_prime_solution = EnumSolve(instance_prime, G, env);
     }
-
-    // auto final_solution = MergeEnumSols(k_solution, k_prime_solution,
-    // min_subset_windex);
     long time = GetCurrentTime() - begin;
-
-    MergeEnumSols(k_prime_solution, &m3_prime, min_subset_windex);
+    MergeEnumSols(k_prime_solution, &instance_prime, min_subset_windex);
     solution_time_ = time;
   }
 }
 
-std::vector<Policy> InitializeKPolicies(AdaptiveInstance* m3, const Graph& G,
+std::vector<Policy> InitializeKPolicies(AdaptiveInstance& instance, const Graph& G,
                                         GRBEnv* env) {
   std::unordered_set<int> centers;
-  RobustAlgoModel spi_model = RobustAlgoModel(*m3, env);
+  RobustAlgoModel spi_model = RobustAlgoModel(instance, env);
   std::vector<Policy> initial_policies;
-  spi_model.configureModel(G, *m3);
+  spi_model.ConfigureModel(G, instance);
   // Choose the first scenario to solve SPI for arbitrarily (we'll just use
   // index 0).
   centers.insert(0);
-  std::vector<int> update_vector(1);
-  spi_model.update(update_vector);
+  std::vector<int> Update_vector(1);
+  spi_model.Update(Update_vector);
   Policy single_policy = spi_model.Solve();
-  spi_model.reverse_update(update_vector);
+  spi_model.ReverseUpdate(Update_vector);
   initial_policies.push_back(single_policy);
-  size_t policies = m3->policies();
+  size_t policies = instance.policies();
   while (centers.size() < policies) {
     // Evaluate all non center scenarios against the current policies,
     // maintaining the minimum one.
     std::pair<int, double> min_subset = {-1, DBL_MAX};
-    for (int q = 0; q < m3->scenarios(); q++) {
+    for (int q = 0; q < instance.scenarios(); q++) {
       if (centers.count(q) == 1) continue;
       for (const Policy& policy : initial_policies) {
-        double objective = m3->ComputeObjectiveOfPolicyForScenario(
+        double objective = instance.ComputeObjectiveOfPolicyForScenario(
             policy.binary_policy(), G, q);
         if (objective < min_subset.second) min_subset = {q, objective};
       }
     }
     // Solve SPI for scenario that is currently performing worst (for the
     // interdictor), and add the scenario to the set of centers.
-    update_vector[0] = min_subset.first;
-    spi_model.update(update_vector);
+    Update_vector[0] = min_subset.first;
+    spi_model.Update(Update_vector);
     Policy single_policy = spi_model.Solve();
-    spi_model.reverse_update(update_vector);
+    spi_model.ReverseUpdate(Update_vector);
     initial_policies.push_back(single_policy);
     centers.insert(min_subset.first);
   }
   return initial_policies;
 }
 
-double UpdateCurrentObjectiveGivenSolution(AdaptiveSolution* current_solution,
-                                           AdaptiveInstance* m3,
-                                           const Graph& G) {
-  int k = m3->policies();
-  int p = m3->scenarios();
-  std::vector<std::vector<int>> partition(k);
-  double min_max_objective = DBL_MAX;
-  for (int q = 0; q < p; q++) {
-    double max_objective_this_scenario = DBL_MIN;
-    int subset_assignment = -1;
-    for (int w = 0; w < k; w++) {
-      double objective = m3->ComputeObjectiveOfPolicyForScenario(
-          current_solution->solution()[w].binary_policy(), G, q);
-      // std::cout << "q: " << q << ", w: " << w << ", obj: "<< objective <<
-      // std::endl;
-      if (objective > max_objective_this_scenario) {
-        subset_assignment = w;
-        max_objective_this_scenario = objective;
-      }
-    }
-    if (max_objective_this_scenario < min_max_objective)
-      min_max_objective = max_objective_this_scenario;
-    partition[subset_assignment].push_back(q);
-  }
-  current_solution->set_partition(partition);
-
-  return min_max_objective;
-}
-
-AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G,
+AdaptiveSolution KMeansHeuristic(AdaptiveInstance& instance, const Graph& G,
                                  GRBEnv* env) {
   // Use the KMeans - Style heuristic to solve an Adaptive Instance.
   long begin = GetCurrentTime();
   double z_previous = DBL_MIN;
   // Initialize the first solution - solving the non-robust model for k
   // followers chosen at random out of p.
-  std::vector<Policy> first_solution = InitializeKPolicies(m3, G, env);
-  std::vector<std::vector<int>> partitions(m3->policies());
+  std::vector<Policy> first_solution = InitializeKPolicies(instance, G, env);
+  std::vector<std::vector<int>> partitions(instance.policies());
   AdaptiveSolution current_solution = AdaptiveSolution(
-      false, m3->policies(), m3->scenarios(), *m3, partitions, first_solution);
+      false, instance.policies(), instance.scenarios(), instance, partitions, first_solution);
   // Update the objective (and initialize the current objective).
-  current_solution.ComputeAllObjectives(G, m3);
+  current_solution.ComputeAllObjectives(G, instance);
   double z_current = current_solution.worst_case_objective();
-  RobustAlgoModel static_model = RobustAlgoModel(*m3, env);
-  static_model.configureModel(G, *m3);
+  RobustAlgoModel static_model = RobustAlgoModel(instance, env);
+  static_model.ConfigureModel(G, instance);
   int counter = 0;
   while (z_previous < z_current) {
     std::cout << "objective, iteration " << counter << ": " << z_current
@@ -1217,25 +1139,25 @@ AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G,
     // ONLY UPDATE MIN OBJECTIVE POLICY
     double min_objective = DBL_MAX;
     int subset = -1;
-    for (int w = 0; w < m3->policies(); w++) {
+    for (int w = 0; w < instance.policies(); w++) {
       if (current_solution.solution()[w].objective() < min_objective) {
         min_objective = current_solution.solution()[w].objective();
         subset = w;
       }
     }
-    static_model.update(current_solution.partition()[subset]);
+    static_model.Update(current_solution.partition()[subset]);
     Policy new_policy = static_model.Solve();
     current_solution.set_solution_policy(subset, new_policy);
-    static_model.reverse_update(current_solution.partition()[subset]);
+    static_model.ReverseUpdate(current_solution.partition()[subset]);
     // UPDATE All POLICIES
-    // for (int subset=0; subset<m3->policies(); subset++) {
-    //     static_model.update(current_solution.partition()[subset]);
+    // for (int subset=0; subset<instance->policies(); subset++) {
+    //     static_model.Update(current_solution.partition()[subset]);
     //     Policy new_policy = static_model.Solve();
     //     current_solution.set_solution_policy(subset, new_policy);
-    //     static_model.reverse_update(current_solution.partition()[subset]);
+    //     static_model.ReverseUpdate(current_solution.partition()[subset]);
     // }
     // REASSIGNMENT
-    current_solution.ComputeAllObjectives(G, m3);
+    current_solution.ComputeAllObjectives(G, instance);
     z_previous = z_current;
     z_current = current_solution.worst_case_objective();
     counter++;

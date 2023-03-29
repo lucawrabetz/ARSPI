@@ -24,6 +24,7 @@
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
+const double EPSILON = 0.000000001;
 
 class Graph {
   // Class to read an arc list from a file and represent it as linked lists.
@@ -167,9 +168,9 @@ class AdaptiveSolution {
   void LogSolution(const Graph& G, std::string title, bool policy = false);
   void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2,
                      int split_index);
-  void ExtendByOne(AdaptiveInstance& m3, const Graph& G, GRBEnv* env,
+  void ExtendByOne(AdaptiveInstance& instance, const Graph& G, GRBEnv* env,
                    bool mip_subroutine = true);
-  void ComputeAllObjectives(const Graph& G, AdaptiveInstance* instance,
+  void ComputeAllObjectives(const Graph& G, AdaptiveInstance& instance,
                             bool compute_adaptive_objective = false);
   int policies() const { return policies_; }
   double worst_case_objective() const { return worst_case_objective_; }
@@ -206,39 +207,36 @@ class AdaptiveSolution {
 
 class RobustAlgoModel {
   // Special Purpose Model for the Enumerative Algorithm - Static Robust Dual
-  // Reformulation Can also be used to solve non-robust shortest path
+  // Reformulation - can also be used to solve non-robust shortest path
   // interdiction problems - just call update with only the desired scenario.
  public:
-  // This data will stay throughout the algorithm (all decision variables and
-  // non-negativity constraints):
-  int scenarios, budget, nodes, arcs;
-
-  GRBEnv* env_;
-  GRBModel* algo_model;
-
-  GRBVar z;
-  std::vector<std::vector<GRBVar>> pi;  // decision variable (for every q, i)
-  std::vector<std::vector<GRBVar>>
-      lambda;             // decision variable (for every q, a)
-  std::vector<GRBVar> x;  // interdiction decision variable (for every a)
-
-  // constraints will be added in update based on the subset of [p] that we want
-  // to include hold on to linexpr for all constraints
-  std::vector<GRBTempConstr> z_constraints;
-  std::vector<std::vector<GRBTempConstr>> dual_constraints;
-
-  RobustAlgoModel() : scenarios(0), budget(0), nodes(0), arcs(0){};
-  RobustAlgoModel(AdaptiveInstance& m3, GRBEnv* env)
-      : scenarios(m3.scenarios()),
-        budget(m3.budget()),
-        nodes(m3.nodes()),
-        arcs(m3.arcs()),
+  RobustAlgoModel() : scenarios_(0), budget_(0), nodes_(0), arcs_(0){};
+  RobustAlgoModel(AdaptiveInstance& instance, GRBEnv* env)
+      : scenarios_(instance.scenarios()),
+        budget_(instance.budget()),
+        nodes_(instance.nodes()),
+        arcs_(instance.arcs()),
         env_(env){};
-
-  void configureModel(const Graph& G, AdaptiveInstance& m3);
-  void update(std::vector<int>& subset);
-  void reverse_update(std::vector<int>& subset);
+  void ConfigureModel(const Graph& G, AdaptiveInstance& instance);
+  void Update(std::vector<int>& subset);
+  void ReverseUpdate(std::vector<int>& subset);
   Policy Solve();
+
+ private:
+  // All decision variables and non-negativity constraints will stay throughout
+  // the algorithm. Constraints are added in ::Update based on the subset of [p]
+  // that we want to include.
+  int scenarios_, budget_, nodes_, arcs_;
+  GRBEnv* env_;
+  GRBModel* algo_model_;
+  GRBVar z_var_;
+  std::vector<std::vector<GRBVar>>
+      pi_var_;  // Decision variable (for every q, i).
+  std::vector<std::vector<GRBVar>>
+      lambda_var_;             // Decision variable (for every q, a).
+  std::vector<GRBVar> x_var_;  // Interdiction decision variable (for every a).
+  std::vector<GRBTempConstr> z_constraints_;
+  std::vector<std::vector<GRBTempConstr>> dual_constraints_;
 };
 
 class SetPartitioningModel {
@@ -310,7 +308,7 @@ class BendersCallback : public GRBCallback {
   void callback();
 
  private:
-  double epsilon_ = 0.000001;
+  double epsilon_ = EPSILON;
   double upper_bound_, lower_bound_;
   int big_m_, nodes_, arcs_, budget_, scenarios_, policies_;
   std::vector<std::vector<int>> arc_costs_;
@@ -361,31 +359,14 @@ class SetPartitioningBenders {
   BendersCallback callback_;
 };
 
-std::pair<std::vector<std::vector<int>>, std::vector<Policy>> mergeEnumSols(
-    std::pair<std::vector<std::vector<int>>, std::vector<Policy>>& sol1,
-    std::pair<std::vector<std::vector<int>>, std::vector<Policy>>& sol2,
-    int w_index);
+AdaptiveSolution EnumSolve(AdaptiveInstance& instance, const Graph& G, GRBEnv* env);
 
-AdaptiveSolution enumSolve(AdaptiveInstance& m3, const Graph& G, GRBEnv* env);
-
-double UpdateCurrentObjectiveGivenSolution(AdaptiveSolution* current_solution,
-                                           AdaptiveInstance* m3,
-                                           const Graph& G);
-
-std::vector<Policy> InitializeKPolicies(AdaptiveInstance* m3, const Graph& G,
+std::vector<Policy> InitializeKPolicies(AdaptiveInstance& instance, const Graph& G,
                                         GRBEnv* env);
 
-AdaptiveSolution KMeansHeuristic(AdaptiveInstance* m3, const Graph& G,
+AdaptiveSolution KMeansHeuristic(AdaptiveInstance& instance, const Graph& G,
                                  GRBEnv* env);
 
-// std::pair<std::vector<std::vector<int> >, std::vector<Policy> >
-// extendByOne(std::pair<std::vector<std::vector<int> >, std::vector<Policy> >&
-// k_solution, AdaptiveInstance& m3, const Graph& G);
-
 long GetCurrentTime();
-
-void printSolution(
-    std::pair<std::vector<std::vector<int>>, std::vector<Policy>>& sol,
-    std::string solname = "");
 
 #endif
