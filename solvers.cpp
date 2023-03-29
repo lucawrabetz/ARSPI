@@ -362,13 +362,13 @@ AdaptiveSolution SetPartitioningModel::Solve() {
   current_solution_.set_solution_time(time);
   if (sp_model_->get(GRB_IntAttr_Status) == 2) {
     current_solution_.set_unbounded(false);
+    current_solution_.set_worst_case_objective(
+        -sp_model_->get(GRB_DoubleAttr_ObjVal));
     for (int w = 0; w < policies_; ++w) {
       std::vector<double> x_vector;
       for (int a = 0; a < arcs_; a++) {
         x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
       }
-      current_solution_.set_worst_case_objective(
-          -sp_model_->get(GRB_DoubleAttr_ObjVal));
       Policy temp_policy = Policy(-1, x_vector);
       current_solution_.set_solution_policy(w, temp_policy);
       for (int q = 0; q < scenarios_; q++) {
@@ -609,6 +609,19 @@ AdaptiveSolution SetPartitioningBenders::Solve() {
     callback_.current_solution_.set_worst_case_objective(
         -benders_model_->get(GRB_DoubleAttr_ObjVal));
     callback_.current_solution_.set_cuts(callback_.lazy_cuts_rounds());
+    for (int w = 0; w < policies_; ++w) {
+      std::vector<double> x_vector;
+      for (int a = 0; a < arcs_; a++) {
+        x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
+      }
+      Policy temp_policy = Policy(-1, x_vector);
+      callback_.current_solution_.set_solution_policy(w, temp_policy);
+      for (int q = 0; q < scenarios_; q++) {
+        if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
+          callback_.current_solution_.add_to_partition(w, q);
+        }
+      }
+    }
   } else if (benders_model_->get(GRB_IntAttr_Status) == 5) {
     callback_.current_solution_.set_unbounded(true);
     callback_.current_solution_.set_solution_time(time);

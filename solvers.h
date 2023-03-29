@@ -23,6 +23,8 @@
 #include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
+enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
+
 class Graph {
   // Class to read an arc list from a file and represent it as linked lists.
  public:

@@ -5,7 +5,6 @@
 // small instances. Every test prints the algorithm and instance name1 followed
 // by "PASS" if it passes, "FAIL" if it fails.
 
-enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
 
 void SolveAndPrint(const Graph& G, AdaptiveInstance& instance,
                    std::vector<ASPI_Solver>& solvers, GRBEnv* env, int big_m) {
