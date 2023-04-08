@@ -24,7 +24,7 @@
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
-const double EPSILON = 0.000000001;
+const double EPSILON = 0.000001;
 
 class Graph {
   // Class to read an arc list from a file and represent it as linked lists.
@@ -82,11 +82,13 @@ class AdaptiveInstance {
                    std::vector<int>& keep_scenarios);
   void ReadCosts(int interdiction_delta);
   void PrintInstance(const Graph& G) const;
-  int Dijkstra(int q, const Graph& G);
+  double SPModel(int w, int q, const Graph& G, GRBEnv* env);
   void ApplyInterdiction(const std::vector<double>& x_bar, bool rev = false);
-  double ValidatePolicy(std::vector<double>& x_bar, const Graph& G);
+  double ValidatePolicy(std::vector<double>& x_bar, const Graph& G,
+                        GRBEnv* env);
   double ComputeObjectiveOfPolicyForScenario(
-      const std::vector<double>& binary_policy, const Graph& G, int q);
+      const std::vector<double>& binary_policy, const Graph& G, int w, int q,
+      GRBEnv* env);
   int nodes() const { return nodes_; }
   int arcs() const { return arcs_; }
   int scenarios() const { return scenarios_; }
@@ -112,27 +114,6 @@ class AdaptiveInstance {
   std::vector<int> scenario_index_map_;
 };
 
-class Policy {
-  // Policy class - represent a single interdiction policy with its objective.
-  // The objective - is the worst (max) objective for the subsets that the
-  // interdiction policy is assigned to.
- public:
-  Policy() : objective_(0), binary_policy_(std::vector<double>()){};
-  Policy(int size) : objective_(0), binary_policy_(std::vector<double>(size)){};
-  Policy(double objective, const std::vector<double>& binary_policy)
-      : objective_(objective), binary_policy_(binary_policy){};
-  double objective() const { return objective_; }
-  std::vector<double> binary_policy() const { return binary_policy_; }
-  void set_policy(const std::vector<double>& binary_policy) {
-    binary_policy_ = binary_policy;
-  }
-  void set_objective(double objective) { objective_ = objective; }
-
- private:
-  double objective_;
-  std::vector<double> binary_policy_;
-};
-
 class AdaptiveSolution {
   // Full solution - i.e. a vector of k policy objects with extra info,
   // including the partition.
@@ -151,31 +132,40 @@ class AdaptiveSolution {
         scenarios_(scenarios),
         nodes_(instance.nodes()),
         arcs_(instance.arcs()),
+        budget_(instance.budget()),
         partition_(std::vector<std::vector<int>>(policies)),
-        solution_(std::vector<Policy>(policies)){};
-  AdaptiveSolution(bool benders, int policies, int scenarios,
-                   AdaptiveInstance& instance,
+        solution_(std::vector<std::vector<double>>(
+            policies, std::vector<double>(instance.arcs()))),
+        objectives_(std::vector<std::vector<double>>(
+            policies, std::vector<double>(scenarios))){};
+  AdaptiveSolution(bool benders, AdaptiveInstance& instance,
                    const std::vector<std::vector<int>>& partition,
-                   const std::vector<Policy>& solution)
+                   const std::vector<std::vector<double>>& solution)
       : unbounded_(false),
         benders_(benders),
-        policies_(policies),
-        scenarios_(scenarios),
+        policies_(instance.policies()),
+        scenarios_(instance.scenarios()),
         nodes_(instance.nodes()),
         arcs_(instance.arcs()),
+        budget_(instance.budget()),
         partition_(partition),
-        solution_(solution){};
+        solution_(solution),
+        objectives_(std::vector<std::vector<double>>(
+            instance.policies(), std::vector<double>(instance.scenarios()))){};
   void LogSolution(const Graph& G, std::string title, bool policy = false);
   void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2,
                      int split_index);
   void ExtendByOne(AdaptiveInstance& instance, const Graph& G, GRBEnv* env,
                    bool mip_subroutine = true);
-  void ComputeAllObjectives(const Graph& G, AdaptiveInstance& instance,
-                            bool compute_adaptive_objective = false);
+  void ComputeObjectiveMatrix(const Graph& G, AdaptiveInstance& instance,
+                              GRBEnv* env);
+  void ComputePartition(const Graph& G, AdaptiveInstance& instance,
+                        GRBEnv* env);
+  void ComputeAdaptiveObjective();
   int policies() const { return policies_; }
   double worst_case_objective() const { return worst_case_objective_; }
   std::vector<std::vector<int>> partition() const { return partition_; }
-  std::vector<Policy> solution() const { return solution_; }
+  std::vector<std::vector<double>> solution() const { return solution_; }
   long solution_time() const { return solution_time_; }
   void set_policies(int policies) { policies_ = policies; }
   void set_scenarios(int scenarios) { scenarios_ = scenarios; }
@@ -183,7 +173,7 @@ class AdaptiveSolution {
     worst_case_objective_ = worst_case_objective;
   }
   void set_solution_time(long solution_time) { solution_time_ = solution_time; }
-  void set_solution_policy(int index, Policy policy) {
+  void set_solution_policy(int index, std::vector<double>& policy) {
     solution_[index] = policy;
   }
   void set_partition(const std::vector<std::vector<int>>& partition) {
@@ -197,9 +187,12 @@ class AdaptiveSolution {
 
  private:
   bool unbounded_, benders_;
-  int policies_, scenarios_, nodes_, arcs_;
+  int policies_, scenarios_, nodes_, arcs_, budget_;
   std::vector<std::vector<int>> partition_;
-  std::vector<Policy> solution_;
+  std::vector<std::vector<double>> solution_;
+  std::vector<std::vector<double>>
+      objectives_;  // k by p matrix, objective value of each interdiction
+                    // policy applied to each follower [w][q].
   long solution_time_;
   double worst_case_objective_;
   int lazy_cuts_rounds_;
@@ -220,7 +213,7 @@ class RobustAlgoModel {
   void ConfigureModel(const Graph& G, AdaptiveInstance& instance);
   void Update(std::vector<int>& subset);
   void ReverseUpdate(std::vector<int>& subset);
-  Policy Solve();
+  std::pair<double, std::vector<double>> Solve();
 
  private:
   // All decision variables and non-negativity constraints will stay throughout
@@ -258,7 +251,8 @@ class SetPartitioningModel {
         arcs_(instance.arcs()),
         env_(env){};
   void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
-  AdaptiveSolution Solve();
+  AdaptiveSolution Solve(const Graph& G, AdaptiveInstance& instance,
+                         GRBEnv* env);
   AdaptiveSolution current_solution() const { return current_solution_; }
 
  private:
@@ -311,6 +305,7 @@ class BendersCallback : public GRBCallback {
   double epsilon_ = EPSILON;
   double upper_bound_, lower_bound_;
   int big_m_, nodes_, arcs_, budget_, scenarios_, policies_;
+  int iteration_ = 0;
   std::vector<std::vector<int>> arc_costs_;
   int lazy_cuts_rounds_, interdiction_delta_;
   void ConfigureIndividualSubModel(const Graph& G, int w, int q);
@@ -344,7 +339,8 @@ class SetPartitioningBenders {
         interdiction_delta_(instance.interdiction_delta()),
         env_(env){};
   void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
-  AdaptiveSolution Solve();
+  AdaptiveSolution Solve(const Graph& G, AdaptiveInstance& instance,
+                         GRBEnv* env);
 
  private:
   const int big_m_;
@@ -359,13 +355,14 @@ class SetPartitioningBenders {
   BendersCallback callback_;
 };
 
-AdaptiveSolution EnumSolve(AdaptiveInstance& instance, const Graph& G, GRBEnv* env);
+AdaptiveSolution EnumSolve(AdaptiveInstance& instance, const Graph& G,
+                           GRBEnv* env);
 
-std::vector<Policy> InitializeKPolicies(AdaptiveInstance& instance, const Graph& G,
-                                        GRBEnv* env);
-
-AdaptiveSolution KMeansHeuristic(AdaptiveInstance& instance, const Graph& G,
+AdaptiveSolution GreedyAlgorithm(AdaptiveInstance& instance, const Graph& G,
                                  GRBEnv* env);
+
+// AdaptiveSolution KMeansHeuristic(AdaptiveInstance& instance, const Graph& G,
+//                                  GRBEnv* env);
 
 long GetCurrentTime();
 
