@@ -114,9 +114,11 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* adaptive_instance,
   }
 }
 
-void AdaptiveInstance::ReadCosts(int interdiction_delta) {
+void AdaptiveInstance::ReadCosts() {
   // Read arc costs from a file.
-  interdiction_delta_ = interdiction_delta;
+  // Compute interdiction_delta_, big_m_:
+  // interdiction_delta_ = (max_q,a c_a * (n)).
+  // big_m_ = (max_q,a c_a * (n)) + 1.
   std::string line, word;
   std::string filename =
       directory_ + name_ + "-costs_" + std::to_string(scenarios_) + ".csv";
@@ -124,12 +126,14 @@ void AdaptiveInstance::ReadCosts(int interdiction_delta) {
   int q = 0;
   std::vector<int> v;
   int cost;
+  int max_cost = INT_MIN;
   if (myfile.is_open()) {
     while (getline(myfile, line)) {
       v.clear();
       std::stringstream str(line);
       while (getline(str, word, ',')) {
         cost = std::stoi(word);
+        if (cost > max_cost) max_cost = cost;
         v.push_back(cost);
       }
       if (q < scenarios_) {
@@ -138,6 +142,8 @@ void AdaptiveInstance::ReadCosts(int interdiction_delta) {
       ++q;
     }
   }
+  interdiction_delta_ = (max_cost) * nodes_;
+  big_m_ = ((max_cost) * nodes_) + 1;
 }
 
 void AdaptiveInstance::PrintInstance(const Graph& G) const {
@@ -415,8 +421,7 @@ AdaptiveSolution SetPartitioningModel::Solve(const Graph& G,
                                              GRBEnv* env) {
   // Updates current solution to latest solution, or sets unbounded to true.
   // Returns current solution.
-  // Compute objectives (of each partition) after solving with
-  // AdaptiveSolution::ComputeAllObjectives.
+  // Compute full objective matrix after solving.
   long begin = GetCurrentTime();
   sp_model_->optimize();
   long time = GetCurrentTime() - begin;
@@ -628,7 +633,7 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G,
       benders_model_->addConstr(linexpr == 1);
     }
     // Initialize Separation Object, passing decision variables.
-    callback_ = BendersCallback(big_m_, instance, z_var_, h_var_, x_var_, env_);
+    callback_ = BendersCallback(instance, z_var_, h_var_, x_var_, env_);
     callback_.ConfigureSubModels(G, instance);
   } catch (GRBException e) {
     std::cout
@@ -822,10 +827,27 @@ void AdaptiveSolution::ComputeObjectiveMatrix(const Graph& G,
   }
 }
 
-void AdaptiveSolution::ComputePartition(const Graph& G,
-                                        AdaptiveInstance& instance,
-                                        GRBEnv* env) {
+void AdaptiveSolution::ComputePartition() {
+  // Set up the partition when it is uninitialized (only needed for the
+  // approximation algorithm). Objective matrix should be populated at this
+  // point - i.e. ComputeObjectiveMatrix should be called first. For each
+  // scenario, find the policy w that maximizes their objectives (all k will be
+  // available in objectives_). The uninitialized partition for the
+  // approximation algorithm solution is a matrix of 0s, so we set
+  // partition_[w][q] to 1, once we have identified the correct w.
   std::cout << "AdaptiveSolution::ComputePartition" << std::endl;
+  for (int q = 0; q < scenarios_; ++q) {
+    double max_objective = DBL_MIN;
+    int partition_index = -1;
+    for (int w = 0; w < policies_; ++w) {
+      double objective_value = objectives_[w][q];
+      if (objective_value > max_objective) {
+        max_objective = objective_value;
+        partition_index = w;
+      }
+    }
+    partition_[partition_index][q] = 1;
+  }
 }
 
 void AdaptiveSolution::ComputeAdaptiveObjective() {
@@ -840,7 +862,7 @@ void AdaptiveSolution::ComputeAdaptiveObjective() {
   double adaptive_objective = DBL_MAX;
   for (int q = 0; q < scenarios_; ++q) {
     double follower_objective = DBL_MIN;
-    for (int w = 0; w < policies_; ++q) {
+    for (int w = 0; w < policies_; ++w) {
       if (objectives_[w][q] > follower_objective)
         follower_objective = objectives_[w][q];
     }
@@ -1171,9 +1193,11 @@ AdaptiveSolution GreedyAlgorithm(AdaptiveInstance& instance, const Graph& G,
     centers.insert(min_subset.first);
   }
   std::vector<std::vector<int>> temp_partition(
-      instance.policies(), std::vector<int>(instance.scenarios(), -1));
+      instance.policies(), std::vector<int>(instance.scenarios(), 0));
   AdaptiveSolution final_solution(false, instance, temp_partition,
                                   final_policies);
+  final_solution.ComputeObjectiveMatrix(G, instance, env);
+  final_solution.ComputeAdaptiveObjective();
   return final_solution;
 }
 

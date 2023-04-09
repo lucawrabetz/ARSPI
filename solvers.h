@@ -80,7 +80,7 @@ class AdaptiveInstance {
   // Copy constructor with a different U (only a subset of scenarios to keep).
   AdaptiveInstance(AdaptiveInstance* adaptive_instance,
                    std::vector<int>& keep_scenarios);
-  void ReadCosts(int interdiction_delta);
+  void ReadCosts();
   void PrintInstance(const Graph& G) const;
   double SPModel(int w, int q, const Graph& G, GRBEnv* env);
   void ApplyInterdiction(const std::vector<double>& x_bar, bool rev = false);
@@ -95,6 +95,7 @@ class AdaptiveInstance {
   int policies() const { return policies_; }
   int budget() const { return budget_; }
   int interdiction_delta() const { return interdiction_delta_; }
+  int big_m() const {return big_m_;}
   std::string name() const { return name_; }
   std::vector<std::vector<int>> arc_costs() const { return arc_costs_; }
   std::vector<int> scenario_index_map() const { return scenario_index_map_; }
@@ -104,7 +105,7 @@ class AdaptiveInstance {
 
  private:
   int nodes_, arcs_, scenarios_, policies_, budget_;
-  int interdiction_delta_;
+  int interdiction_delta_, big_m_;
   const std::string directory_;
   const std::string name_;
   std::vector<std::vector<int>> arc_costs_;
@@ -137,7 +138,8 @@ class AdaptiveSolution {
         solution_(std::vector<std::vector<double>>(
             policies, std::vector<double>(instance.arcs()))),
         objectives_(std::vector<std::vector<double>>(
-            policies, std::vector<double>(scenarios))){};
+            policies, std::vector<double>(scenarios))),
+        worst_case_objective_(-1){};
   AdaptiveSolution(bool benders, AdaptiveInstance& instance,
                    const std::vector<std::vector<int>>& partition,
                    const std::vector<std::vector<double>>& solution)
@@ -151,7 +153,8 @@ class AdaptiveSolution {
         partition_(partition),
         solution_(solution),
         objectives_(std::vector<std::vector<double>>(
-            instance.policies(), std::vector<double>(instance.scenarios()))){};
+            instance.policies(), std::vector<double>(instance.scenarios()))),
+        worst_case_objective_(-1){};
   void LogSolution(const Graph& G, std::string title, bool policy = false);
   void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2,
                      int split_index);
@@ -159,8 +162,7 @@ class AdaptiveSolution {
                    bool mip_subroutine = true);
   void ComputeObjectiveMatrix(const Graph& G, AdaptiveInstance& instance,
                               GRBEnv* env);
-  void ComputePartition(const Graph& G, AdaptiveInstance& instance,
-                        GRBEnv* env);
+  void ComputePartition();
   void ComputeAdaptiveObjective();
   int policies() const { return policies_; }
   double worst_case_objective() const { return worst_case_objective_; }
@@ -193,8 +195,8 @@ class AdaptiveSolution {
   std::vector<std::vector<double>>
       objectives_;  // k by p matrix, objective value of each interdiction
                     // policy applied to each follower [w][q].
-  long solution_time_;
   double worst_case_objective_;
+  long solution_time_;
   int lazy_cuts_rounds_;
 };
 
@@ -242,8 +244,8 @@ class SetPartitioningModel {
         budget_(0),
         nodes_(0),
         arcs_(0){};
-  SetPartitioningModel(int big_m, AdaptiveInstance& instance, GRBEnv* env)
-      : big_m_(big_m),
+  SetPartitioningModel(AdaptiveInstance& instance, GRBEnv* env)
+      : big_m_(instance.big_m()),
         scenarios_(instance.scenarios()),
         policies_(instance.policies()),
         budget_(instance.budget()),
@@ -276,12 +278,12 @@ class SetPartitioningModel {
 class BendersCallback : public GRBCallback {
  public:
   BendersCallback() : upper_bound_(DBL_MAX){};
-  BendersCallback(int big_m, AdaptiveInstance& instance, GRBVar& z_var,
+  BendersCallback(AdaptiveInstance& instance, GRBVar& z_var,
                   std::vector<std::vector<GRBVar>>& h_var,
                   std::vector<std::vector<GRBVar>>& x_var, GRBEnv* env)
       : upper_bound_(DBL_MAX),
         lower_bound_(DBL_MIN),
-        big_m_(big_m),
+        big_m_(instance.big_m()),
         nodes_(instance.nodes()),
         arcs_(instance.arcs()),
         budget_(instance.budget()),
@@ -329,8 +331,8 @@ class BendersCallback : public GRBCallback {
 class SetPartitioningBenders {
  public:
   SetPartitioningBenders() : big_m_(0){};
-  SetPartitioningBenders(int big_m, AdaptiveInstance& instance, GRBEnv* env)
-      : big_m_(big_m),
+  SetPartitioningBenders(AdaptiveInstance& instance, GRBEnv* env)
+      : big_m_(instance.big_m()),
         nodes_(instance.nodes()),
         arcs_(instance.arcs()),
         budget_(instance.budget()),
