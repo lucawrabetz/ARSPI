@@ -25,6 +25,46 @@
 
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
 const double EPSILON = 0.000001;
+const std::string DATA_DIRECTORY = "dat/";
+
+struct GraphInput {
+  GraphInput(const std::string& setname, int nodes, int k_zero)
+      : setname_(setname),
+        nodes_(nodes),
+        k_zero_(k_zero),
+        graph_name_(setname + "-" + std::to_string(nodes) + "_" +
+                    std::to_string(k_zero)) {std::cout << "graph_name: " << graph_name_ << std::endl;
+          std::cout << "Graph FileName: " << FileName() << std::endl;}
+  std::string FileName() const {
+    return DATA_DIRECTORY + setname_ + "/" + graph_name_ + ".txt";
+  }
+  const std::string setname_;
+  const int nodes_, k_zero_;
+  const std::string graph_name_;
+};
+
+struct InstanceInput {
+  InstanceInput(const GraphInput& graph_input, int scenarios, int id)
+      : graph_input_(graph_input),
+        scenarios_(scenarios),
+        id_(id),
+        setname_(graph_input.setname_),
+        costs_name_(graph_input_.graph_name_ + "-costs_" +
+                    std::to_string(scenarios) + "_" + std::to_string(id)) {std::cout << "costs_name: " << costs_name_ << std::endl;
+          std::cout << "Cost FileName: " << CostFileName() << std::endl;}
+  std::string CostFileName() const {
+    return DATA_DIRECTORY + setname_ + "/" + costs_name_ + ".csv";
+  }
+  const GraphInput graph_input_;
+  const int scenarios_, id_;
+  const std::string setname_;
+  const std::string
+      costs_name_;  // InstanceInput.costs_name_ and AdaptiveInstance.name_ are
+                    // the same, except for that InstanceInput.costs_name_ has
+                    // the word "costs" in it to be quickly used in
+                    // InstanceInput::CostFileName() to get the right cost file
+                    // path.
+};
 
 class Graph {
   // Class to read an arc list from a file and represent it as linked lists.
@@ -68,51 +108,66 @@ class AdaptiveInstance {
   // Full adaptive problem instance with cost data, (Graph G is always passed by
   // reference separately).
  public:
-  AdaptiveInstance(int scenarios, int policies, int budget, const Graph& G,
-                   const std::string& directory, const std::string& name)
-      : nodes_(G.nodes()),
-        arcs_(G.arcs()),
-        scenarios_(scenarios),
-        policies_(policies),
-        budget_(budget),
-        directory_(directory),
-        name_(name){};
+  AdaptiveInstance(const InstanceInput& instance_input)
+      : nodes_(instance_input.graph_input_.nodes_),
+        // arcs_(instance_input.graph_input_.),
+        scenarios_(instance_input.scenarios_),
+        // policies_(policies),
+        // budget_(budget),
+        name_(instance_input.graph_input_.graph_name_ + "-" +
+              std::to_string(instance_input.scenarios_) + "_" +
+              std::to_string(instance_input.id_)),
+        costs_filename_(instance_input.CostFileName()){};
   // Copy constructor with a different U (only a subset of scenarios to keep).
   AdaptiveInstance(AdaptiveInstance* adaptive_instance,
                    std::vector<int>& keep_scenarios);
   void ReadCosts();
   void PrintInstance(const Graph& G) const;
-  double SPModel(int w, int q, const Graph& G, GRBEnv* env);
+  double SPModel(int q, const Graph& G, GRBEnv* env);
   void ApplyInterdiction(const std::vector<double>& x_bar, bool rev = false);
   double ValidatePolicy(std::vector<double>& x_bar, const Graph& G,
                         GRBEnv* env);
-  double ComputeObjectiveOfPolicyForScenario(
-      const std::vector<double>& binary_policy, const Graph& G, int w, int q,
-      GRBEnv* env);
   int nodes() const { return nodes_; }
-  int arcs() const { return arcs_; }
+  // int arcs() const { return arcs_; }
   int scenarios() const { return scenarios_; }
-  int policies() const { return policies_; }
-  int budget() const { return budget_; }
+  // int policies() const { return policies_; }
+  // int budget() const { return budget_; }
   int interdiction_delta() const { return interdiction_delta_; }
-  int big_m() const {return big_m_;}
+  int big_m() const { return big_m_; }
   std::string name() const { return name_; }
   std::vector<std::vector<int>> arc_costs() const { return arc_costs_; }
   std::vector<int> scenario_index_map() const { return scenario_index_map_; }
   // No setter for scenarios_ - functionality reserved for change copy
   // constructor.
-  void set_policies(int policies) { policies_ = policies; }
+  // void set_policies(int policies) { policies_ = policies; }
 
  private:
-  int nodes_, arcs_, scenarios_, policies_, budget_;
+  int nodes_, /*arcs_,*/ scenarios_ /*, policies_, budget_*/;
   int interdiction_delta_, big_m_;
-  const std::string directory_;
   const std::string name_;
+  const std::string costs_filename_;
   std::vector<std::vector<int>> arc_costs_;
   // Map of scenario indices (indexed 0-(p-1)) to their original indices, for
   // when an AdaptiveInstance is copied but only keeps a subset of U (to be able
   // to recover the original). An empty map indicates an original instance.
   std::vector<int> scenario_index_map_;
+};
+
+struct ProblemInput {
+  ProblemInput(const InstanceInput& instance_input, int policies, int budget,
+               GRBEnv* env)
+      : G_(Graph(instance_input.graph_input_.FileName(),
+                 instance_input.graph_input_.nodes_)),
+        instance_(AdaptiveInstance(instance_input)),
+        policies_(policies),
+        budget_(budget),
+        env_(env) {
+    instance_.ReadCosts(); std::cout << "instance name: " << instance_.name() << std::endl;
+  }
+  const Graph G_;
+  AdaptiveInstance instance_;
+  int policies_, budget_;
+  GRBEnv* env_;
 };
 
 class AdaptiveSolution {
@@ -125,43 +180,43 @@ class AdaptiveSolution {
   AdaptiveSolution() : unbounded_(false), benders_(false){};
   AdaptiveSolution(bool unbounded, bool benders)
       : unbounded_(unbounded), benders_(benders){};
-  AdaptiveSolution(bool benders, AdaptiveInstance& instance, int policies,
-                   int scenarios)
+  AdaptiveSolution(bool benders, const ProblemInput& problem)
       : unbounded_(false),
         benders_(benders),
-        policies_(policies),
-        scenarios_(scenarios),
-        nodes_(instance.nodes()),
-        arcs_(instance.arcs()),
-        budget_(instance.budget()),
-        partition_(std::vector<std::vector<int>>(policies)),
+        policies_(problem.policies_),
+        scenarios_(problem.instance_.scenarios()),
+        nodes_(problem.instance_.nodes()),
+        arcs_(problem.G_.arcs()),
+        budget_(problem.budget_),
+        partition_(std::vector<std::vector<int>>(problem.policies_)),
         solution_(std::vector<std::vector<double>>(
-            policies, std::vector<double>(instance.arcs()))),
+            problem.policies_, std::vector<double>(problem.G_.arcs()))),
         objectives_(std::vector<std::vector<double>>(
-            policies, std::vector<double>(scenarios))),
+            problem.policies_,
+            std::vector<double>(problem.instance_.scenarios()))),
         worst_case_objective_(-1){};
-  AdaptiveSolution(bool benders, AdaptiveInstance& instance,
+  AdaptiveSolution(bool benders, const ProblemInput& problem,
                    const std::vector<std::vector<int>>& partition,
                    const std::vector<std::vector<double>>& solution)
       : unbounded_(false),
         benders_(benders),
-        policies_(instance.policies()),
-        scenarios_(instance.scenarios()),
-        nodes_(instance.nodes()),
-        arcs_(instance.arcs()),
-        budget_(instance.budget()),
+        policies_(problem.policies_),
+        scenarios_(problem.instance_.scenarios()),
+        nodes_(problem.instance_.nodes()),
+        arcs_(problem.G_.arcs()),
+        budget_(problem.budget_),
         partition_(partition),
         solution_(solution),
         objectives_(std::vector<std::vector<double>>(
-            instance.policies(), std::vector<double>(instance.scenarios()))),
+            problem.policies_,
+            std::vector<double>(problem.instance_.scenarios()))),
         worst_case_objective_(-1){};
-  void LogSolution(const Graph& G, std::string title, bool policy = false);
+  void LogSolution(const ProblemInput& problem, bool policy = false);
   void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2,
                      int split_index);
   void ExtendByOne(AdaptiveInstance& instance, const Graph& G, GRBEnv* env,
                    bool mip_subroutine = true);
-  void ComputeObjectiveMatrix(const Graph& G, AdaptiveInstance& instance,
-                              GRBEnv* env);
+  void ComputeObjectiveMatrix(const ProblemInput& problem);
   void ComputePartition();
   void ComputeAdaptiveObjective();
   int policies() const { return policies_; }
@@ -206,13 +261,13 @@ class RobustAlgoModel {
   // interdiction problems - just call update with only the desired scenario.
  public:
   RobustAlgoModel() : scenarios_(0), budget_(0), nodes_(0), arcs_(0){};
-  RobustAlgoModel(AdaptiveInstance& instance, GRBEnv* env)
-      : scenarios_(instance.scenarios()),
-        budget_(instance.budget()),
-        nodes_(instance.nodes()),
-        arcs_(instance.arcs()),
-        env_(env){};
-  void ConfigureModel(const Graph& G, AdaptiveInstance& instance);
+  RobustAlgoModel(const ProblemInput& problem)
+      : scenarios_(problem.instance_.scenarios()),
+        budget_(problem.budget_),
+        nodes_(problem.instance_.nodes()),
+        arcs_(problem.G_.arcs()),
+        env_(problem.env_){};
+  void ConfigureModel(const ProblemInput& problem);
   void Update(std::vector<int>& subset);
   void ReverseUpdate(std::vector<int>& subset);
   std::pair<double, std::vector<double>> Solve();
@@ -244,18 +299,16 @@ class SetPartitioningModel {
         budget_(0),
         nodes_(0),
         arcs_(0){};
-  SetPartitioningModel(AdaptiveInstance& instance, GRBEnv* env)
-      : big_m_(instance.big_m()),
-        scenarios_(instance.scenarios()),
-        policies_(instance.policies()),
-        budget_(instance.budget()),
-        nodes_(instance.nodes()),
-        arcs_(instance.arcs()),
-        env_(env){};
-  void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
-  AdaptiveSolution Solve(const Graph& G, AdaptiveInstance& instance,
-                         GRBEnv* env);
-  AdaptiveSolution current_solution() const { return current_solution_; }
+  SetPartitioningModel(const ProblemInput& problem)
+      : big_m_(problem.instance_.big_m()),
+        scenarios_(problem.instance_.scenarios()),
+        policies_(problem.policies_),
+        budget_(problem.budget_),
+        nodes_(problem.instance_.nodes()),
+        arcs_(problem.G_.arcs()),
+        env_(problem.env_){};
+  void ConfigureSolver(const ProblemInput& problem);
+  AdaptiveSolution Solve(const ProblemInput& problem);
 
  private:
   const int big_m_;
@@ -271,32 +324,29 @@ class SetPartitioningModel {
       pi_var_;  // Dual decision variable (for every w, q, i) pi.
   std::vector<std::vector<std::vector<GRBVar>>>
       lambda_var_;  // Dual decision variable (for every w, q, a) lambda.
-  AdaptiveSolution
-      current_solution_;  // Solution updated whenever ::Solve() is called.
 };
 
 class BendersCallback : public GRBCallback {
  public:
   BendersCallback() : upper_bound_(DBL_MAX){};
-  BendersCallback(AdaptiveInstance& instance, GRBVar& z_var,
+  BendersCallback(const ProblemInput& problem, GRBVar& z_var,
                   std::vector<std::vector<GRBVar>>& h_var,
-                  std::vector<std::vector<GRBVar>>& x_var, GRBEnv* env)
+                  std::vector<std::vector<GRBVar>>& x_var)
       : upper_bound_(DBL_MAX),
         lower_bound_(DBL_MIN),
-        big_m_(instance.big_m()),
-        nodes_(instance.nodes()),
-        arcs_(instance.arcs()),
-        budget_(instance.budget()),
-        scenarios_(instance.scenarios()),
-        policies_(instance.policies()),
-        arc_costs_(instance.arc_costs()),
+        big_m_(problem.instance_.big_m()),
+        nodes_(problem.instance_.nodes()),
+        arcs_(problem.G_.arcs()),
+        scenarios_(problem.instance_.scenarios()),
+        policies_(problem.policies_),
+        arc_costs_(problem.instance_.arc_costs()),
         lazy_cuts_rounds_(0),
-        interdiction_delta_(instance.interdiction_delta()),
+        interdiction_delta_(problem.instance_.interdiction_delta()),
         z_var_(z_var),
         h_var_(h_var),
         x_var_(x_var),
-        env_(env){};
-  void ConfigureSubModels(const Graph& G, AdaptiveInstance& instance);
+        env_(problem.env_){};
+  void ConfigureSubModels(const ProblemInput& problem);
   void SolveSubModels();
   int lazy_cuts_rounds() const { return lazy_cuts_rounds_; }
 
@@ -306,7 +356,7 @@ class BendersCallback : public GRBCallback {
  private:
   double epsilon_ = EPSILON;
   double upper_bound_, lower_bound_;
-  int big_m_, nodes_, arcs_, budget_, scenarios_, policies_;
+  int big_m_, nodes_, arcs_, scenarios_, policies_;
   int iteration_ = 0;
   std::vector<std::vector<int>> arc_costs_;
   int lazy_cuts_rounds_, interdiction_delta_;
@@ -325,24 +375,22 @@ class BendersCallback : public GRBCallback {
       submodels_;  // Submodel for every (w, q) policy and scenario.
   std::vector<std::vector<std::vector<GRBVar>>>
       y_var_;  // Shortest path decision variable for every (w, q, a).
-  AdaptiveSolution current_solution_;
 };
 
 class SetPartitioningBenders {
  public:
   SetPartitioningBenders() : big_m_(0){};
-  SetPartitioningBenders(AdaptiveInstance& instance, GRBEnv* env)
-      : big_m_(instance.big_m()),
-        nodes_(instance.nodes()),
-        arcs_(instance.arcs()),
-        budget_(instance.budget()),
-        scenarios_(instance.scenarios()),
-        policies_(instance.policies()),
-        interdiction_delta_(instance.interdiction_delta()),
-        env_(env){};
-  void ConfigureSolver(const Graph& G, AdaptiveInstance& instance);
-  AdaptiveSolution Solve(const Graph& G, AdaptiveInstance& instance,
-                         GRBEnv* env);
+  SetPartitioningBenders(const ProblemInput& problem)
+      : big_m_(problem.instance_.big_m()),
+        nodes_(problem.instance_.nodes()),
+        arcs_(problem.G_.arcs()),
+        budget_(problem.budget_),
+        scenarios_(problem.instance_.scenarios()),
+        policies_(problem.policies_),
+        interdiction_delta_(problem.instance_.interdiction_delta()),
+        env_(problem.env_){};
+  void ConfigureSolver(const ProblemInput& problem);
+  AdaptiveSolution Solve(const ProblemInput& problem);
 
  private:
   const int big_m_;
@@ -357,11 +405,9 @@ class SetPartitioningBenders {
   BendersCallback callback_;
 };
 
-AdaptiveSolution EnumSolve(AdaptiveInstance& instance, const Graph& G,
-                           GRBEnv* env);
+AdaptiveSolution EnumSolve(const ProblemInput& problem);
 
-AdaptiveSolution GreedyAlgorithm(AdaptiveInstance& instance, const Graph& G,
-                                 GRBEnv* env);
+AdaptiveSolution GreedyAlgorithm(const ProblemInput& problem);
 
 // AdaptiveSolution KMeansHeuristic(AdaptiveInstance& instance, const Graph& G,
 //                                  GRBEnv* env);

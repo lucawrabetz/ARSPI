@@ -101,10 +101,7 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance* adaptive_instance,
                                    std::vector<int>& keep_scenarios) {
   // Copy constructor only keeping a subset of the scenarios
   scenarios_ = keep_scenarios.size();
-  policies_ = adaptive_instance->policies_;
-  budget_ = adaptive_instance->budget_;
   nodes_ = adaptive_instance->nodes_;
-  arcs_ = adaptive_instance->arcs_;
   interdiction_delta_ = adaptive_instance->interdiction_delta_;
   arc_costs_ = std::vector<std::vector<int>>(scenarios_);
   scenario_index_map_ = std::vector<int>(scenarios_);
@@ -120,9 +117,7 @@ void AdaptiveInstance::ReadCosts() {
   // interdiction_delta_ = (max_q,a c_a * (n)).
   // big_m_ = (max_q,a c_a * (n)) + 1.
   std::string line, word;
-  std::string filename =
-      directory_ + name_ + "-costs_" + std::to_string(scenarios_) + ".csv";
-  std::ifstream myfile(filename);
+  std::ifstream myfile(costs_filename_);
   int q = 0;
   std::vector<int> v;
   int cost;
@@ -142,62 +137,25 @@ void AdaptiveInstance::ReadCosts() {
       ++q;
     }
   }
-  interdiction_delta_ = (max_cost) * nodes_;
-  big_m_ = ((max_cost) * nodes_) + 1;
+  interdiction_delta_ = (max_cost)*nodes_;
+  big_m_ = ((max_cost)*nodes_) + 1;
 }
 
 void AdaptiveInstance::PrintInstance(const Graph& G) const {
   // Print Summary of Problem Instance
-  std::cout << "k: " << policies_ << std::endl;
-  std::cout << "p: " << scenarios_ << std::endl;
+  std::cout << "Followers/Scenarios: " << scenarios_ << std::endl;
   G.PrintGraphWithCosts(arc_costs_, interdiction_delta_);
 }
 
-// int AdaptiveInstance::Dijkstra(int q, const Graph& G) {
-//   // Compute shortest path 0-n-1 and just return its objective (we never
-//   // actually need the path).
-//   std::vector<int> pred(nodes_), distance(nodes_);
-//   // First item in the pair is the weight/cost, second is the vertex.
-//   // std::greater allows the smallest distance to appear at top.
-//   std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>,
-//                       std::greater<std::pair<int, int>>>
-//       pq;
-//   std::unordered_set<int> visited;
-//   visited.insert(0);
-//   pq.push({0, 0});
-//   pred[0] = 0;
-//   distance[0] = 0;
-//   for (int i = 1; i < nodes_; ++i) {
-//     pred[i] = -1;
-//     distance[i] = INT_MAX;
-//   }
-//   while (!pq.empty()) {
-//     int node = pq.top().second;
-//     int node_distance = pq.top().first;
-//     pq.pop();
-//     visited.insert(node);
-//     for (size_t i = 0; i < G.arc_index_hash()[node].size(); ++i) {
-//       int arc = G.arc_index_hash()[node][i];
-//       int v = G.adjacency_list()[node][i];
-//       if (node_distance + arc_costs_[q][arc] < distance[v]) {
-//         pq.push(std::make_pair(node_distance + arc_costs_[q][arc], v));
-//         pred[v] = node;
-//         distance[v] = node_distance + arc_costs_[q][arc];
-//       }
-//     }
-//   }
-//   return distance[nodes_ - 1];
-// }
-
-double AdaptiveInstance::SPModel(int w, int q, const Graph& G, GRBEnv* env) {
+double AdaptiveInstance::SPModel(int q, const Graph& G, GRBEnv* env) {
   // Return shortest path objective function for follower q on instance.
   try {
     // Initialize Model/Environment.
     GRBModel* sp_model = new GRBModel(env);
     sp_model->set(GRB_IntParam_OutputFlag, 0);
     // Add decision variables.
-    std::vector<GRBVar> y_var(arcs_);
-    for (int a = 0; a < arcs_; ++a) {
+    std::vector<GRBVar> y_var(G.arcs());
+    for (int a = 0; a < G.arcs(); ++a) {
       std::string varname = "y_" + std::to_string(a);
       y_var[a] =
           sp_model->addVar(0, 1, arc_costs_[q][a], GRB_CONTINUOUS, varname);
@@ -224,9 +182,9 @@ double AdaptiveInstance::SPModel(int w, int q, const Graph& G, GRBEnv* env) {
       sp_model->addConstr(lhs == rhs);
     }
     sp_model->update();
-    std::string modelname =
-        "spmodel" + std::to_string(w) + "_" + std::to_string(q) + ".lp";
-    sp_model->write(modelname);
+    // std::string modelname =
+    //     "spmodel" + std::to_string(w) + "_" + std::to_string(q) + ".lp";
+    // sp_model->write(modelname);
     sp_model->optimize();
     return sp_model->get(GRB_DoubleAttr_ObjVal);
   } catch (GRBException e) {
@@ -245,10 +203,11 @@ double AdaptiveInstance::SPModel(int w, int q, const Graph& G, GRBEnv* env) {
 
 void AdaptiveInstance::ApplyInterdiction(const std::vector<double>& x_bar,
                                          bool rev) {
-  // Receive interdiction policy and update costs for the M3 instance
+  // Receive interdiction policy and update costs for the adaptive instance.
   // If rev, we are "removing" the interdiction policy and returning the
-  // instance to its original state
-  for (int a = 0; a < arcs_; ++a) {
+  // instance to its original state.
+  int arcs = x_bar.size();
+  for (int a = 0; a < arcs; ++a) {
     if (x_bar[a] == 1) {
       for (int q = 0; q < scenarios_; ++q) {
         if (rev) {
@@ -261,12 +220,12 @@ void AdaptiveInstance::ApplyInterdiction(const std::vector<double>& x_bar,
   }
 }
 
-double AdaptiveInstance::ComputeObjectiveOfPolicyForScenario(
-    const std::vector<double>& binary_policy, const Graph& G, int w, int q,
-    GRBEnv* env) {
-  ApplyInterdiction(binary_policy);
-  int objective = SPModel(w, q, G, env);
-  ApplyInterdiction(binary_policy, true);
+double ComputeObjectiveOfPolicyForScenario(
+    const ProblemInput& problem, const std::vector<double>& binary_policy,
+    int q) {
+  AdaptiveInstance instance_copy = problem.instance_;
+  instance_copy.ApplyInterdiction(binary_policy);
+  double objective = instance_copy.SPModel(q, problem.G_, problem.env_);
   return objective;
 }
 
@@ -277,7 +236,7 @@ double AdaptiveInstance::ValidatePolicy(std::vector<double>& x_bar,
   double sp_result;
   ApplyInterdiction(x_bar);
   for (int q = 0; q < scenarios_; ++q) {
-    sp_result = SPModel(-1, q, G, env);
+    sp_result = SPModel(q, G, env);
     if (sp_result < objective) {
       objective = sp_result;
     }
@@ -286,19 +245,12 @@ double AdaptiveInstance::ValidatePolicy(std::vector<double>& x_bar,
   return objective;
 }
 
-void SetPartitioningModel::ConfigureSolver(const Graph& G,
-                                           AdaptiveInstance& instance) {
+void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
   try {
-    // ------ Initialize solution to appropriate size -----
-    current_solution_ =
-        AdaptiveSolution(false, instance, policies_, scenarios_);
-    // ------ Initialize model and environment ------
     sp_model_ = new GRBModel(*env_);
     sp_model_->set(GRB_IntParam_OutputFlag, 0);
-
-    // ------ Decision variables ------
+    // Set partitioning variables.
     std::vector<GRBVar> new_vector;
-    // set partitioning variables
     for (int w = 0; w < policies_; ++w) {
       h_var_.push_back(new_vector);
       for (int q = 0; q < scenarios_; ++q) {
@@ -307,18 +259,16 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G,
         h_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
       }
     }
-    // interdiction policy on arcs 'x' - REMEMBER to check that this
-    // initialization works
+    // Interdiction policy on arcs.
     for (int w = 0; w < policies_; ++w) {
       x_var_.push_back(new_vector);
-
       for (int a = 0; a < arcs_; a++) {
         std::string varname =
             "x_" + std::to_string(w) + "_" + std::to_string(a);
         x_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
       }
     }
-    // objective func dummy 'z'
+    // Objective value variable, piecewise linearization.
     z_var_ = sp_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
     std::vector<std::vector<GRBVar>> newnew_vector;
     // post interdiction flow 'pi'
@@ -378,14 +328,14 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G,
     for (int w = 0; w < policies_; ++w) {
       for (int q = 0; q < scenarios_; ++q) {
         for (i = 0; i < nodes_; ++i) {
-          for (size_t j = 0; j < G.adjacency_list()[i].size(); ++j) {
-            jn = G.adjacency_list()[i][j];
-            a = G.arc_index_hash()[i][j];
+          for (size_t j = 0; j < problem.G_.adjacency_list()[i].size(); ++j) {
+            jn = problem.G_.adjacency_list()[i][j];
+            a = problem.G_.arc_index_hash()[i][j];
             // add constraint
             sp_model_->addConstr(
                 (pi_var_[w][q][jn] - pi_var_[w][q][i] - lambda_var_[w][q][a]) <=
-                instance.arc_costs()[q][a] +
-                    (instance.interdiction_delta() * x_var_[w][a]));
+                problem.instance_.arc_costs()[q][a] +
+                    (problem.instance_.interdiction_delta() * x_var_[w][a]));
           }
         }
       }
@@ -416,36 +366,35 @@ void SetPartitioningModel::ConfigureSolver(const Graph& G,
   }
 }
 
-AdaptiveSolution SetPartitioningModel::Solve(const Graph& G,
-                                             AdaptiveInstance& instance,
-                                             GRBEnv* env) {
+AdaptiveSolution SetPartitioningModel::Solve(const ProblemInput& problem) {
   // Updates current solution to latest solution, or sets unbounded to true.
-  // Returns current solution.
   // Compute full objective matrix after solving.
+  // Returns current solution.
   long begin = GetCurrentTime();
   sp_model_->optimize();
   long time = GetCurrentTime() - begin;
-  current_solution_.set_solution_time(time);
+  AdaptiveSolution final_solution(false, problem);
+  final_solution.set_solution_time(time);
   if (sp_model_->get(GRB_IntAttr_Status) == 2) {
-    current_solution_.set_unbounded(false);
-    current_solution_.set_worst_case_objective(
+    final_solution.set_unbounded(false);
+    final_solution.set_worst_case_objective(
         -sp_model_->get(GRB_DoubleAttr_ObjVal));
     for (int w = 0; w < policies_; ++w) {
       std::vector<double> x_vector;
       for (int a = 0; a < arcs_; a++) {
         x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
       }
-      current_solution_.set_solution_policy(w, x_vector);
+      final_solution.set_solution_policy(w, x_vector);
       for (int q = 0; q < scenarios_; q++) {
         if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
-          current_solution_.add_to_partition(w, q);
+          final_solution.add_to_partition(w, q);
         }
       }
     }
-    current_solution_.ComputeObjectiveMatrix(G, instance, env);
+    final_solution.ComputeObjectiveMatrix(problem);
   } else if (sp_model_->get(GRB_IntAttr_Status) == 5)
-    current_solution_.set_unbounded(true);
-  return current_solution_;
+    final_solution.set_unbounded(true);
+  return final_solution;
 }
 
 void BendersCallback::ConfigureIndividualSubModel(const Graph& G, int w,
@@ -479,13 +428,8 @@ void BendersCallback::ConfigureIndividualSubModel(const Graph& G, int w,
   }
 }
 
-void BendersCallback::ConfigureSubModels(const Graph& G,
-                                         AdaptiveInstance& instance) {
-  // Initialize current_solution_.
-  current_solution_ = AdaptiveSolution(true, instance, policies_, scenarios_);
+void BendersCallback::ConfigureSubModels(const ProblemInput& problem) {
   // Initialize models (k x p).
-  // submodels_ = std::vector<std::vector<GRBModel*>>(policies_,
-  //         std::vector<GRBModel*>(scenarios_, new GRBModel(*env_)));
   for (int w = 0; w < policies_; ++w) {
     submodels_.push_back(std::vector<GRBModel*>());
     for (int q = 0; q < scenarios_; ++q) {
@@ -497,7 +441,7 @@ void BendersCallback::ConfigureSubModels(const Graph& G,
   // Configure each individual submodel.
   for (int w = 0; w < policies_; ++w) {
     for (int q = 0; q < scenarios_; ++q) {
-      ConfigureIndividualSubModel(G, w, q);
+      ConfigureIndividualSubModel(problem.G_, w, q);
     }
   }
 }
@@ -573,24 +517,22 @@ void BendersCallback::callback() {
         lower_bound_ = temp_bound;
         // Set current_solution_/x_prime (final interdiction solution) to
         // solution x_var_ that was used for the subproblems.
-        for (int w = 0; w < policies_; ++w) {
-          std::vector<double> binary_policy(arcs_);
-          for (int a = 0; a < arcs_; ++a) {
-            if (getSolution(x_var_[w][a]) > 0.5)
-              binary_policy[a] = 1;
-            else
-              binary_policy[a] = 0;
-          }
-          current_solution_.set_solution_policy(w, binary_policy);
-        }
+        // for (int w = 0; w < policies_; ++w) {
+        //   std::vector<double> binary_policy(arcs_);
+        //   for (int a = 0; a < arcs_; ++a) {
+        //     if (getSolution(x_var_[w][a]) > 0.5)
+        //       binary_policy[a] = 1;
+        //     else
+        //       binary_policy[a] = 0;
+        //   }
+        // }
       }
       AddLazyCuts();
     }
   }
 }
 
-void SetPartitioningBenders::ConfigureSolver(const Graph& G,
-                                             AdaptiveInstance& instance) {
+void SetPartitioningBenders::ConfigureSolver(const ProblemInput& problem) {
   try {
     // Initialize Model/Environment.
     benders_model_ = new GRBModel(env_);
@@ -633,8 +575,8 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G,
       benders_model_->addConstr(linexpr == 1);
     }
     // Initialize Separation Object, passing decision variables.
-    callback_ = BendersCallback(instance, z_var_, h_var_, x_var_, env_);
-    callback_.ConfigureSubModels(G, instance);
+    callback_ = BendersCallback(problem, z_var_, h_var_, x_var_);
+    callback_.ConfigureSubModels(problem);
   } catch (GRBException e) {
     std::cout
         << "Gurobi error number [SetPartitioningBenders::ConfigureSolver]: "
@@ -647,37 +589,36 @@ void SetPartitioningBenders::ConfigureSolver(const Graph& G,
   }
 }
 
-AdaptiveSolution SetPartitioningBenders::Solve(const Graph& G,
-                                               AdaptiveInstance& instance,
-                                               GRBEnv* env) {
+AdaptiveSolution SetPartitioningBenders::Solve(const ProblemInput& problem) {
   benders_model_->setCallback(&callback_);
   long begin = GetCurrentTime();
   benders_model_->optimize();
   long time = GetCurrentTime() - begin;
+  AdaptiveSolution final_solution(true, problem);
   if (benders_model_->get(GRB_IntAttr_Status) == 2) {
-    callback_.current_solution_.set_unbounded(false);
-    callback_.current_solution_.set_solution_time(time);
-    callback_.current_solution_.set_worst_case_objective(
+    final_solution.set_unbounded(false);
+    final_solution.set_solution_time(time);
+    final_solution.set_worst_case_objective(
         -benders_model_->get(GRB_DoubleAttr_ObjVal));
-    callback_.current_solution_.set_cuts(callback_.lazy_cuts_rounds());
+    final_solution.set_cuts(callback_.lazy_cuts_rounds());
     for (int w = 0; w < policies_; ++w) {
       std::vector<double> x_vector;
       for (int a = 0; a < arcs_; a++) {
         x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
       }
-      callback_.current_solution_.set_solution_policy(w, x_vector);
+      final_solution.set_solution_policy(w, x_vector);
       for (int q = 0; q < scenarios_; q++) {
         if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
-          callback_.current_solution_.add_to_partition(w, q);
+          final_solution.add_to_partition(w, q);
         }
       }
     }
   } else if (benders_model_->get(GRB_IntAttr_Status) == 5) {
-    callback_.current_solution_.set_unbounded(true);
-    callback_.current_solution_.set_solution_time(time);
+    final_solution.set_unbounded(true);
+    final_solution.set_solution_time(time);
   }
-  callback_.current_solution_.ComputeObjectiveMatrix(G, instance, env);
-  return callback_.current_solution_;
+  final_solution.ComputeObjectiveMatrix(problem);
+  return final_solution;
 }
 
 std::vector<int> InitKappa(int p, int k) {
@@ -690,8 +631,7 @@ std::vector<int> InitKappa(int p, int k) {
   return kappa;
 }
 
-void RobustAlgoModel::ConfigureModel(const Graph& G,
-                                     AdaptiveInstance& instance) {
+void RobustAlgoModel::ConfigureModel(const ProblemInput& problem) {
   // Construct baseline model with no constraints.
   algo_model_ = new GRBModel(env_);
   algo_model_->set(GRB_IntParam_OutputFlag, 0);
@@ -733,13 +673,13 @@ void RobustAlgoModel::ConfigureModel(const Graph& G,
   for (int q = 0; q < scenarios_; ++q) {
     dual_constraints_.push_back(std::vector<GRBTempConstr>());
     for (int i = 0; i < nodes_; ++i) {
-      for (size_t j = 0; j < G.adjacency_list()[i].size(); ++j) {
-        int next = G.adjacency_list()[i][j];
-        int a = G.arc_index_hash()[i][j];
+      for (size_t j = 0; j < problem.G_.adjacency_list()[i].size(); ++j) {
+        int next = problem.G_.adjacency_list()[i][j];
+        int a = problem.G_.arc_index_hash()[i][j];
         GRBTempConstr constraint =
             pi_var_[q][next] - pi_var_[q][i] - lambda_var_[q][a] <=
-            instance.arc_costs()[q][a] +
-                (instance.interdiction_delta() * x_var_[a]);
+            problem.instance_.arc_costs()[q][a] +
+                (problem.instance_.interdiction_delta() * x_var_[a]);
         dual_constraints_[q].push_back(constraint);
       }
     }
@@ -814,14 +754,12 @@ int max_int(int a, int b) {
     return a;
 }
 
-void AdaptiveSolution::ComputeObjectiveMatrix(const Graph& G,
-                                              AdaptiveInstance& instance,
-                                              GRBEnv* env) {
+void AdaptiveSolution::ComputeObjectiveMatrix(const ProblemInput& problem) {
   // Populate / recompute the objectives_ matrix.
   for (int w = 0; w < policies_; w++) {
     for (int q = 0; q < scenarios_; q++) {
-      double objective = instance.ComputeObjectiveOfPolicyForScenario(
-          solution_[w], G, w, q, env);
+      double objective =
+          ComputeObjectiveOfPolicyForScenario(problem, solution_[w], q);
       objectives_[w][q] = objective;
     }
   }
@@ -880,9 +818,8 @@ void AdaptiveSolution::ComputeAdaptiveObjective() {
   }
 }
 
-void AdaptiveSolution::LogSolution(const Graph& G, std::string title,
-                                   bool policy) {
-  std::cout << std::endl;
+void AdaptiveSolution::LogSolution(const ProblemInput& problem, bool policy) {
+  std::string title = problem.instance_.name();
   if (title == "") {
     std::cout << "Solution, time (ms): " << solution_time_ << " ms";
   } else {
@@ -909,23 +846,25 @@ void AdaptiveSolution::LogSolution(const Graph& G, std::string title,
         std::cout << q << " ";
       }
       std::cout << "}, interdicted arcs: ";
-      std::vector<std::vector<int>> arc_index_hash = G.arc_index_hash();
-      std::vector<std::vector<int>> adjacency_list = G.adjacency_list();
-      for (int i = 0; i < G.nodes(); ++i) {
+      std::vector<std::vector<int>> arc_index_hash =
+          problem.G_.arc_index_hash();
+      std::vector<std::vector<int>> adjacency_list =
+          problem.G_.adjacency_list();
+      for (int i = 0; i < problem.G_.nodes(); ++i) {
         int index = 0;
         for (int a : arc_index_hash[i]) {
           if (solution_[w][a] > 0.5) {
-            G.PrintArc(a, i, index);
+            problem.G_.PrintArc(a, i, index);
             std::cout << " ";
           }
           index++;
         }
       }
-      std::cout << std::endl;
     }
   }
   if (benders_)
-    std::cout << "Rounds of lazy cuts: " << lazy_cuts_rounds_ << std::endl;
+    std::cout << std::endl
+              << "Rounds of lazy cuts: " << lazy_cuts_rounds_ << std::endl;
 }
 
 void AdaptiveSolution::MergeEnumSols(AdaptiveSolution sol2,
@@ -1020,14 +959,13 @@ MergeEnumSols(std::pair<std::vector<std::vector<int>>,
   return sol1;
 }
 
-AdaptiveSolution EnumSolve(AdaptiveInstance& instance, const Graph& G,
-                           GRBEnv* env) {
+AdaptiveSolution EnumSolve(const ProblemInput& problem) {
   // Pass an AdaptiveInstance and solve using enumeration algorithm.
   // Enumeration maintained as in Orlov paper.
   bool next = true;
-  int p = instance.scenarios();
-  int k = instance.policies();
-  int m = instance.arcs();
+  int p = problem.instance_.scenarios();
+  int k = problem.policies_;
+  int m = problem.G_.arcs();
   // Initialize partitioning 'string' vector as in Orlov Paper.
   // Initialize corresponding max vector.
   std::vector<int> kappa = InitKappa(p, k);
@@ -1038,8 +976,8 @@ AdaptiveSolution EnumSolve(AdaptiveInstance& instance, const Graph& G,
   // Initialize static robust model.
   try {
     long begin = GetCurrentTime();
-    RobustAlgoModel static_robust = RobustAlgoModel(instance, env);
-    static_robust.ConfigureModel(G, instance);
+    RobustAlgoModel static_robust = RobustAlgoModel(problem);
+    static_robust.ConfigureModel(problem);
     // Objective value maintained here (and optimal partition).
     double best_worstcase_objective = 0;
     std::vector<double> final_objectives(k, 0);
@@ -1078,10 +1016,10 @@ AdaptiveSolution EnumSolve(AdaptiveInstance& instance, const Graph& G,
       // final_policies[w].set_objective(final_objectives[w]);
     }
     AdaptiveSolution final_solution = AdaptiveSolution(
-        false, instance, best_worstcase_partition, final_policies);
+        false, problem, best_worstcase_partition, final_policies);
     final_solution.set_worst_case_objective(best_worstcase_objective);
     final_solution.set_solution_time(time);
-    final_solution.ComputeObjectiveMatrix(G, instance, env);
+    final_solution.ComputeObjectiveMatrix(problem);
     return final_solution;
   } catch (GRBException e) {
     std::cout << "Gurobi error number [EnumSolve]: " << e.getErrorCode()
@@ -1156,12 +1094,11 @@ AdaptiveSolution EnumSolve(AdaptiveInstance& instance, const Graph& G,
 //   }
 // }
 
-AdaptiveSolution GreedyAlgorithm(AdaptiveInstance& instance, const Graph& G,
-                                 GRBEnv* env) {
+AdaptiveSolution GreedyAlgorithm(const ProblemInput& problem) {
   std::unordered_set<int> centers;
-  RobustAlgoModel spi_model = RobustAlgoModel(instance, env);
+  RobustAlgoModel spi_model = RobustAlgoModel(problem);
   std::vector<std::vector<double>> final_policies;
-  spi_model.ConfigureModel(G, instance);
+  spi_model.ConfigureModel(problem);
   // Choose the first scenario to solve SPI for arbitrarily (we'll just use
   // index 0).
   centers.insert(0);
@@ -1170,16 +1107,16 @@ AdaptiveSolution GreedyAlgorithm(AdaptiveInstance& instance, const Graph& G,
   std::vector<double> single_policy = spi_model.Solve().second;
   spi_model.ReverseUpdate(Update_vector);
   final_policies.push_back(single_policy);
-  size_t policies = instance.policies();
+  size_t policies = problem.policies_;
   while (centers.size() < policies) {
     // Evaluate all non center scenarios against the current policies,
     // maintaining the minimum one.
     std::pair<int, double> min_subset = {-1, DBL_MAX};
-    for (int q = 0; q < instance.scenarios(); q++) {
+    for (int q = 0; q < problem.instance_.scenarios(); q++) {
       if (centers.count(q) == 1) continue;
       for (const std::vector<double>& policy : final_policies) {
         double objective =
-            instance.ComputeObjectiveOfPolicyForScenario(policy, G, -1, q, env);
+            ComputeObjectiveOfPolicyForScenario(problem, policy, q);
         if (objective < min_subset.second) min_subset = {q, objective};
       }
     }
@@ -1193,10 +1130,10 @@ AdaptiveSolution GreedyAlgorithm(AdaptiveInstance& instance, const Graph& G,
     centers.insert(min_subset.first);
   }
   std::vector<std::vector<int>> temp_partition(
-      instance.policies(), std::vector<int>(instance.scenarios(), 0));
-  AdaptiveSolution final_solution(false, instance, temp_partition,
+      problem.policies_, std::vector<int>(problem.instance_.scenarios(), 0));
+  AdaptiveSolution final_solution(false, problem, temp_partition,
                                   final_policies);
-  final_solution.ComputeObjectiveMatrix(G, instance, env);
+  final_solution.ComputeObjectiveMatrix(problem);
   final_solution.ComputeAdaptiveObjective();
   return final_solution;
 }
