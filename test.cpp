@@ -1,20 +1,87 @@
+#include <dirent.h>
+#include <cmath>
+#include <fstream>
+
 #include <iomanip>
 #include <limits>
 #include <unordered_map>
 
 #include "solvers.h"
 
-// Simple simple test coverage - check that the 3 solvers (set partitioning,
-// enumeration, benders) produce the same result (objective value) on a few
-// small instances. Every test prints the algorithm and instance name1 followed
-// by "PASS" if it passes, "FAIL" if it fails.
-
 typedef std::numeric_limits<double> dbl;
 
-void SolveAndPrintTest(const ProblemInput& problem,
+bool IsCostFile(const std::string& name) {
+  size_t pos = name.find(".csv");
+  if (pos == std::string::npos) return false;
+  return true;
+}
+
+bool IsRunFile(const std::string& name) {
+  size_t pos = name.find("run");
+  if (pos == std::string::npos) return false;
+  return true;
+}
+
+int DigitsToInt(const std::vector<int> num_digits) {
+  int i = num_digits.size() - 1;
+  int num = 0;
+  for (int x : num_digits) {
+    num += x * std::pow(10, i);
+    i--;
+  }
+  return num;
+}
+
+std::pair<int, int> GetNodesKZero(const std::string& name, int start) {
+  int i = start;
+  std::vector<int> n_digits;
+  std::vector<int> kzero_digits;
+  while ('0' <= name[i]  && name[i] <= '9') {
+    n_digits.push_back(name[i] - '0');
+    i++;
+  }
+  i++;
+  while ('0' <= name[i]  && name[i] <= '9') {
+    kzero_digits.push_back(name[i] - '0');
+    i++;
+  }
+  return {DigitsToInt(n_digits), DigitsToInt(kzero_digits)};
+}
+
+std::pair<int, int> GetScenariosID(const std::string& name) {
+  int i = name.size()-5;
+  std::vector<int> p_digits;
+  std::vector<int> id_digits;
+  while ('0' <= name[i]  && name[i] <= '9') {
+    id_digits.insert(id_digits.begin(), name[i] - '0');
+    i--;
+  }
+  i--;
+  while ('0' <= name[i]  && name[i] <= '9') {
+    p_digits.insert(p_digits.begin(), name[i] - '0');
+    i--;
+  }
+  return {DigitsToInt(p_digits), DigitsToInt(id_digits)};
+  return {};
+}
+
+const std::string CSV_HEADER = "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,policies,MIP_objective,MIP_time,BENDERS_objective,BENDERS_time,ENUMERATION_objective,ENUMERATION_time,GREEDY_objective,GREEDY_time,approximation_ratio";
+
+std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& problem,
                        std::vector<ASPI_Solver>& solvers, int debug = 0) {
   std::vector<double> adaptive_objectives;
   double greedy_adaptive_objective;
+  std::string final_csv_string = set_name + "," + problem.instance_.name();
+  final_csv_string += "," + std::to_string(problem.G_.nodes());
+  final_csv_string += "," + std::to_string(problem.G_.arcs());
+  final_csv_string += "," + std::to_string(problem.k_zero_);
+  double nodes = problem.G_.nodes();
+  double arcs = problem.G_.arcs();
+  double density = (arcs) / ((nodes) * (nodes-1));
+  final_csv_string += "," + std::to_string(density);
+  final_csv_string += "," + std::to_string(problem.instance_.scenarios());
+  final_csv_string += "," + std::to_string(problem.budget_);
+  final_csv_string += "," + std::to_string(problem.policies_);
   for (const auto& solver : solvers) {
     if (solver == MIP) {
       SetPartitioningModel sp = SetPartitioningModel(problem);
@@ -25,6 +92,8 @@ void SolveAndPrintTest(const ProblemInput& problem,
       else if (debug == 1)
         sp_solution.LogSolution(problem, false);
       adaptive_objectives.push_back(sp_solution.worst_case_objective());
+      final_csv_string += "," + std::to_string(sp_solution.worst_case_objective());
+      final_csv_string += "," + std::to_string(sp_solution.solution_time());
     } else if (solver == BENDERS) {
       SetPartitioningBenders benders = SetPartitioningBenders(problem);
       benders.ConfigureSolver(problem);
@@ -34,6 +103,8 @@ void SolveAndPrintTest(const ProblemInput& problem,
       else if (debug == 1)
         benders_solution.LogSolution(problem, false);
       adaptive_objectives.push_back(benders_solution.worst_case_objective());
+      final_csv_string += "," + std::to_string(benders_solution.worst_case_objective());
+      final_csv_string += "," + std::to_string(benders_solution.solution_time());
     } else if (solver == ENUMERATION) {
       AdaptiveSolution enum_solution = EnumSolve(problem);
       if (debug == 2)
@@ -41,6 +112,8 @@ void SolveAndPrintTest(const ProblemInput& problem,
       else if (debug == 1)
         enum_solution.LogSolution(problem, false);
       adaptive_objectives.push_back(enum_solution.worst_case_objective());
+      final_csv_string += "," + std::to_string(enum_solution.worst_case_objective());
+      final_csv_string += "," + std::to_string(enum_solution.solution_time());
     } else if (solver == GREEDY) {
       AdaptiveSolution greedy_solution = GreedyAlgorithm(problem);
       if (debug == 2)
@@ -52,6 +125,8 @@ void SolveAndPrintTest(const ProblemInput& problem,
       // save it to the stand alone value, greedy_adaptive_objective, so we can
       // print it next to the test outcome.
       greedy_adaptive_objective = greedy_solution.worst_case_objective();
+      final_csv_string += "," + std::to_string(greedy_solution.worst_case_objective());
+      final_csv_string += "," + std::to_string(greedy_solution.solution_time());
       // adaptive_objectives.push_back(enum_solution.worst_case_objective());
     }
   }
@@ -63,100 +138,74 @@ void SolveAndPrintTest(const ProblemInput& problem,
       for (double& x : adaptive_objectives) {
         std::cout << std::scientific << x << std::endl;
       }
-      return;
+      return "";
     }
     prev = obj;
   }
-  std::cout << "PASS: " << problem.instance_.name()
-            << ", k = " << problem.policies_
-            << ", exact objective: " << adaptive_objectives[0]
-            << ", greedy approximation: " << greedy_adaptive_objective
-            << std::endl;
+  std::cout << "------------------------  PASS, EXACT OBJECTIVE: " << adaptive_objectives[0] << ", GREEDY APPROXIMATION: " << greedy_adaptive_objective
+            << "  ------------------------" << std::endl;
+  double approximation_ratio = adaptive_objectives[0] / greedy_adaptive_objective;
+  final_csv_string += "," + std::to_string(approximation_ratio);
+  return final_csv_string;
 }
 
-// void RunKTestsForInstance(const Graph& G, AdaptiveInstance& instance, const
-// std::vector<ASPI_Solver>& solvers, GRBEnv* env, int debug = 0){
-//   k_0 = 3;
-//   n = 6;
-//   p = 3;
-//   const std::string name2 =
-//       set_name + "-" + std::to_string(n) + "_" + std::to_string(k_0);
-//   const std::string filename2 = directory + name2 + ".txt";
-//   const Graph G2 = Graph(filename2, n);
-//   for (int k = 1; k < 4; ++k) {
-//     AdaptiveInstance test2(p, k, budget, G2, directory, name2);
-//     test2.ReadCosts(interdiction_delta);
-//     SolveAndPrintTest(G2, test2, solvers, env, M, debug_level);
-//   }
-// }
 
 int main() {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
-  env->set(GRB_DoubleParam_TimeLimit, 3600);  // Set time limit to 1 hour.
-  const std::string set_name = "tests";
-  std::unordered_map<int, std::vector<int>> nodes_k0_map{
-    {5, {1}},
-    {6, {3}}};
-  std::unordered_map<int, std::vector<int>> scenarios_id_map{
-    {5, {1}},
-    {6, {3}}};
+  env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_MS);  // Set time limit to 1 hour.
+  std::cout << std::endl;
+
+  /* Max Policies */
+  const int max_policies = 3;
+  /* ------------ */
   std::vector<ASPI_Solver> solvers{MIP, BENDERS, ENUMERATION, GREEDY};
-  // First test - 5 node instance with 1 follower:
-  for (const auto& [nodes, k0_vector] : nodes_k0_map) {
-    for (int k_zero : k0_vector) {
-      GraphInput graph_input(set_name, nodes, k_zero);
-      InstanceInput instance_input(graph_input, 1, 0);
-      ProblemInput problem_input(instance_input, 1, 1, env);
-      SolveAndPrintTest(problem_input, solvers);
-    }
+
+  /* Set Name */
+  const std::string set_name = "tests";
+  DIR* set_directory = opendir("dat/tests");
+  /* -------- */
+
+  if (set_directory == NULL) return 1;
+  struct dirent* entity;
+  entity = readdir(set_directory);
+  auto t = std::time(nullptr);
+  auto tt = *std::localtime(&t);
+  std::ostringstream oss;
+  oss << std::put_time(&tt, "%d-%m-%Y--%H-%M-%S");
+  std::string today = oss.str();
+  std::string result_file_name = DATA_DIRECTORY + set_name + "/" + set_name + "_run_" + today + ".csv";
+  std::ofstream result_file(result_file_name);
+  result_file << CSV_HEADER << std::endl;
+  while (entity != NULL) {
+    std::string name = entity->d_name;
+    entity = readdir(set_directory);
+    if (name.size() < set_name.size())
+      continue;  // This is not a data file, data files start with <set_name> so
+                 // are at least as long as set_name.size().
+    std::string set_name_in_name(name.begin(), name.begin() + set_name.size());
+    if (set_name_in_name != set_name) continue; // For sanity, check that the data file matches the set_name which should always be the case.
+    if (IsRunFile(name)) continue; // Cannot run on a output data file (in case we are running again on this directory).
+                                   // Since we include full timestamps in the result file names we may do this, e.g. with a different max policies, and won't ovewrite result file names.
+    // We will loop through all cost files (which are analogous to all InstanceInputs) parse their names to get params for both GraphInput and InstanceInput, and then run the our single run function for every k from 1 to max k (as long as k <= scenarios).
+    if (IsCostFile(name)) {
+      std::pair<int, int> n_kzero = GetNodesKZero(name, set_name.size()+1);
+      int nodes = n_kzero.first;
+      int kzero = n_kzero.second;
+      std::pair<int, int> scenarios_id = GetScenariosID(name);
+      int scenarios = scenarios_id.first;
+      int id = scenarios_id.second;
+      GraphInput graph_input(set_name, nodes, kzero);
+      InstanceInput instance_input(graph_input, scenarios, id);
+      for (int k = 1; k <= max_policies; k++) {
+        if (k > instance_input.scenarios_) break;
+        const ProblemInput problem(instance_input, k, env);
+        std::cout << "RUNNING INSTANCE: " << problem.instance_.name() << ", K = " << std::to_string(k) << std::endl;
+        std::string result = SolveAndPrintTest(set_name, problem, solvers);
+        std::cout << std::endl;
+        result_file << result << std::endl;
+      }
+    } 
   }
-  // int k_0 = 1;
-  // int n = 5;
-  // int p = 1;
-  // int id = -1;
-  // int k = 1;
-  // int budget = 1;
-  // const std::string name1 =
-  //     set_name + "-" + std::to_string(n) + "_" + std::to_string(k_0);
-  // const std::string filename1 = directory + name1 + ".txt";
-  // const Graph G1 = Graph(filename1, n);
-  // Second test - 6 node instance with 3 followers, k = 1,...,3:
-  // k_0 = 3;
-  // n = 6;
-  // p = 3;
-  // const std::string name2 =
-  //     set_name + "-" + std::to_string(n) + "_" + std::to_string(k_0);
-  // const std::string filename2 = directory + name2 + ".txt";
-  // const Graph G2 = Graph(filename2, n);
-  // for (int k = 1; k < 4; ++k) {
-  //   AdaptiveInstance test2(p, k, budget, G2, directory, name2);
-  //   test2.ReadCosts();
-  //   SolveAndPrintTest(G2, test2, solvers, env, debug_level);
-  // }
-  // const std::string synthetic_set = "aspi_testbed";
-  // const std::string synthetic_dir = "dat/" + synthetic_set + "/";
-  // // Synthetic test 1:
-  // k_0 = 3;
-  // n = 52;
-  // p = 5;
-  // budget = 3;
-  // const std::string name3 =
-  //     synthetic_set + "-" + std::to_string(n) + "_" + std::to_string(k_0);
-  // const std::string filename3 = synthetic_dir + name3 + ".txt";
-  // const Graph G3 = Graph(filename3, n);
-  // for (int k = 1; k < 4; ++k) {
-  //   AdaptiveInstance test3(p, k, budget, G3, synthetic_dir, name3);
-  //   test3.ReadCosts();
-  //   SolveAndPrintTest(G3, test3, solvers, env, debug_level);
-  // }
-  // k_0 = 5;
-  // const std::string name4 =
-  //     synthetic_set + "-" + std::to_string(n) + "_" + std::to_string(k_0);
-  // const std::string filename4 = synthetic_dir + name4 + ".txt";
-  // const Graph G4 = Graph(filename4, n);
-  // for (int k = 1; k < 4; ++k) {
-  //   AdaptiveInstance test4(p, k, budget, G4, synthetic_dir, name4);
-  //   test4.ReadCosts();
-  //   SolveAndPrintTest(G4, test4, solvers, env, debug_level);
-  // }
+  result_file.close();
+  closedir(set_directory);
 }

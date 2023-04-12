@@ -984,6 +984,12 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem) {
     std::vector<std::vector<int>> best_worstcase_partition;
     // Enumerate while not 'failing' to get next partition.
     while (next) {
+      long current_time = GetCurrentTime() - begin;
+      if (current_time >= TIME_LIMIT_MS) {
+        AdaptiveSolution time_limit_solution = AdaptiveSolution(true, false);
+        time_limit_solution.set_solution_time(3600);
+        time_limit_solution.set_worst_case_objective(-1);
+      } 
       std::vector<std::vector<double>> temp_sol(k, arc_vec);
       double temp_worst_objective = DBL_MAX;
       std::vector<double> temp_objectives(k, 0);
@@ -1095,6 +1101,8 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem) {
 // }
 
 AdaptiveSolution GreedyAlgorithm(const ProblemInput& problem) {
+  long begin = GetCurrentTime();
+  RobustAlgoModel static_robust = RobustAlgoModel(problem);
   std::unordered_set<int> centers;
   RobustAlgoModel spi_model = RobustAlgoModel(problem);
   std::vector<std::vector<double>> final_policies;
@@ -1109,6 +1117,12 @@ AdaptiveSolution GreedyAlgorithm(const ProblemInput& problem) {
   final_policies.push_back(single_policy);
   size_t policies = problem.policies_;
   while (centers.size() < policies) {
+    long current_time = GetCurrentTime() - begin;
+    if (current_time >= TIME_LIMIT_MS) {
+      AdaptiveSolution time_limit_solution = AdaptiveSolution(true, false);
+      time_limit_solution.set_solution_time(3600);
+      time_limit_solution.set_worst_case_objective(-1);
+    } 
     // Evaluate all non center scenarios against the current policies,
     // maintaining the minimum one.
     std::pair<int, double> min_subset = {-1, DBL_MAX};
@@ -1135,6 +1149,8 @@ AdaptiveSolution GreedyAlgorithm(const ProblemInput& problem) {
                                   final_policies);
   final_solution.ComputeObjectiveMatrix(problem);
   final_solution.ComputeAdaptiveObjective();
+  long solution_time = GetCurrentTime() - begin;
+  final_solution.set_solution_time(solution_time);
   return final_solution;
 }
 

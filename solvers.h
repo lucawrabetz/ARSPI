@@ -25,6 +25,7 @@
 
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
 const double EPSILON = 0.000001;
+const long TIME_LIMIT_MS = 3600;
 const std::string DATA_DIRECTORY = "dat/";
 
 struct GraphInput {
@@ -33,8 +34,7 @@ struct GraphInput {
         nodes_(nodes),
         k_zero_(k_zero),
         graph_name_(setname + "-" + std::to_string(nodes) + "_" +
-                    std::to_string(k_zero)) {std::cout << "graph_name: " << graph_name_ << std::endl;
-          std::cout << "Graph FileName: " << FileName() << std::endl;}
+                    std::to_string(k_zero)) {}
   std::string FileName() const {
     return DATA_DIRECTORY + setname_ + "/" + graph_name_ + ".txt";
   }
@@ -50,8 +50,7 @@ struct InstanceInput {
         id_(id),
         setname_(graph_input.setname_),
         costs_name_(graph_input_.graph_name_ + "-costs_" +
-                    std::to_string(scenarios) + "_" + std::to_string(id)) {std::cout << "costs_name: " << costs_name_ << std::endl;
-          std::cout << "Cost FileName: " << CostFileName() << std::endl;}
+                    std::to_string(scenarios) + "_" + std::to_string(id)) {}
   std::string CostFileName() const {
     return DATA_DIRECTORY + setname_ + "/" + costs_name_ + ".csv";
   }
@@ -154,19 +153,19 @@ class AdaptiveInstance {
 };
 
 struct ProblemInput {
-  ProblemInput(const InstanceInput& instance_input, int policies, int budget,
-               GRBEnv* env)
+  ProblemInput(const InstanceInput& instance_input, int policies, GRBEnv* env)
       : G_(Graph(instance_input.graph_input_.FileName(),
                  instance_input.graph_input_.nodes_)),
         instance_(AdaptiveInstance(instance_input)),
         policies_(policies),
-        budget_(budget),
+        budget_(instance_input.graph_input_.k_zero_),
+        k_zero_(instance_input.graph_input_.k_zero_),
         env_(env) {
-    instance_.ReadCosts(); std::cout << "instance name: " << instance_.name() << std::endl;
+    instance_.ReadCosts();
   }
   const Graph G_;
   AdaptiveInstance instance_;
-  int policies_, budget_;
+  int policies_, budget_, k_zero_;
   GRBEnv* env_;
 };
 
@@ -179,7 +178,7 @@ class AdaptiveSolution {
  public:
   AdaptiveSolution() : unbounded_(false), benders_(false){};
   AdaptiveSolution(bool unbounded, bool benders)
-      : unbounded_(unbounded), benders_(benders){};
+      : unbounded_(unbounded), benders_(benders) {};
   AdaptiveSolution(bool benders, const ProblemInput& problem)
       : unbounded_(false),
         benders_(benders),
@@ -243,7 +242,7 @@ class AdaptiveSolution {
   }
 
  private:
-  bool unbounded_, benders_;
+  bool unbounded_, benders_, time_limit_;
   int policies_, scenarios_, nodes_, arcs_, budget_;
   std::vector<std::vector<int>> partition_;
   std::vector<std::vector<double>> solution_;
