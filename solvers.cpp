@@ -1,7 +1,7 @@
 #include "solvers.h"
 
 long GetCurrentTime() {
-  // Helper function to get current time.
+  // Helper function to get current time in milliseconds.
   struct timeval tv;
   gettimeofday(&tv, NULL);
   return tv.tv_sec * 1000 + tv.tv_usec / 1000;
@@ -370,13 +370,19 @@ AdaptiveSolution SetPartitioningModel::Solve(const ProblemInput& problem) {
   // Updates current solution to latest solution, or sets unbounded to true.
   // Compute full objective matrix after solving.
   // Returns current solution.
+  // 
+  // Optimize model and measure solution time.
   long begin = GetCurrentTime();
   sp_model_->optimize();
   long time = GetCurrentTime() - begin;
-  AdaptiveSolution final_solution(false, problem);
+  // Initialize AdaptiveSolution.
+  AdaptiveSolution final_solution(false, false, problem);
   final_solution.set_solution_time(time);
-  if (sp_model_->get(GRB_IntAttr_Status) == 2) {
+  if (sp_model_->get(GRB_IntAttr_Status) == GRB_OPTIMAL) {
+    // If status is optimal, set unbounded to false and set objective value,
+    // policies and partition.
     final_solution.set_unbounded(false);
+    final_solution.set_optimal(true);
     final_solution.set_worst_case_objective(
         -sp_model_->get(GRB_DoubleAttr_ObjVal));
     for (int w = 0; w < policies_; ++w) {
@@ -391,9 +397,38 @@ AdaptiveSolution SetPartitioningModel::Solve(const ProblemInput& problem) {
         }
       }
     }
-    final_solution.ComputeObjectiveMatrix(problem);
-  } else if (sp_model_->get(GRB_IntAttr_Status) == 5)
+    // Compute Objective Matrix.
+    // Skip this as it is time consuming and not needed, only uncomment
+    // for debugging.
+    // final_solution.ComputeObjectiveMatrix(problem);
+  } else if (sp_model_->get(GRB_IntAttr_Status) == GRB_UNBOUNDED) {
     final_solution.set_unbounded(true);
+  }
+  else if (sp_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
+    // If solution status is hit time limit, set time to TIME_LIMIT_MS.
+    // Use milliseconds, as our adaptive solution class stores these values in milliseconds,
+    // since GetCurrentTime() returns milliseconds.
+    final_solution.set_unbounded(false);
+    final_solution.set_solution_time(TIME_LIMIT_MS);
+    // Check if there is an incumbent - in this case set solution and objective.
+    if (sp_model_->get(GRB_IntAttr_SolCount) > 0) {
+      final_solution.set_mip_gap(sp_model_->get(GRB_DoubleAttr_MIPGap));
+      final_solution.set_worst_case_objective(
+          -sp_model_->get(GRB_DoubleAttr_ObjVal));
+      for (int w = 0; w < policies_; ++w) {
+        std::vector<double> x_vector;
+        for (int a = 0; a < arcs_; a++) {
+          x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
+        }
+        final_solution.set_solution_policy(w, x_vector);
+        for (int q = 0; q < scenarios_; q++) {
+          if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
+            final_solution.add_to_partition(w, q);
+          }
+        }
+      }
+    }
+  }
   return final_solution;
 }
 
@@ -590,13 +625,16 @@ void SetPartitioningBenders::ConfigureSolver(const ProblemInput& problem) {
 }
 
 AdaptiveSolution SetPartitioningBenders::Solve(const ProblemInput& problem) {
+  // Set callback, optimize and measure solution time.
   benders_model_->setCallback(&callback_);
   long begin = GetCurrentTime();
   benders_model_->optimize();
   long time = GetCurrentTime() - begin;
-  AdaptiveSolution final_solution(true, problem);
-  if (benders_model_->get(GRB_IntAttr_Status) == 2) {
+  AdaptiveSolution final_solution(true, false, problem);
+  if (benders_model_->get(GRB_IntAttr_Status) == GRB_OPTIMAL) {
+    // If optimal, set solution time objective and policy.
     final_solution.set_unbounded(false);
+    final_solution.set_optimal(true);
     final_solution.set_solution_time(time);
     final_solution.set_worst_case_objective(
         -benders_model_->get(GRB_DoubleAttr_ObjVal));
@@ -613,11 +651,42 @@ AdaptiveSolution SetPartitioningBenders::Solve(const ProblemInput& problem) {
         }
       }
     }
-  } else if (benders_model_->get(GRB_IntAttr_Status) == 5) {
+    // Skip this as it is time consuming and not needed, only uncomment
+    // for debugging.
+    // final_solution.ComputeObjectiveMatrix(problem);
+  } else if (benders_model_->get(GRB_IntAttr_Status) == GRB_UNBOUNDED) {
     final_solution.set_unbounded(true);
     final_solution.set_solution_time(time);
   }
-  final_solution.ComputeObjectiveMatrix(problem);
+  else if (benders_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
+    // If we hit time limit, check for incumbent and set policy and objective.
+    // If solution status is hit time limit, set time to TIME_LIMIT_MS.
+    // Use milliseconds, as our adaptive solution class stores these values in milliseconds,
+    // since GetCurrentTime() returns milliseconds.
+    final_solution.set_unbounded(false);
+    final_solution.set_solution_time(TIME_LIMIT_MS);
+    if (benders_model_->get(GRB_IntAttr_SolCount) > 0) {
+      final_solution.set_mip_gap(benders_model_->get(GRB_DoubleAttr_MIPGap));
+      final_solution.set_cuts(callback_.lazy_cuts_rounds());
+      final_solution.set_worst_case_objective(
+          -benders_model_->get(GRB_DoubleAttr_ObjVal));
+      for (int w = 0; w < policies_; ++w) {
+        std::vector<double> x_vector;
+        for (int a = 0; a < arcs_; a++) {
+          x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
+        }
+        final_solution.set_solution_policy(w, x_vector);
+        for (int q = 0; q < scenarios_; q++) {
+          if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
+            final_solution.add_to_partition(w, q);
+          }
+        }
+      }
+    }
+    // Skip this as it is time consuming and not needed, only uncomment
+    // for debugging.
+    // final_solution.ComputeObjectiveMatrix(problem);
+  }
   return final_solution;
 }
 
@@ -737,14 +806,24 @@ void RobustAlgoModel::ReverseUpdate(std::vector<int>& subset) {
 
 std::pair<double, std::vector<double>> RobustAlgoModel::Solve() {
   // Solve static model, return objective value and policy.
+  // If it hits the time limit, return {-1, {-1,....-1}}
+  // If there is any status other than time limit or optimal,
+  // return {0, {0,....,0}}.
   algo_model_->optimize();
-  std::vector<double> binary_policy(arcs_, 0);
-  double objective = -algo_model_->get(GRB_DoubleAttr_ObjVal);
-  for (int a = 0; a < arcs_; ++a) {
-    binary_policy[a] = x_var_[a].get(GRB_DoubleAttr_X);
+  if (algo_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
+    return std::make_pair(-1, std::vector<double>(arcs_, -1));
   }
-  algo_model_->reset();
-  return std::make_pair(objective, binary_policy);
+  else if (algo_model_->get(GRB_IntAttr_Status) == GRB_OPTIMAL) {
+    std::vector<double> binary_policy(arcs_, 0);
+    double objective = -algo_model_->get(GRB_DoubleAttr_ObjVal);
+    for (int a = 0; a < arcs_; ++a) {
+      binary_policy[a] = x_var_[a].get(GRB_DoubleAttr_X);
+    }
+    return std::make_pair(objective, binary_policy);
+  }
+  else return std::make_pair(0, std::vector<double>(arcs_, 0));
+  // This is not necessary and we might even lose speed on warm starts etc.
+  // algo_model_->reset();
 }
 
 int max_int(int a, int b) {
@@ -985,10 +1064,13 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem) {
     // Enumerate while not 'failing' to get next partition.
     while (next) {
       long current_time = GetCurrentTime() - begin;
+      // Use milliseconds for time limit to check this, as we measured in
+      // milliseconds with GetCurrentTime().
       if (current_time >= TIME_LIMIT_MS) {
-        AdaptiveSolution time_limit_solution = AdaptiveSolution(true, false);
-        time_limit_solution.set_solution_time(3600);
+        AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
+        time_limit_solution.set_solution_time(TIME_LIMIT_MS);
         time_limit_solution.set_worst_case_objective(-1);
+        return time_limit_solution;
       } 
       std::vector<std::vector<double>> temp_sol(k, arc_vec);
       double temp_worst_objective = DBL_MAX;
@@ -999,6 +1081,13 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem) {
         static_robust.Update(partition[w]);
         std::pair<double, std::vector<double>> temp_single_solution =
             static_robust.Solve();
+        // Check that the static model didn't hit the time limit:
+        if (temp_single_solution.first == -1) {
+          AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
+          time_limit_solution.set_solution_time(TIME_LIMIT_MS);
+          time_limit_solution.set_worst_case_objective(-1);
+          return time_limit_solution;
+        }
         temp_objectives[w] = temp_single_solution.first;
         temp_sol[w] = temp_single_solution.second;
         static_robust.ReverseUpdate(partition[w]);
@@ -1016,16 +1105,25 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem) {
       next = nextKappa(kappa, max, k, p);
     }
     long time = GetCurrentTime() - begin;
+    if (time >= TIME_LIMIT_MS) {
+      AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
+      time_limit_solution.set_solution_time(TIME_LIMIT_MS);
+      time_limit_solution.set_worst_case_objective(-1);
+      return time_limit_solution;
+    } 
     std::vector<std::vector<double>> final_policies(k);
     for (int w = 0; w < k; ++w) {
       final_policies[w] = sol[w];
       // final_policies[w].set_objective(final_objectives[w]);
     }
+    // Benders == false, optimal == true.
     AdaptiveSolution final_solution = AdaptiveSolution(
-        false, problem, best_worstcase_partition, final_policies);
+        false, true, problem, best_worstcase_partition, final_policies);
     final_solution.set_worst_case_objective(best_worstcase_objective);
     final_solution.set_solution_time(time);
-    final_solution.ComputeObjectiveMatrix(problem);
+    // Skip this as it is time consuming and not needed, only uncomment
+    // for debugging.
+    // final_solution.ComputeObjectiveMatrix(problem);
     return final_solution;
   } catch (GRBException e) {
     std::cout << "Gurobi error number [EnumSolve]: " << e.getErrorCode()
@@ -1118,10 +1216,12 @@ AdaptiveSolution GreedyAlgorithm(const ProblemInput& problem) {
   size_t policies = problem.policies_;
   while (centers.size() < policies) {
     long current_time = GetCurrentTime() - begin;
+    // Use milliseconds since we used GetCurrentTime, which is in milliseconds, to measure.
     if (current_time >= TIME_LIMIT_MS) {
-      AdaptiveSolution time_limit_solution = AdaptiveSolution(true, false);
-      time_limit_solution.set_solution_time(3600);
+      AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
+      time_limit_solution.set_solution_time(TIME_LIMIT_MS);
       time_limit_solution.set_worst_case_objective(-1);
+      return time_limit_solution;
     } 
     // Evaluate all non center scenarios against the current policies,
     // maintaining the minimum one.
@@ -1138,18 +1238,32 @@ AdaptiveSolution GreedyAlgorithm(const ProblemInput& problem) {
     // interdictor), and add the scenario to the set of centers.
     Update_vector[0] = min_subset.first;
     spi_model.Update(Update_vector);
-    std::vector<double> single_policy = spi_model.Solve().second;
+    std::pair<double, std::vector<double>> temp_single_solution = spi_model.Solve();
+    if (temp_single_solution.first == -1) {
+      AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
+      time_limit_solution.set_solution_time(TIME_LIMIT_MS);
+      time_limit_solution.set_worst_case_objective(-1);
+      return time_limit_solution;
+    }
+    std::vector<double> single_policy = temp_single_solution.second;
     spi_model.ReverseUpdate(Update_vector);
     final_policies.push_back(single_policy);
     centers.insert(min_subset.first);
   }
   std::vector<std::vector<int>> temp_partition(
       problem.policies_, std::vector<int>(problem.instance_.scenarios(), 0));
-  AdaptiveSolution final_solution(false, problem, temp_partition,
+  // Benders == false, optimal == false.
+  AdaptiveSolution final_solution(false, false, problem, temp_partition,
                                   final_policies);
+  long solution_time = GetCurrentTime() - begin;
+  if (solution_time >= TIME_LIMIT_MS) {
+    AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
+    time_limit_solution.set_solution_time(TIME_LIMIT_MS);
+    time_limit_solution.set_worst_case_objective(-1);
+    return time_limit_solution;
+  } 
   final_solution.ComputeObjectiveMatrix(problem);
   final_solution.ComputeAdaptiveObjective();
-  long solution_time = GetCurrentTime() - begin;
   final_solution.set_solution_time(solution_time);
   return final_solution;
 }

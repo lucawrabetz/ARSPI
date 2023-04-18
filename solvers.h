@@ -19,13 +19,15 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-// #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
-#include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
+#include <fstream>
+#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+// #include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
 const double EPSILON = 0.000001;
-const long TIME_LIMIT_MS = 3600;
+const long TIME_LIMIT_S = 3600;
+const long TIME_LIMIT_MS = TIME_LIMIT_S * 1000;
 const std::string DATA_DIRECTORY = "dat/";
 
 struct GraphInput {
@@ -152,7 +154,8 @@ class AdaptiveInstance {
   std::vector<int> scenario_index_map_;
 };
 
-struct ProblemInput {
+class ProblemInput {
+ public:
   ProblemInput(const InstanceInput& instance_input, int policies, GRBEnv* env)
       : G_(Graph(instance_input.graph_input_.FileName(),
                  instance_input.graph_input_.nodes_)),
@@ -160,9 +163,8 @@ struct ProblemInput {
         policies_(policies),
         budget_(instance_input.graph_input_.k_zero_),
         k_zero_(instance_input.graph_input_.k_zero_),
-        env_(env) {
-    instance_.ReadCosts();
-  }
+        env_(env){instance_.ReadCosts();}
+  void WriteLineToLogFile();
   const Graph G_;
   AdaptiveInstance instance_;
   int policies_, budget_, k_zero_;
@@ -176,12 +178,13 @@ class AdaptiveSolution {
   // TODO: default initializations of stuff for different solvers (approximation
   // and enumeration algorithm).
  public:
-  AdaptiveSolution() : unbounded_(false), benders_(false){};
-  AdaptiveSolution(bool unbounded, bool benders)
-      : unbounded_(unbounded), benders_(benders) {};
-  AdaptiveSolution(bool benders, const ProblemInput& problem)
+  AdaptiveSolution() : unbounded_(false), benders_(false), optimal_(false){};
+  AdaptiveSolution(bool unbounded, bool benders, bool optimal)
+      : unbounded_(unbounded), benders_(benders), optimal_(optimal) {};
+  AdaptiveSolution(bool benders, bool optimal, const ProblemInput& problem)
       : unbounded_(false),
         benders_(benders),
+        optimal_(optimal),
         policies_(problem.policies_),
         scenarios_(problem.instance_.scenarios()),
         nodes_(problem.instance_.nodes()),
@@ -193,12 +196,13 @@ class AdaptiveSolution {
         objectives_(std::vector<std::vector<double>>(
             problem.policies_,
             std::vector<double>(problem.instance_.scenarios()))),
-        worst_case_objective_(-1){};
-  AdaptiveSolution(bool benders, const ProblemInput& problem,
+        worst_case_objective_(-1), mip_gap_(-1) {};
+  AdaptiveSolution(bool benders, bool optimal, const ProblemInput& problem,
                    const std::vector<std::vector<int>>& partition,
                    const std::vector<std::vector<double>>& solution)
       : unbounded_(false),
         benders_(benders),
+        optimal_(optimal),
         policies_(problem.policies_),
         scenarios_(problem.instance_.scenarios()),
         nodes_(problem.instance_.nodes()),
@@ -209,7 +213,7 @@ class AdaptiveSolution {
         objectives_(std::vector<std::vector<double>>(
             problem.policies_,
             std::vector<double>(problem.instance_.scenarios()))),
-        worst_case_objective_(-1){};
+        worst_case_objective_(-1), mip_gap_(-1) {};
   void LogSolution(const ProblemInput& problem, bool policy = false);
   void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2,
                      int split_index);
@@ -219,7 +223,10 @@ class AdaptiveSolution {
   void ComputePartition();
   void ComputeAdaptiveObjective();
   int policies() const { return policies_; }
+  int lazy_cuts_rounds() const { return lazy_cuts_rounds_; }
+  bool optimal() const { return optimal_; }
   double worst_case_objective() const { return worst_case_objective_; }
+  double mip_gap() const { return mip_gap_; }
   std::vector<std::vector<int>> partition() const { return partition_; }
   std::vector<std::vector<double>> solution() const { return solution_; }
   long solution_time() const { return solution_time_; }
@@ -232,6 +239,8 @@ class AdaptiveSolution {
   void set_solution_policy(int index, std::vector<double>& policy) {
     solution_[index] = policy;
   }
+  void set_optimal(bool optimal) { optimal_ = optimal; mip_gap_ = 0; }
+  void set_mip_gap(double gap) { mip_gap_ = gap; }
   void set_partition(const std::vector<std::vector<int>>& partition) {
     partition_ = partition;
   }
@@ -242,7 +251,7 @@ class AdaptiveSolution {
   }
 
  private:
-  bool unbounded_, benders_, time_limit_;
+  bool unbounded_, benders_, time_limit_, optimal_;
   int policies_, scenarios_, nodes_, arcs_, budget_;
   std::vector<std::vector<int>> partition_;
   std::vector<std::vector<double>> solution_;
@@ -250,6 +259,7 @@ class AdaptiveSolution {
       objectives_;  // k by p matrix, objective value of each interdiction
                     // policy applied to each follower [w][q].
   double worst_case_objective_;
+  double mip_gap_;
   long solution_time_;
   int lazy_cuts_rounds_;
 };

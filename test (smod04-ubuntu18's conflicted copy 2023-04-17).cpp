@@ -1,6 +1,6 @@
-#include <cstring>
 #include <dirent.h>
 #include <cmath>
+#include <fstream>
 
 #include <iomanip>
 #include <limits>
@@ -65,7 +65,7 @@ std::pair<int, int> GetScenariosID(const std::string& name) {
   return {};
 }
 
-const std::string CSV_HEADER = "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,policies,MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_rounds,ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,GREEDY_objective,GREEDY_time";
+const std::string CSV_HEADER = "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,policies,MIP_objective,MIP_time,BENDERS_objective,BENDERS_time,ENUMERATION_objective,ENUMERATION_time,GREEDY_objective,GREEDY_time,approximation_ratio";
 
 std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& problem,
                        std::vector<ASPI_Solver>& solvers, int debug = 0) {
@@ -82,7 +82,6 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
   final_csv_string += "," + std::to_string(problem.instance_.scenarios());
   final_csv_string += "," + std::to_string(problem.budget_);
   final_csv_string += "," + std::to_string(problem.policies_);
-  std::string log_line = " ---------- ";
   for (const auto& solver : solvers) {
     if (solver == MIP) {
       SetPartitioningModel sp = SetPartitioningModel(problem);
@@ -93,18 +92,8 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
       else if (debug == 1)
         sp_solution.LogSolution(problem, false);
       adaptive_objectives.push_back(sp_solution.worst_case_objective());
-      std::string optimal;
-      if (sp_solution.optimal()) {optimal = "OPTIMAL";}
-      else {optimal = "NOT OPTIMAL";}
-      final_csv_string += "," + optimal;
       final_csv_string += "," + std::to_string(sp_solution.worst_case_objective());
-      final_csv_string += "," + std::to_string(sp_solution.mip_gap());
       final_csv_string += "," + std::to_string(sp_solution.solution_time());
-      log_line += "MIP: ";
-      log_line += optimal + " - ";
-      log_line += std::to_string(sp_solution.worst_case_objective());
-      log_line += ", " + std::to_string(sp_solution.solution_time());
-      log_line += "ms ----- ";
     } else if (solver == BENDERS) {
       SetPartitioningBenders benders = SetPartitioningBenders(problem);
       benders.ConfigureSolver(problem);
@@ -114,19 +103,8 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
       else if (debug == 1)
         benders_solution.LogSolution(problem, false);
       adaptive_objectives.push_back(benders_solution.worst_case_objective());
-      std::string optimal;
-      if (benders_solution.optimal()) {optimal = "OPTIMAL";}
-      else {optimal = "NOT OPTIMAL";}
-      final_csv_string += "," + optimal;
       final_csv_string += "," + std::to_string(benders_solution.worst_case_objective());
-      final_csv_string += "," + std::to_string(benders_solution.mip_gap());
       final_csv_string += "," + std::to_string(benders_solution.solution_time());
-      final_csv_string += "," + std::to_string(benders_solution.lazy_cuts_rounds());
-      log_line += "BENDERS: ";
-      log_line += optimal + " - ";
-      log_line += std::to_string(benders_solution.worst_case_objective());
-      log_line += ", " + std::to_string(benders_solution.solution_time());
-      log_line += "ms ----- ";
     } else if (solver == ENUMERATION) {
       AdaptiveSolution enum_solution = EnumSolve(problem);
       if (debug == 2)
@@ -134,17 +112,8 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
       else if (debug == 1)
         enum_solution.LogSolution(problem, false);
       adaptive_objectives.push_back(enum_solution.worst_case_objective());
-      std::string optimal;
-      if (enum_solution.optimal()) {optimal = "OPTIMAL";}
-      else {optimal = "NOT OPTIMAL";}
-      final_csv_string += "," + optimal;
       final_csv_string += "," + std::to_string(enum_solution.worst_case_objective());
       final_csv_string += "," + std::to_string(enum_solution.solution_time());
-      log_line += "ENUMERATION: ";
-      log_line += optimal + " - ";
-      log_line += std::to_string(enum_solution.worst_case_objective());
-      log_line += ", " + std::to_string(enum_solution.solution_time());
-      log_line += "ms ----- ";
     } else if (solver == GREEDY) {
       AdaptiveSolution greedy_solution = GreedyAlgorithm(problem);
       if (debug == 2)
@@ -158,48 +127,47 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
       greedy_adaptive_objective = greedy_solution.worst_case_objective();
       final_csv_string += "," + std::to_string(greedy_solution.worst_case_objective());
       final_csv_string += "," + std::to_string(greedy_solution.solution_time());
-      log_line += "GREEDY: ";
-      log_line += std::to_string(greedy_solution.worst_case_objective());
-      log_line += ", " + std::to_string(greedy_solution.solution_time());
-      log_line += "ms ---------- ";
       // adaptive_objectives.push_back(enum_solution.worst_case_objective());
     }
   }
-  std::cout << log_line << std::endl;
   double prev = adaptive_objectives[0];
-  // FOR TESTING
-  // for (double& obj : adaptive_objectives) {
-  //   if (std::abs(obj - prev) >= EPSILON) {
-  //     std::cout << "FAIL: " << problem.instance_.name() << std::endl;
-  //     std::cout.precision(dbl::max_digits10 - 1);
-  //     for (double& x : adaptive_objectives) {
-  //       std::cout << std::scientific << x << std::endl;
-  //     }
-  //   }
-  //   prev = obj;
-  // }
-  // std::cout << "------------------------  PASS, EXACT OBJECTIVE: " << adaptive_objectives[0] << ", GREEDY APPROXIMATION: " << greedy_adaptive_objective
-  //           << "  ------------------------" << std::endl;
+  for (double& obj : adaptive_objectives) {
+    if (std::abs(obj - prev) >= EPSILON) {
+      std::cout << "FAIL: " << problem.instance_.name() << std::endl;
+      std::cout.precision(dbl::max_digits10 - 1);
+      for (double& x : adaptive_objectives) {
+        std::cout << std::scientific << x << std::endl;
+      }
+      return "";
+    }
+    prev = obj;
+  }
+  std::cout << "------------------------  PASS, EXACT OBJECTIVE: " << adaptive_objectives[0] << ", GREEDY APPROXIMATION: " << greedy_adaptive_objective
+            << "  ------------------------" << std::endl;
+  double approximation_ratio = adaptive_objectives[0] / greedy_adaptive_objective;
+  final_csv_string += "," + std::to_string(approximation_ratio);
   return final_csv_string;
 }
 
-void RunAllInstancesInSetDirectory(const int max_policies, const std::string& set_name) {
+
+int main() {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
-  // Use seconds, since gurobi takes the parameter value in seconds.
-  env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
+  env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_MS);  // Set time limit to 1 hour.
   std::cout << std::endl;
 
   /* Max Policies */
+  const int max_policies = 3;
   /* ------------ */
   std::vector<ASPI_Solver> solvers{MIP, BENDERS, ENUMERATION, GREEDY};
 
   /* Set Name */
-  std::string full_path_s = DATA_DIRECTORY + set_name; 
-  char* full_path = new char[full_path_s.length() + 1];
-  std::strcpy(full_path, full_path_s.c_str());
-  DIR* set_directory = opendir(full_path);
+  const std::string set_name = "tests";
+  std::string full_path = DATA_DIRECTORY + set_name;
+  DIR* set_directory = opendir("dat/tests");
+  // DIR* set_directory = opendir(full_path);
   /* -------- */
 
+  if (set_directory == NULL) return 1;
   struct dirent* entity;
   entity = readdir(set_directory);
   auto t = std::time(nullptr);
@@ -207,8 +175,7 @@ void RunAllInstancesInSetDirectory(const int max_policies, const std::string& se
   std::ostringstream oss;
   oss << std::put_time(&tt, "%d-%m-%Y--%H-%M-%S");
   std::string today = oss.str();
-  std::string base_name = DATA_DIRECTORY + set_name + "/" + set_name + "_run_" + today;
-  std::string result_file_name =  base_name + ".csv";
+  std::string result_file_name = DATA_DIRECTORY + set_name + "/" + set_name + "_run_" + today + ".csv";
   std::ofstream result_file(result_file_name);
   result_file << CSV_HEADER << std::endl;
   while (entity != NULL) {
@@ -243,14 +210,4 @@ void RunAllInstancesInSetDirectory(const int max_policies, const std::string& se
   }
   result_file.close();
   closedir(set_directory);
-}
-
-int main(int argc, char *argv[]) {
-  const std::string set_name = argv[1];
-  const int max_k = std::stoi(argv[2]);
-  long before = GetCurrentTime();
-  RunAllInstancesInSetDirectory(max_k, set_name);
-  long after = GetCurrentTime();
-  long dur = after - before;
-  std::cout << dur << std::endl;
 }
