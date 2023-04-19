@@ -1138,66 +1138,6 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem) {
   return dummy_solution;
 }
 
-// void AdaptiveSolution::ExtendByOne(AdaptiveInstance& instance, const Graph&
-// G,
-//                                    GRBEnv* env, bool mip_subroutine) {
-//   // Use an optimal solution found for k, to find a good solution for k+1
-//   // Take the worst subset in the optimal partition and "split it in 2"
-//   // "Split it in two": solve that subset for k = 2
-//   // Return format will always be exactly the same as enum solve, just for k
-//   // greater than one Naming - instance_prime is the copy of instance, and
-//   // anything_prime is associated with instance_prime int values
-//   std::cout << "heuristic - extend by one policy" << std::endl;
-//   long begin = GetCurrentTime();
-//   // find worst subset in optimal partition
-//   double min_subset_obj = DBL_MAX;
-//   int min_subset_windex;
-//
-//   for (int w = 0; w < policies_; ++w) {
-//     if (solution_[w].objective() < min_subset_obj) {
-//       min_subset_obj = solution_[w].objective();
-//       min_subset_windex = w;
-//     }
-//   }
-//
-//   int p_prime = partition_[min_subset_windex]
-//                     .size();  // the new p - number of scenarios in the
-//                     subset
-//                               // that we will work on
-//
-//   if (p_prime > 1) {
-//     std::cout << "Subset to split: { ";
-//     for (int q : partition_[min_subset_windex]) {
-//       std::cout << q << " ";
-//     }
-//     std::cout << "}" << std::endl;
-//     AdaptiveInstance instance_prime =
-//         AdaptiveInstance(&instance, partition_[min_subset_windex]);
-//     // careful - instance_prime always has k=2 because we are just extending
-//     by
-//     // ONE
-//     instance_prime.set_policies(2);
-//     // std::cout << std::endl << std::endl;
-//     // std::cout << "instance prime: " << std::endl;
-//     // instance_prime.printInstance(G);
-//
-//     AdaptiveSolution k_prime_solution;
-//     if (mip_subroutine) {
-//       SetPartitioningModel instanceprime_model =
-//           SetPartitioningModel(500, instance_prime, env);
-//       instanceprime_model.ConfigureSolver(G, instance_prime);
-//       instanceprime_model.Solve();
-//       k_prime_solution = instanceprime_model.current_solution();
-//       k_prime_solution.ComputeAllObjectives(G, instance_prime);
-//     } else {
-//       k_prime_solution = EnumSolve(instance_prime, G, env);
-//     }
-//     long time = GetCurrentTime() - begin;
-//     MergeEnumSols(k_prime_solution, &instance_prime, min_subset_windex);
-//     solution_time_ = time;
-//   }
-// }
-
 std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(ProblemInput& problem, int q) {
   // Solve the nominal problem for follower q.
   std::vector<int> Update_vector{q}; // Vector with follower q.
@@ -1282,60 +1222,6 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
   final_solution.set_solution_time(solution_time);
   return final_solution;
 }
-
-// AdaptiveSolution KMeansHeuristic(AdaptiveInstance& instance, const Graph& G,
-//                                  GRBEnv* env) {
-//   // Use the KMeans - Style heuristic to solve an Adaptive Instance.
-//   long begin = GetCurrentTime();
-//   double z_previous = DBL_MIN;
-//   // Initialize the first solution - solving the non-robust model for k
-//   // followers chosen at random out of p.
-//   AdaptiveSolution first_solution = GreedyAlgorithm(instance, G, env);
-//   std::vector<std::vector<int>> partitions(instance.policies());
-//   // AdaptiveSolution current_solution =
-//   //     AdaptiveSolution(false, instance.policies(), instance.scenarios(),
-//   //                      instance, partitions, first_solution);
-//   // Update the objective (and initialize the current objective).
-//   first_solution.ComputeAllObjectives(G, instance);
-//   double z_current = first_solution.worst_case_objective();
-//   RobustAlgoModel static_model = RobustAlgoModel(instance, env);
-//   static_model.ConfigureModel(G, instance);
-//   int counter = 0;
-//   while (z_previous < z_current) {
-//     std::cout << "objective, iteration " << counter << ": " << z_current
-//               << std::endl;
-//     // ONLY UPDATE MIN OBJECTIVE POLICY
-//     double min_objective = DBL_MAX;
-//     int subset = -1;
-//     for (int w = 0; w < instance.policies(); w++) {
-//       if (current_solution.solution()[w].objective() < min_objective) {
-//         min_objective = current_solution.solution()[w].objective();
-//         subset = w;
-//       }
-//     }
-//     static_model.Update(current_solution.partition()[subset]);
-//     Policy new_policy = static_model.Solve();
-//     current_solution.set_solution_policy(subset, new_policy);
-//     static_model.ReverseUpdate(current_solution.partition()[subset]);
-//     // UPDATE All POLICIES
-//     // for (int subset=0; subset<instance->policies(); subset++) {
-//     //     static_model.Update(current_solution.partition()[subset]);
-//     //     Policy new_policy = static_model.Solve();
-//     //     current_solution.set_solution_policy(subset, new_policy);
-//     //     static_model.ReverseUpdate(current_solution.partition()[subset]);
-//     // }
-//     // REASSIGNMENT
-//     current_solution.ComputeAllObjectives(G, instance);
-//     z_previous = z_current;
-//     z_current = current_solution.worst_case_objective();
-//     counter++;
-//   }
-//   std::cout << "objective, iteration " << counter << ": " << z_current
-//             << std::endl;
-//   long runtime = GetCurrentTime() - begin;
-//   current_solution.set_solution_time(runtime);
-//   return current_solution;
-// }
 
 bool IsCostFile(const std::string& name) {
   size_t pos = name.find(".csv");

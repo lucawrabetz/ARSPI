@@ -441,19 +441,10 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem);
 
 AdaptiveSolution GreedyAlgorithm(ProblemInput& problem);
 
-// AdaptiveSolution KMeansHeuristic(AdaptiveInstance& instance, const Graph& G,
-//                                  GRBEnv* env);
-
 long GetCurrentTime();
 
-//
-//
-//
-// Experiment functions.
-//
-//
-//
-//
+// Experiment helper functions.
+
 bool IsCostFile(const std::string& name);
 
 bool IsRunFile(const std::string& name);
