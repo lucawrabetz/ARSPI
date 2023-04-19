@@ -66,6 +66,7 @@ std::pair<int, int> GetScenariosID(const std::string& name) {
 }
 
 const std::string CSV_HEADER = "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,policies,MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_rounds,ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,GREEDY_objective,GREEDY_time";
+const std::string MIP_BENDERS_HEADER = "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,policies,MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_rounds";
 
 std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& problem,
                        std::vector<ASPI_Solver>& solvers, int debug = 0) {
@@ -191,7 +192,7 @@ void RunAllInstancesInSetDirectory(const int max_policies, const std::string& se
 
   /* Max Policies */
   /* ------------ */
-  std::vector<ASPI_Solver> solvers{MIP, BENDERS, ENUMERATION, GREEDY};
+  std::vector<ASPI_Solver> solvers{MIP, BENDERS};
 
   /* Set Name */
   std::string full_path_s = DATA_DIRECTORY + set_name; 
@@ -235,6 +236,7 @@ void RunAllInstancesInSetDirectory(const int max_policies, const std::string& se
         if (k > instance_input.scenarios_) break;
         const ProblemInput problem(instance_input, k, env);
         std::cout << "RUNNING INSTANCE: " << problem.instance_.name() << ", K = " << std::to_string(k) << std::endl;
+        std::cout << name << std::endl;
         std::string result = SolveAndPrintTest(set_name, problem, solvers);
         std::cout << std::endl;
         result_file << result << std::endl;
