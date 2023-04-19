@@ -5,12 +5,17 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <cstring>
+#include <dirent.h>
+#include <cmath>
 
+#include <iomanip>
+#include <limits>
+#include <unordered_map>
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <climits>
-#include <cmath>
 #include <fstream>
 #include <queue>
 #include <random>
@@ -19,16 +24,26 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include <fstream>
 #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
 // #include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
+typedef std::numeric_limits<double> dbl;
+
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
+
 const double EPSILON = 0.000001;
+
 const long TIME_LIMIT_S = 3600;
 const long TIME_LIMIT_MS = TIME_LIMIT_S * 1000;
+
 const std::string DATA_DIRECTORY = "dat/";
+
+const std::string INSTANCE_INFO_COLUMN_HEADERS = "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,policies";
+const std::string MIP_COLUMN_HEADERS = "MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time";
+const std::string BENDERS_COLUMN_HEADERS = "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_rounds";
+const std::string ENUMERATION_COLUMN_HEADERS = "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time";
+const std::string GREEDY_COLUMN_HEADERS = "GREEDY_objective,GREEDY_time";
 
 struct GraphInput {
   GraphInput(const std::string& setname, int nodes, int k_zero)
@@ -120,7 +135,7 @@ class AdaptiveInstance {
               std::to_string(instance_input.id_)),
         costs_filename_(instance_input.CostFileName()){};
   // Copy constructor with a different U (only a subset of scenarios to keep).
-  AdaptiveInstance(AdaptiveInstance* adaptive_instance,
+  AdaptiveInstance(AdaptiveInstance& adaptive_instance,
                    std::vector<int>& keep_scenarios);
   void ReadCosts();
   void PrintInstance(const Graph& G) const;
@@ -164,6 +179,14 @@ class ProblemInput {
         budget_(instance_input.graph_input_.k_zero_),
         k_zero_(instance_input.graph_input_.k_zero_),
         env_(env){instance_.ReadCosts();}
+  ProblemInput(ProblemInput& problem_input,
+      std::vector<int>& keep_scenarios, int policies)
+      : G_(problem_input.G_),
+        instance_(AdaptiveInstance(problem_input.instance_, keep_scenarios)),
+        policies_(policies),
+        budget_(problem_input.budget_),
+        k_zero_(problem_input.k_zero_), 
+        env_(problem_input.env_) {}
   void WriteLineToLogFile();
   const Graph G_;
   AdaptiveInstance instance_;
@@ -416,11 +439,34 @@ class SetPartitioningBenders {
 
 AdaptiveSolution EnumSolve(const ProblemInput& problem);
 
-AdaptiveSolution GreedyAlgorithm(const ProblemInput& problem);
+AdaptiveSolution GreedyAlgorithm(ProblemInput& problem);
 
 // AdaptiveSolution KMeansHeuristic(AdaptiveInstance& instance, const Graph& G,
 //                                  GRBEnv* env);
 
 long GetCurrentTime();
+
+//
+//
+//
+// Experiment functions.
+//
+//
+//
+//
+bool IsCostFile(const std::string& name);
+
+bool IsRunFile(const std::string& name);
+
+int DigitsToInt(const std::vector<int> num_digits);
+
+std::pair<int, int> GetNodesKZero(const std::string& name, int start);
+
+std::pair<int, int> GetScenariosID(const std::string& name);
+
+std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& problem, ProblemInput& problem_copyable,
+                       const std::vector<ASPI_Solver>& solvers, int debug = 0);
+
+void RunAllInstancesInSetDirectory(const int min_policies, const int max_policies, const std::string& set_name, const std::vector<ASPI_Solver>& solvers);
 
 #endif
