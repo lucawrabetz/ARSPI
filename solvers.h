@@ -126,10 +126,7 @@ class AdaptiveInstance {
  public:
   AdaptiveInstance(const InstanceInput& instance_input)
       : nodes_(instance_input.graph_input_.nodes_),
-        // arcs_(instance_input.graph_input_.),
         scenarios_(instance_input.scenarios_),
-        // policies_(policies),
-        // budget_(budget),
         name_(instance_input.graph_input_.graph_name_ + "-" +
               std::to_string(instance_input.scenarios_) + "_" +
               std::to_string(instance_input.id_)),

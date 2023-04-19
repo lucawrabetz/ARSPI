@@ -100,11 +100,14 @@ void Graph::PrintGraphWithCosts(const std::vector<std::vector<int>>& costs,
 AdaptiveInstance::AdaptiveInstance(AdaptiveInstance& adaptive_instance,
                                    std::vector<int>& keep_scenarios) {
   // Copy constructor only keeping a subset of the scenarios
-  scenarios_ = keep_scenarios.size();
   nodes_ = adaptive_instance.nodes_;
+  scenarios_ = keep_scenarios.size();
   interdiction_delta_ = adaptive_instance.interdiction_delta_;
+  big_m_ = adaptive_instance.big_m_;
+
   arc_costs_ = std::vector<std::vector<int>>(scenarios_);
   scenario_index_map_ = std::vector<int>(scenarios_);
+
   for (int q = 0; q < scenarios_; q++) {
     arc_costs_[q] = adaptive_instance.arc_costs_[keep_scenarios[q]];
     scenario_index_map_[q] = keep_scenarios[q];
@@ -852,7 +855,6 @@ void AdaptiveSolution::ComputePartition() {
   // available in objectives_). The uninitialized partition for the
   // approximation algorithm solution is a matrix of 0s, so we set
   // partition_[w][q] to 1, once we have identified the correct w.
-  std::cout << "AdaptiveSolution::ComputePartition" << std::endl;
   for (int q = 0; q < scenarios_; ++q) {
     double max_objective = DBL_MIN;
     int partition_index = -1;
@@ -940,6 +942,7 @@ void AdaptiveSolution::LogSolution(const ProblemInput& problem, bool policy) {
         }
       }
     }
+    std::cout << std::endl;
   }
   if (benders_)
     std::cout << std::endl
@@ -1150,21 +1153,26 @@ std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(ProblemInpu
 }
 
 AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
+  // Solution in case we hit time limit.
+  AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
+  time_limit_solution.set_solution_time(TIME_LIMIT_MS);
+  time_limit_solution.set_worst_case_objective(-1);
   long begin = GetCurrentTime();
-  RobustAlgoModel static_robust = RobustAlgoModel(problem);
+  std::vector<std::vector<double>> objective_matrix;
   std::unordered_set<int> centers;
   std::vector<std::vector<double>> final_policies;
   // Choose the first scenario to solve SPI for arbitrarily (we'll just use
   // index 0).
   int next_follower = 0;
   centers.insert(next_follower);
+  // Solve problem for next follower, and add a new vector to objective matrix, i.e. the objective value of the new policy interdicting each follower.
   std::pair<double, std::vector<double>> temp_single_solution = SolveBendersInGreedyAlgorithm(problem, next_follower);
-  if (temp_single_solution.first == -1) {
-    AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
-    time_limit_solution.set_solution_time(TIME_LIMIT_MS);
-    time_limit_solution.set_worst_case_objective(-1);
-    return time_limit_solution;
+  if (temp_single_solution.first == -1) return time_limit_solution;
+  std::vector<double> new_objectives(problem.instance_.scenarios());
+  for (int q = 0; q < problem.instance_.scenarios(); q++) {
+    new_objectives[q] = ComputeObjectiveOfPolicyForScenario(problem, temp_single_solution.second, q);
   }
+  objective_matrix.push_back(new_objectives);
   final_policies.push_back(temp_single_solution.second);
   size_t policies = problem.policies_;
   while (centers.size() < policies) {
@@ -1178,31 +1186,28 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
     } 
     // Evaluate all non-center scenarios against the current policies,
     // maintaining the minimum one.
-    // Looks like we are repeating operations here;
-    // TODO - MAKE A MATRIX OF THE OBJECTIVES, POPULATE IT AS WE GO.
     std::pair<int, double> min_subset = {-1, DBL_MAX};
     for (int q = 0; q < problem.instance_.scenarios(); q++) {
       if (centers.count(q) == 1) continue;
-      for (const std::vector<double>& policy : final_policies) {
-        double objective =
-            ComputeObjectiveOfPolicyForScenario(problem, policy, q);
-        if (objective < min_subset.second) min_subset = {q, objective};
+      double max_for_q = DBL_MIN;
+      for (const auto& objective_row : objective_matrix) {
+        if (objective_row[q] > max_for_q) max_for_q = objective_row[q];
       }
+      if (max_for_q < min_subset.second) min_subset = {q, max_for_q};
     }
+    next_follower = min_subset.first;
     // Solve SPI for scenario that is currently performing worst (for the
     // interdictor), and add the scenario to the set of centers.
-    next_follower = min_subset.first;
     // std::pair<double, std::vector<double>> temp_single_solution = spi_model.Solve();
     //
     temp_single_solution = SolveBendersInGreedyAlgorithm(problem, next_follower);
-    if (temp_single_solution.first == -1) {
-      AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
-      time_limit_solution.set_solution_time(TIME_LIMIT_MS);
-      time_limit_solution.set_worst_case_objective(-1);
-      return time_limit_solution;
+    if (temp_single_solution.first == -1) return time_limit_solution;
+    std::vector<double> new_objectives(problem.instance_.scenarios());
+    for (int q = 0; q < problem.instance_.scenarios(); q++) {
+      new_objectives[q] = ComputeObjectiveOfPolicyForScenario(problem, temp_single_solution.second, q);
     }
-    std::vector<double> single_policy = temp_single_solution.second;
-    final_policies.push_back(single_policy);
+    objective_matrix.push_back(new_objectives);
+    final_policies.push_back(temp_single_solution.second);
     centers.insert(next_follower);
   }
   std::vector<std::vector<int>> temp_partition(
@@ -1211,14 +1216,10 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
   AdaptiveSolution final_solution(false, false, problem, temp_partition,
                                   final_policies);
   long solution_time = GetCurrentTime() - begin;
-  if (solution_time >= TIME_LIMIT_MS) {
-    AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
-    time_limit_solution.set_solution_time(TIME_LIMIT_MS);
-    time_limit_solution.set_worst_case_objective(-1);
-    return time_limit_solution;
-  } 
+  if (solution_time >= TIME_LIMIT_MS) return time_limit_solution;
   final_solution.ComputeObjectiveMatrix(problem);
   final_solution.ComputeAdaptiveObjective();
+  final_solution.ComputePartition();
   final_solution.set_solution_time(solution_time);
   return final_solution;
 }
