@@ -1287,10 +1287,8 @@ std::string SolutionPartitionToString(const AdaptiveSolution& solution, const Pr
   int policy = 0;
   for (std::vector<int>& subset : partition) {
     for (int q : subset) {
-      std::cout << q << " ";
       partition_vector[q] = policy;
     }
-    std::cout << std::endl;
     ++policy;
   }
   int q = 0;
@@ -1299,8 +1297,6 @@ std::string SolutionPartitionToString(const AdaptiveSolution& solution, const Pr
     if (q < problem.instance_.scenarios() - 1) partition_string.append("-");
     q++;
   }
-  std::cout << partition_string;
-  std::cout << std::endl << std::endl;
   return partition_string;
 }
 
