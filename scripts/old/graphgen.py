@@ -1,6 +1,6 @@
 import os
 import sys
-import graphclasses
+import graphclasses as gc
 from datetime import date
 import pdb
 
@@ -8,33 +8,33 @@ import pdb
 DAT = "dat"
 MODELS = "modelfiles"
 
-def append_date(basename):
-    """
-    Append today's date to experiment name
-    """
-    today = date.today()
-    date_str = today.strftime("%m_%d_%y")
-    name = basename + "-" + date_str
-    return name
-
-
-def check_make_dir(path, i):
-    """
-    Recursively check if an experiment directory exists, or create one with the highest number
-        - example - if "path" string is "/dat/experiments/test-01_29_22", and there already exist:
-            - "/dat/experiments/test-01_29_22-0"
-            - "/dat/experiments/test-01_29_22-1"
-            - "/dat/experiments/test-01_29_22-2"
-        we have to create the dir "/dat/experiments/test-01_29_22-3"
-    """
-    isdir_full = os.path.isdir(path + "-" + str(i))
-    # if the directory exists, call on the next i
-    if isdir_full:
-        return check_make_dir(path, i + 1)
-    # base case - create directory for given i (and return final path)
-    else:
-        os.mkdir(path + "-" + str(i))
-        return path + "-" + str(i)
+# def append_date(basename):
+#     """
+#     Append today's date to experiment name
+#     """
+#     today = date.today()
+#     date_str = today.strftime("%m_%d_%y")
+#     name = basename + "-" + date_str
+#     return name
+# 
+# 
+# def check_make_dir(path, i):
+#     """
+#     Recursively check if an experiment directory exists, or create one with the highest number
+#         - example - if "path" string is "/dat/experiments/test-01_29_22", and there already exist:
+#             - "/dat/experiments/test-01_29_22-0"
+#             - "/dat/experiments/test-01_29_22-1"
+#             - "/dat/experiments/test-01_29_22-2"
+#         we have to create the dir "/dat/experiments/test-01_29_22-3"
+#     """
+#     isdir_full = os.path.isdir(path + "-" + str(i))
+#     # if the directory exists, call on the next i
+#     if isdir_full:
+#         return check_make_dir(path, i + 1)
+#     # base case - create directory for given i (and return final path)
+#     else:
+#         os.mkdir(path + "-" + str(i))
+#         return path + "-" + str(i)
 
 
 def main():
@@ -78,11 +78,11 @@ def main():
     isdir_dat = os.path.isdir(DAT)
     if not isdir_dat:
         os.mkdir(DAT)
-    setname = append_date(BASENAME)
+    setname = gc.append_date(BASENAME)
     dat_temppath = os.path.join(DAT, setname)
     models_temppath = os.path.join(MODELS, setname)
-    DATPATH = check_make_dir(dat_temppath, 0)
-    MODELSPATH = check_make_dir(models_temppath, 0)
+    DATPATH = gc.check_make_dir(dat_temppath, 0)
+    MODELSPATH = gc.check_make_dir(models_temppath, 0)
     SETNAME = DATPATH.split("/")[-1]
 
     # PATHS
@@ -104,7 +104,7 @@ def main():
                 if pr0 > MAX_PR0: break
                 for kbar in KBAR_VALUES:
                     if kbar > MAX_KBAR: break
-                    G = graphclasses.compound_generator(n0, pr0, kbar)
+                    G = gc.compound_generator(n0, pr0, kbar)
                     fullname = SETNAME + "-" + str(G.n) + "_" + str(int(10*pr0)) + "_" + str(kbar)
                     filename = fullname + ".txt"
                     filepath = os.path.join(DATPATH, filename)
