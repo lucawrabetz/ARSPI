@@ -33,6 +33,7 @@ typedef std::numeric_limits<double> dbl;
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
 
 const double EPSILON = 0.000001;
+const int DEBUG = 2;
 
 const long TIME_LIMIT_S = 3600;
 const long TIME_LIMIT_MS = TIME_LIMIT_S * 1000;
@@ -40,10 +41,13 @@ const long TIME_LIMIT_MS = TIME_LIMIT_S * 1000;
 const std::string DATA_DIRECTORY = "dat/";
 
 const std::string INSTANCE_INFO_COLUMN_HEADERS = "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,policies";
-const std::string MIP_COLUMN_HEADERS = "MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time";
-const std::string BENDERS_COLUMN_HEADERS = "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_rounds";
-const std::string ENUMERATION_COLUMN_HEADERS = "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time";
-const std::string GREEDY_COLUMN_HEADERS = "GREEDY_objective,GREEDY_time";
+// Partitions will be encoded as follows in the csv column:
+// For every follower (indexed 0-p-1), we write the index (0-k-1) of the policy that they are assigned to, in a string delimeted by '-'.
+// For example, if we have p=3 and k=2, with followers 0,1 in partition 0, and follower 2 in partition 1, we have: "0-0-1".
+const std::string MIP_COLUMN_HEADERS = "MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,MIP_partition";
+const std::string BENDERS_COLUMN_HEADERS = "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_rounds,BENDERS_partition";
+const std::string ENUMERATION_COLUMN_HEADERS = "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,ENUMERATION_partition";
+const std::string GREEDY_COLUMN_HEADERS = "GREEDY_objective,GREEDY_time,GREEDY_partition";
 
 struct GraphInput {
   GraphInput(const std::string& setname, int nodes, int k_zero)
@@ -240,6 +244,7 @@ class AdaptiveSolution {
   void ExtendByOne(AdaptiveInstance& instance, const Graph& G, GRBEnv* env,
                    bool mip_subroutine = true);
   void ComputeObjectiveMatrix(const ProblemInput& problem);
+  void SetObjectiveMatrix(const std::vector<std::vector<double>>& objective_matrix) {objectives_ = objective_matrix;}
   void ComputePartition();
   void ComputeAdaptiveObjective();
   int policies() const { return policies_; }
@@ -451,6 +456,8 @@ int DigitsToInt(const std::vector<int> num_digits);
 std::pair<int, int> GetNodesKZero(const std::string& name, int start);
 
 std::pair<int, int> GetScenariosID(const std::string& name);
+
+std::string SolutionPartitionToString(const AdaptiveSolution& solution, const ProblemInput& problem);
 
 std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& problem, ProblemInput& problem_copyable,
                        const std::vector<ASPI_Solver>& solvers, int debug = 0);
