@@ -3,7 +3,9 @@
 int main(int argc, char *argv[]) {
   if (argc != 6) {
     std::cout << argc << std::endl;
-    std::cout << "Please input set name, min policies, max policies, min budget and max budget." << std::endl;
+    std::cout << "Please input set name, min policies, max policies, min "
+                 "budget and max budget."
+              << std::endl;
     return 1;
   }
   const std::string set_name = argv[1];
@@ -11,9 +13,7 @@ int main(int argc, char *argv[]) {
   const int max_k = std::stoi(argv[3]);
   const int min_budget = std::stoi(argv[4]);
   const int max_budget = std::stoi(argv[5]);
-  const std::vector<ASPI_Solver> solvers{
-    BENDERS,
-    ENUMERATION
-  };
-  RunAllInstancesInSetDirectory(min_k, max_k, min_budget, max_budget, set_name, solvers);
+  const std::vector<ASPI_Solver> solvers{BENDERS, ENUMERATION};
+  RunAllInstancesInSetDirectory(min_k, max_k, min_budget, max_budget, set_name,
+                                solvers);
 }

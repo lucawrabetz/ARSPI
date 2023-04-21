@@ -7,8 +7,7 @@ long GetCurrentTime() {
   return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-void PrintSeparator() {
-}
+void PrintSeparator() {}
 
 Graph::Graph(const std::string& filename, int nodes) {
   // Graph constructor - read arc list from file.
@@ -372,7 +371,7 @@ AdaptiveSolution SetPartitioningModel::Solve(const ProblemInput& problem) {
   // Updates current solution to latest solution, or sets unbounded to true.
   // Compute full objective matrix after solving.
   // Returns current solution.
-  // 
+  //
   // Optimize model and measure solution time.
   long begin = GetCurrentTime();
   sp_model_->optimize();
@@ -405,11 +404,10 @@ AdaptiveSolution SetPartitioningModel::Solve(const ProblemInput& problem) {
     // final_solution.ComputeObjectiveMatrix(problem);
   } else if (sp_model_->get(GRB_IntAttr_Status) == GRB_UNBOUNDED) {
     final_solution.set_unbounded(true);
-  }
-  else if (sp_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
+  } else if (sp_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
     // If solution status is hit time limit, set time to TIME_LIMIT_MS.
-    // Use milliseconds, as our adaptive solution class stores these values in milliseconds,
-    // since GetCurrentTime() returns milliseconds.
+    // Use milliseconds, as our adaptive solution class stores these values in
+    // milliseconds, since GetCurrentTime() returns milliseconds.
     final_solution.set_unbounded(false);
     final_solution.set_solution_time(TIME_LIMIT_MS);
     // Check if there is an incumbent - in this case set solution and objective.
@@ -659,12 +657,11 @@ AdaptiveSolution SetPartitioningBenders::Solve(const ProblemInput& problem) {
   } else if (benders_model_->get(GRB_IntAttr_Status) == GRB_UNBOUNDED) {
     final_solution.set_unbounded(true);
     final_solution.set_solution_time(time);
-  }
-  else if (benders_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
+  } else if (benders_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
     // If we hit time limit, check for incumbent and set policy and objective.
     // If solution status is hit time limit, set time to TIME_LIMIT_MS.
-    // Use milliseconds, as our adaptive solution class stores these values in milliseconds,
-    // since GetCurrentTime() returns milliseconds.
+    // Use milliseconds, as our adaptive solution class stores these values in
+    // milliseconds, since GetCurrentTime() returns milliseconds.
     final_solution.set_unbounded(false);
     final_solution.set_solution_time(TIME_LIMIT_MS);
     if (benders_model_->get(GRB_IntAttr_SolCount) > 0) {
@@ -814,16 +811,15 @@ std::pair<double, std::vector<double>> RobustAlgoModel::Solve() {
   algo_model_->optimize();
   if (algo_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
     return std::make_pair(-1, std::vector<double>(arcs_, -1));
-  }
-  else if (algo_model_->get(GRB_IntAttr_Status) == GRB_OPTIMAL) {
+  } else if (algo_model_->get(GRB_IntAttr_Status) == GRB_OPTIMAL) {
     std::vector<double> binary_policy(arcs_, 0);
     double objective = -algo_model_->get(GRB_DoubleAttr_ObjVal);
     for (int a = 0; a < arcs_; ++a) {
       binary_policy[a] = x_var_[a].get(GRB_DoubleAttr_X);
     }
     return std::make_pair(objective, binary_policy);
-  }
-  else return std::make_pair(0, std::vector<double>(arcs_, 0));
+  } else
+    return std::make_pair(0, std::vector<double>(arcs_, 0));
   // This is not necessary and we might even lose speed on warm starts etc.
   // algo_model_->reset();
 }
@@ -851,7 +847,7 @@ void AdaptiveSolution::ComputePartition() {
   // approximation algorithm). Objective matrix should be populated at this
   // point - i.e. ComputeObjectiveMatrix should be called first. For each
   // scenario, find the policy w that maximizes their objectives (all k will be
-  // available in objectives_). 
+  // available in objectives_).
   for (int q = 0; q < scenarios_; ++q) {
     double max_objective = DBL_MIN;
     int partition_index = -1;
@@ -1038,15 +1034,17 @@ MergeEnumSols(std::pair<std::vector<std::vector<int>>,
   return sol1;
 }
 
-
-std::pair<double, std::vector<double>> SolveBendersInEnumSolve(ProblemInput& problem, std::vector<int>& update_vector) {
+std::pair<double, std::vector<double>> SolveBendersInEnumSolve(
+    ProblemInput& problem, std::vector<int>& update_vector) {
   // Solve the nominal problem for followers in update vector.
   ProblemInput sub_problem(problem, update_vector, 1);
   SetPartitioningBenders sub_benders(sub_problem);
   sub_benders.ConfigureSolver(sub_problem);
   AdaptiveSolution sol = sub_benders.Solve(sub_problem);
-  if (sol.optimal()) return {sol.worst_case_objective(), sol.solution()[0]};
-  else return {-1, {-1}};
+  if (sol.optimal())
+    return {sol.worst_case_objective(), sol.solution()[0]};
+  else
+    return {-1, {-1}};
 }
 
 AdaptiveSolution EnumSolve(ProblemInput& problem) {
@@ -1079,14 +1077,15 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
       long current_time = GetCurrentTime() - begin;
       // Use milliseconds for time limit to check this, as we measured in
       // milliseconds with GetCurrentTime().
-      if (current_time >= TIME_LIMIT_MS) return time_limit_solution; 
+      if (current_time >= TIME_LIMIT_MS) return time_limit_solution;
       std::vector<std::vector<double>> temp_sol(k, arc_vec);
       double temp_worst_objective = DBL_MAX;
       std::vector<double> temp_objectives(k, 0);
       std::vector<std::vector<int>> partition = kappa_to_partition(kappa, k, p);
       for (int w = 0; w < k; ++w) {
         // For every subset in partition, solve M2 for k=1 using the Benders.
-        std::pair<double, std::vector<double>> temp_single_solution = SolveBendersInEnumSolve(problem, partition[w]);
+        std::pair<double, std::vector<double>> temp_single_solution =
+            SolveBendersInEnumSolve(problem, partition[w]);
         // Check that the static model didn't hit the time limit:
         if (temp_single_solution.first == -1) return time_limit_solution;
         temp_objectives[w] = temp_single_solution.first;
@@ -1133,15 +1132,18 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
   return dummy_solution;
 }
 
-std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(ProblemInput& problem, int q) {
+std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(
+    ProblemInput& problem, int q) {
   // Solve the nominal problem for follower q.
-  std::vector<int> Update_vector{q}; // Vector with follower q.
+  std::vector<int> Update_vector{q};  // Vector with follower q.
   ProblemInput sub_problem(problem, Update_vector, 1);
   SetPartitioningBenders sub_benders(sub_problem);
   sub_benders.ConfigureSolver(sub_problem);
   AdaptiveSolution sol = sub_benders.Solve(sub_problem);
-  if (sol.optimal()) return {sol.worst_case_objective(), sol.solution()[0]};
-  else return {-1, {-1}};
+  if (sol.optimal())
+    return {sol.worst_case_objective(), sol.solution()[0]};
+  else
+    return {-1, {-1}};
 }
 
 AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
@@ -1157,25 +1159,30 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
   // index 0).
   int next_follower = 0;
   centers.insert(next_follower);
-  // Solve problem for next follower, and add a new vector to objective matrix, i.e. the objective value of the new policy interdicting each follower.
-  std::pair<double, std::vector<double>> temp_single_solution = SolveBendersInGreedyAlgorithm(problem, next_follower);
+  // Solve problem for next follower, and add a new vector to objective matrix,
+  // i.e. the objective value of the new policy interdicting each follower.
+  std::pair<double, std::vector<double>> temp_single_solution =
+      SolveBendersInGreedyAlgorithm(problem, next_follower);
   if (temp_single_solution.first == -1) return time_limit_solution;
   std::vector<double> new_objectives(problem.instance_.scenarios());
   for (int q = 0; q < problem.instance_.scenarios(); q++) {
-    new_objectives[q] = ComputeObjectiveOfPolicyForScenario(problem, temp_single_solution.second, q);
+    new_objectives[q] = ComputeObjectiveOfPolicyForScenario(
+        problem, temp_single_solution.second, q);
   }
   objective_matrix.push_back(new_objectives);
   final_policies.push_back(temp_single_solution.second);
   size_t policies = problem.policies_;
   while (centers.size() < policies) {
     long current_time = GetCurrentTime() - begin;
-    // Use milliseconds since we used GetCurrentTime, which is in milliseconds, to measure.
+    // Use milliseconds since we used GetCurrentTime, which is in milliseconds,
+    // to measure.
     if (current_time >= TIME_LIMIT_MS) {
-      AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
+      AdaptiveSolution time_limit_solution =
+          AdaptiveSolution(false, false, false);
       time_limit_solution.set_solution_time(TIME_LIMIT_MS);
       time_limit_solution.set_worst_case_objective(-1);
       return time_limit_solution;
-    } 
+    }
     // Evaluate all non-center scenarios against the current policies,
     // maintaining the minimum one.
     std::pair<int, double> min_subset = {-1, DBL_MAX};
@@ -1190,20 +1197,23 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
     next_follower = min_subset.first;
     // Solve SPI for scenario that is currently performing worst (for the
     // interdictor), and add the scenario to the set of centers.
-    // std::pair<double, std::vector<double>> temp_single_solution = spi_model.Solve();
+    // std::pair<double, std::vector<double>> temp_single_solution =
+    // spi_model.Solve();
     //
-    temp_single_solution = SolveBendersInGreedyAlgorithm(problem, next_follower);
+    temp_single_solution =
+        SolveBendersInGreedyAlgorithm(problem, next_follower);
     if (temp_single_solution.first == -1) return time_limit_solution;
     std::vector<double> new_objectives(problem.instance_.scenarios());
     for (int q = 0; q < problem.instance_.scenarios(); q++) {
-      new_objectives[q] = ComputeObjectiveOfPolicyForScenario(problem, temp_single_solution.second, q);
+      new_objectives[q] = ComputeObjectiveOfPolicyForScenario(
+          problem, temp_single_solution.second, q);
     }
     objective_matrix.push_back(new_objectives);
     final_policies.push_back(temp_single_solution.second);
     centers.insert(next_follower);
   }
-  std::vector<std::vector<int>> temp_partition(
-      problem.policies_, std::vector<int>(0));
+  std::vector<std::vector<int>> temp_partition(problem.policies_,
+                                               std::vector<int>(0));
   // Benders == false, optimal == false.
   AdaptiveSolution final_solution(false, false, problem, temp_partition,
                                   final_policies);
@@ -1242,12 +1252,12 @@ std::pair<int, int> GetNodesKZero(const std::string& name, int start) {
   int i = start;
   std::vector<int> n_digits;
   std::vector<int> kzero_digits;
-  while ('0' <= name[i]  && name[i] <= '9') {
+  while ('0' <= name[i] && name[i] <= '9') {
     n_digits.push_back(name[i] - '0');
     i++;
   }
   i++;
-  while ('0' <= name[i]  && name[i] <= '9') {
+  while ('0' <= name[i] && name[i] <= '9') {
     kzero_digits.push_back(name[i] - '0');
     i++;
   }
@@ -1255,15 +1265,15 @@ std::pair<int, int> GetNodesKZero(const std::string& name, int start) {
 }
 
 std::pair<int, int> GetScenariosID(const std::string& name) {
-  int i = name.size()-5;
+  int i = name.size() - 5;
   std::vector<int> p_digits;
   std::vector<int> id_digits;
-  while ('0' <= name[i]  && name[i] <= '9') {
+  while ('0' <= name[i] && name[i] <= '9') {
     id_digits.insert(id_digits.begin(), name[i] - '0');
     i--;
   }
   i--;
-  while ('0' <= name[i]  && name[i] <= '9') {
+  while ('0' <= name[i] && name[i] <= '9') {
     p_digits.insert(p_digits.begin(), name[i] - '0');
     i--;
   }
@@ -1271,11 +1281,14 @@ std::pair<int, int> GetScenariosID(const std::string& name) {
   return {};
 }
 
-std::string SolutionPartitionToString(const AdaptiveSolution& solution, const ProblemInput& problem) {
+std::string SolutionPartitionToString(const AdaptiveSolution& solution,
+                                      const ProblemInput& problem) {
   // Turn partition into string for column encoding:
   // Partitions will be encoded as follows in the csv column:
-  // For every follower (indexed 0-p-1), we write the index (0-k-1) of the policy that they are assigned to, in a string delimeted by '-'.
-  // For example, if we have p=3 and k=2, with followers 0,1 in partition 0, and follower 2 in partition 1, we have: "0-0-1".
+  // For every follower (indexed 0-p-1), we write the index (0-k-1) of the
+  // policy that they are assigned to, in a string delimeted by '-'. For
+  // example, if we have p=3 and k=2, with followers 0,1 in partition 0, and
+  // follower 2 in partition 1, we have: "0-0-1".
   std::vector<int> partition_vector(problem.instance_.scenarios());
   std::string partition_string = "";
   std::vector<std::vector<int>> partition = solution.partition();
@@ -1295,8 +1308,11 @@ std::string SolutionPartitionToString(const AdaptiveSolution& solution, const Pr
   return partition_string;
 }
 
-std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& problem, ProblemInput& problem_copyable,
-                       const std::vector<ASPI_Solver>& solvers, int debug) {
+std::string SolveAndPrintTest(const std::string& set_name,
+                              const ProblemInput& problem,
+                              ProblemInput& problem_copyable,
+                              const std::vector<ASPI_Solver>& solvers,
+                              int debug) {
   std::vector<double> adaptive_objectives;
   std::string final_csv_string = set_name;
   final_csv_string.append(",");
@@ -1309,7 +1325,7 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
   final_csv_string.append(std::to_string(problem.k_zero_));
   double nodes = problem.G_.nodes();
   double arcs = problem.G_.arcs();
-  double density = (arcs) / ((nodes) * (nodes-1));
+  double density = (arcs) / ((nodes) * (nodes - 1));
   final_csv_string.append(",");
   final_csv_string.append(std::to_string(density));
   final_csv_string.append(",");
@@ -1330,12 +1346,16 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
         sp_solution.LogSolution(problem, false);
       adaptive_objectives.push_back(sp_solution.worst_case_objective());
       std::string optimal;
-      if (sp_solution.optimal()) {optimal = "OPTIMAL";}
-      else {optimal = "NOT OPTIMAL";}
+      if (sp_solution.optimal()) {
+        optimal = "OPTIMAL";
+      } else {
+        optimal = "NOT OPTIMAL";
+      }
       final_csv_string.append(",");
       final_csv_string.append(optimal);
       final_csv_string.append(",");
-      final_csv_string.append(std::to_string(sp_solution.worst_case_objective()));
+      final_csv_string.append(
+          std::to_string(sp_solution.worst_case_objective()));
       final_csv_string.append(",");
       final_csv_string.append(std::to_string(sp_solution.mip_gap()));
       final_csv_string.append(",");
@@ -1346,7 +1366,7 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
       log_line.append(optimal);
       log_line.append(" - ");
       log_line.append(std::to_string(sp_solution.worst_case_objective()));
-      log_line.append(", "); 
+      log_line.append(", ");
       log_line.append(std::to_string(sp_solution.solution_time()));
       log_line.append("ms ----- ");
     } else if (solver == BENDERS) {
@@ -1359,20 +1379,26 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
         benders_solution.LogSolution(problem, false);
       adaptive_objectives.push_back(benders_solution.worst_case_objective());
       std::string optimal;
-      if (benders_solution.optimal()) {optimal = "OPTIMAL";}
-      else {optimal = "NOT OPTIMAL";}
+      if (benders_solution.optimal()) {
+        optimal = "OPTIMAL";
+      } else {
+        optimal = "NOT OPTIMAL";
+      }
       final_csv_string.append(",");
       final_csv_string.append(optimal);
       final_csv_string.append(",");
-      final_csv_string.append(std::to_string(benders_solution.worst_case_objective()));
+      final_csv_string.append(
+          std::to_string(benders_solution.worst_case_objective()));
       final_csv_string.append(",");
       final_csv_string.append(std::to_string(benders_solution.mip_gap()));
       final_csv_string.append(",");
       final_csv_string.append(std::to_string(benders_solution.solution_time()));
       final_csv_string.append(",");
-      final_csv_string.append(std::to_string(benders_solution.lazy_cuts_rounds()));
+      final_csv_string.append(
+          std::to_string(benders_solution.lazy_cuts_rounds()));
       final_csv_string.append(",");
-      final_csv_string.append(SolutionPartitionToString(benders_solution, problem));
+      final_csv_string.append(
+          SolutionPartitionToString(benders_solution, problem));
       log_line.append("BENDERS: ");
       log_line.append(optimal);
       log_line.append(" - ");
@@ -1388,16 +1414,21 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
         enum_solution.LogSolution(problem, false);
       adaptive_objectives.push_back(enum_solution.worst_case_objective());
       std::string optimal;
-      if (enum_solution.optimal()) {optimal = "OPTIMAL";}
-      else {optimal = "NOT OPTIMAL";}
+      if (enum_solution.optimal()) {
+        optimal = "OPTIMAL";
+      } else {
+        optimal = "NOT OPTIMAL";
+      }
       final_csv_string.append(",");
       final_csv_string.append(optimal);
       final_csv_string.append(",");
-      final_csv_string.append(std::to_string(enum_solution.worst_case_objective()));
+      final_csv_string.append(
+          std::to_string(enum_solution.worst_case_objective()));
       final_csv_string.append(",");
       final_csv_string.append(std::to_string(enum_solution.solution_time()));
       final_csv_string.append(",");
-      final_csv_string.append(SolutionPartitionToString(enum_solution, problem));
+      final_csv_string.append(
+          SolutionPartitionToString(enum_solution, problem));
       log_line.append("ENUMERATION: ");
       log_line.append(optimal);
       log_line.append(" - ");
@@ -1412,11 +1443,13 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
       else if (debug == 1)
         greedy_solution.LogSolution(problem, false);
       final_csv_string.append(",");
-      final_csv_string.append(std::to_string(greedy_solution.worst_case_objective()));
+      final_csv_string.append(
+          std::to_string(greedy_solution.worst_case_objective()));
       final_csv_string.append(",");
       final_csv_string.append(std::to_string(greedy_solution.solution_time()));
       final_csv_string.append(",");
-      final_csv_string.append(SolutionPartitionToString(greedy_solution, problem));
+      final_csv_string.append(
+          SolutionPartitionToString(greedy_solution, problem));
       log_line.append("GREEDY: ");
       log_line.append(std::to_string(greedy_solution.worst_case_objective()));
       log_line.append(", ");
@@ -1438,18 +1471,24 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
   //   }
   //   prev = obj;
   // }
-  // std::cout << "------------------------  PASS, EXACT OBJECTIVE: " << adaptive_objectives[0] << ", GREEDY APPROXIMATION: " << greedy_adaptive_objective
+  // std::cout << "------------------------  PASS, EXACT OBJECTIVE: " <<
+  // adaptive_objectives[0] << ", GREEDY APPROXIMATION: " <<
+  // greedy_adaptive_objective
   //           << "  ------------------------" << std::endl;
   return final_csv_string;
 }
 
-void RunAllInstancesInSetDirectory(const int min_policies, const int max_policies, const int min_budget, const int max_budget, const std::string& set_name, const std::vector<ASPI_Solver>& solvers) {
+void RunAllInstancesInSetDirectory(const int min_policies,
+                                   const int max_policies, const int min_budget,
+                                   const int max_budget,
+                                   const std::string& set_name,
+                                   const std::vector<ASPI_Solver>& solvers) {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
   // Use seconds, since gurobi takes the parameter value in seconds.
   env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
   std::cout << std::endl;
   /* Set Name */
-  std::string full_path_s = DATA_DIRECTORY + set_name; 
+  std::string full_path_s = DATA_DIRECTORY + set_name;
   char* full_path = new char[full_path_s.length() + 1];
   std::strcpy(full_path, full_path_s.c_str());
   DIR* set_directory = opendir(full_path);
@@ -1464,7 +1503,7 @@ void RunAllInstancesInSetDirectory(const int min_policies, const int max_policie
   std::string base_name = DATA_DIRECTORY;
   base_name.append(set_name);
   base_name.append("/");
-  base_name.append(set_name); 
+  base_name.append(set_name);
   base_name.append("_run_");
   base_name.append(today);
   std::string result_file_name = base_name;
@@ -1476,16 +1515,13 @@ void RunAllInstancesInSetDirectory(const int min_policies, const int max_policie
     if (solver == MIP) {
       CSV_HEADER.append(",");
       CSV_HEADER.append(MIP_COLUMN_HEADERS);
-    }
-    else if (solver == BENDERS) {
+    } else if (solver == BENDERS) {
       CSV_HEADER.append(",");
       CSV_HEADER.append(BENDERS_COLUMN_HEADERS);
-    }
-    else if (solver == ENUMERATION) {
+    } else if (solver == ENUMERATION) {
       CSV_HEADER.append(",");
       CSV_HEADER.append(ENUMERATION_COLUMN_HEADERS);
-    }
-    else if (solver == GREEDY) {
+    } else if (solver == GREEDY) {
       CSV_HEADER.append(",");
       CSV_HEADER.append(GREEDY_COLUMN_HEADERS);
     }
@@ -1498,12 +1534,21 @@ void RunAllInstancesInSetDirectory(const int min_policies, const int max_policie
       continue;  // This is not a data file, data files start with <set_name> so
                  // are at least as long as set_name.size().
     std::string set_name_in_name(name.begin(), name.begin() + set_name.size());
-    if (set_name_in_name != set_name) continue; // For sanity, check that the data file matches the set_name which should always be the case.
-    if (IsRunFile(name)) continue; // Cannot run on a output data file (in case we are running again on this directory).
-                                   // Since we include full timestamps in the result file names we may do this, e.g. with a different max policies, and won't ovewrite result file names.
-    // We will loop through all cost files (which are analogous to all InstanceInputs) parse their names to get params for both GraphInput and InstanceInput, and then run the our single run function for every k from 1 to max k (as long as k <= scenarios).
+    if (set_name_in_name != set_name)
+      continue;  // For sanity, check that the data file matches the set_name
+                 // which should always be the case.
+    if (IsRunFile(name))
+      continue;  // Cannot run on a output data file (in case we are running
+                 // again on this directory). Since we include full timestamps
+                 // in the result file names we may do this, e.g. with a
+                 // different max policies, and won't ovewrite result file
+                 // names.
+    // We will loop through all cost files (which are analogous to all
+    // InstanceInputs) parse their names to get params for both GraphInput and
+    // InstanceInput, and then run the our single run function for every k from
+    // 1 to max k (as long as k <= scenarios).
     if (IsCostFile(name)) {
-      std::pair<int, int> n_kzero = GetNodesKZero(name, set_name.size()+1);
+      std::pair<int, int> n_kzero = GetNodesKZero(name, set_name.size() + 1);
       int nodes = n_kzero.first;
       int kzero = n_kzero.second;
       std::pair<int, int> scenarios_id = GetScenariosID(name);
@@ -1517,15 +1562,16 @@ void RunAllInstancesInSetDirectory(const int min_policies, const int max_policie
           if (budget > graph_input.k_zero_) break;
           const ProblemInput problem(instance_input, k, budget, env);
           ProblemInput problem_copyable(instance_input, k, budget, env);
-          std::cout << "RUNNING INSTANCE: " << problem.instance_.name() << ", K = " << std::to_string(k) << std::endl;
-          std::string result = SolveAndPrintTest(set_name, problem, problem_copyable, solvers, DEBUG);
+          std::cout << "RUNNING INSTANCE: " << problem.instance_.name()
+                    << ", K = " << std::to_string(k) << std::endl;
+          std::string result = SolveAndPrintTest(
+              set_name, problem, problem_copyable, solvers, DEBUG);
           std::cout << std::endl;
           result_file << result << std::endl;
-        } 
+        }
       }
     }
-  result_file.close();
-  closedir(set_directory);
+    result_file.close();
+    closedir(set_directory);
   }
 }
-

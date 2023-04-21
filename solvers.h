@@ -1,26 +1,26 @@
 #ifndef SOLVERS_H
 #define SOLVERS_H
 
+#include <dirent.h>
 #include <float.h>
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
-#include <cstring>
-#include <dirent.h>
-#include <cmath>
 
-#include <iomanip>
-#include <limits>
-#include <unordered_map>
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <climits>
+#include <cmath>
+#include <cstring>
 #include <fstream>
+#include <iomanip>
+#include <limits>
 #include <queue>
 #include <random>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -40,14 +40,24 @@ const long TIME_LIMIT_MS = TIME_LIMIT_S * 1000;
 
 const std::string DATA_DIRECTORY = "dat/";
 
-const std::string INSTANCE_INFO_COLUMN_HEADERS = "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,policies";
+const std::string INSTANCE_INFO_COLUMN_HEADERS =
+    "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,"
+    "policies";
 // Partitions will be encoded as follows in the csv column:
-// For every follower (indexed 0-p-1), we write the index (0-k-1) of the policy that they are assigned to, in a string delimeted by '-'.
-// For example, if we have p=3 and k=2, with followers 0,1 in partition 0, and follower 2 in partition 1, we have: "0-0-1".
-const std::string MIP_COLUMN_HEADERS = "MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,MIP_partition";
-const std::string BENDERS_COLUMN_HEADERS = "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_rounds,BENDERS_partition";
-const std::string ENUMERATION_COLUMN_HEADERS = "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,ENUMERATION_partition";
-const std::string GREEDY_COLUMN_HEADERS = "GREEDY_objective,GREEDY_time,GREEDY_partition";
+// For every follower (indexed 0-p-1), we write the index (0-k-1) of the policy
+// that they are assigned to, in a string delimeted by '-'. For example, if we
+// have p=3 and k=2, with followers 0,1 in partition 0, and follower 2 in
+// partition 1, we have: "0-0-1".
+const std::string MIP_COLUMN_HEADERS =
+    "MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,MIP_partition";
+const std::string BENDERS_COLUMN_HEADERS =
+    "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_"
+    "rounds,BENDERS_partition";
+const std::string ENUMERATION_COLUMN_HEADERS =
+    "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,ENUMERATION_"
+    "partition";
+const std::string GREEDY_COLUMN_HEADERS =
+    "GREEDY_objective,GREEDY_time,GREEDY_partition";
 
 struct GraphInput {
   GraphInput(const std::string& setname, int nodes, int k_zero)
@@ -172,21 +182,24 @@ class AdaptiveInstance {
 
 class ProblemInput {
  public:
-  ProblemInput(const InstanceInput& instance_input, int policies, int budget, GRBEnv* env)
+  ProblemInput(const InstanceInput& instance_input, int policies, int budget,
+               GRBEnv* env)
       : G_(Graph(instance_input.graph_input_.FileName(),
                  instance_input.graph_input_.nodes_)),
         instance_(AdaptiveInstance(instance_input)),
         policies_(policies),
         budget_(budget),
         k_zero_(instance_input.graph_input_.k_zero_),
-        env_(env){instance_.ReadCosts();}
-  ProblemInput(ProblemInput& problem_input,
-      std::vector<int>& keep_scenarios, int policies)
+        env_(env) {
+    instance_.ReadCosts();
+  }
+  ProblemInput(ProblemInput& problem_input, std::vector<int>& keep_scenarios,
+               int policies)
       : G_(problem_input.G_),
         instance_(AdaptiveInstance(problem_input.instance_, keep_scenarios)),
         policies_(policies),
         budget_(problem_input.budget_),
-        k_zero_(problem_input.k_zero_), 
+        k_zero_(problem_input.k_zero_),
         env_(problem_input.env_) {}
   void WriteLineToLogFile();
   const Graph G_;
@@ -204,7 +217,7 @@ class AdaptiveSolution {
  public:
   AdaptiveSolution() : unbounded_(false), benders_(false), optimal_(false){};
   AdaptiveSolution(bool unbounded, bool benders, bool optimal)
-      : unbounded_(unbounded), benders_(benders), optimal_(optimal) {};
+      : unbounded_(unbounded), benders_(benders), optimal_(optimal){};
   AdaptiveSolution(bool benders, bool optimal, const ProblemInput& problem)
       : unbounded_(false),
         benders_(benders),
@@ -220,7 +233,8 @@ class AdaptiveSolution {
         objectives_(std::vector<std::vector<double>>(
             problem.policies_,
             std::vector<double>(problem.instance_.scenarios()))),
-        worst_case_objective_(-1), mip_gap_(-1) {};
+        worst_case_objective_(-1),
+        mip_gap_(-1){};
   AdaptiveSolution(bool benders, bool optimal, const ProblemInput& problem,
                    const std::vector<std::vector<int>>& partition,
                    const std::vector<std::vector<double>>& solution)
@@ -237,14 +251,18 @@ class AdaptiveSolution {
         objectives_(std::vector<std::vector<double>>(
             problem.policies_,
             std::vector<double>(problem.instance_.scenarios()))),
-        worst_case_objective_(-1), mip_gap_(-1) {};
+        worst_case_objective_(-1),
+        mip_gap_(-1){};
   void LogSolution(const ProblemInput& problem, bool policy = false);
   void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2,
                      int split_index);
   void ExtendByOne(AdaptiveInstance& instance, const Graph& G, GRBEnv* env,
                    bool mip_subroutine = true);
   void ComputeObjectiveMatrix(const ProblemInput& problem);
-  void SetObjectiveMatrix(const std::vector<std::vector<double>>& objective_matrix) {objectives_ = objective_matrix;}
+  void SetObjectiveMatrix(
+      const std::vector<std::vector<double>>& objective_matrix) {
+    objectives_ = objective_matrix;
+  }
   void ComputePartition();
   void ComputeAdaptiveObjective();
   int policies() const { return policies_; }
@@ -264,7 +282,10 @@ class AdaptiveSolution {
   void set_solution_policy(int index, std::vector<double>& policy) {
     solution_[index] = policy;
   }
-  void set_optimal(bool optimal) { optimal_ = optimal; mip_gap_ = 0; }
+  void set_optimal(bool optimal) {
+    optimal_ = optimal;
+    mip_gap_ = 0;
+  }
   void set_mip_gap(double gap) { mip_gap_ = gap; }
   void set_partition(const std::vector<std::vector<int>>& partition) {
     partition_ = partition;
@@ -457,11 +478,19 @@ std::pair<int, int> GetNodesKZero(const std::string& name, int start);
 
 std::pair<int, int> GetScenariosID(const std::string& name);
 
-std::string SolutionPartitionToString(const AdaptiveSolution& solution, const ProblemInput& problem);
+std::string SolutionPartitionToString(const AdaptiveSolution& solution,
+                                      const ProblemInput& problem);
 
-std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& problem, ProblemInput& problem_copyable,
-                       const std::vector<ASPI_Solver>& solvers, int debug = 0);
+std::string SolveAndPrintTest(const std::string& set_name,
+                              const ProblemInput& problem,
+                              ProblemInput& problem_copyable,
+                              const std::vector<ASPI_Solver>& solvers,
+                              int debug = 0);
 
-void RunAllInstancesInSetDirectory(const int min_policies, const int max_policies, const int min_budget, const int max_budget, const std::string& set_name, const std::vector<ASPI_Solver>& solvers);
+void RunAllInstancesInSetDirectory(const int min_policies,
+                                   const int max_policies, const int min_budget,
+                                   const int max_budget,
+                                   const std::string& set_name,
+                                   const std::vector<ASPI_Solver>& solvers);
 
 #endif
