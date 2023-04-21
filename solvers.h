@@ -24,8 +24,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
-// #include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
+// #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+#include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
 typedef std::numeric_limits<double> dbl;
@@ -439,7 +439,7 @@ class SetPartitioningBenders {
   BendersCallback callback_;
 };
 
-AdaptiveSolution EnumSolve(const ProblemInput& problem);
+AdaptiveSolution EnumSolve(ProblemInput& problem);
 
 AdaptiveSolution GreedyAlgorithm(ProblemInput& problem);
 

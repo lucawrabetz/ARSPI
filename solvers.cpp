@@ -1038,7 +1038,22 @@ MergeEnumSols(std::pair<std::vector<std::vector<int>>,
   return sol1;
 }
 
-AdaptiveSolution EnumSolve(const ProblemInput& problem) {
+
+std::pair<double, std::vector<double>> SolveBendersInEnumSolve(ProblemInput& problem, std::vector<int>& update_vector) {
+  // Solve the nominal problem for followers in update vector.
+  ProblemInput sub_problem(problem, update_vector, 1);
+  SetPartitioningBenders sub_benders(sub_problem);
+  sub_benders.ConfigureSolver(sub_problem);
+  AdaptiveSolution sol = sub_benders.Solve(sub_problem);
+  if (sol.optimal()) return {sol.worst_case_objective(), sol.solution()[0]};
+  else return {-1, {-1}};
+}
+
+AdaptiveSolution EnumSolve(ProblemInput& problem) {
+  // Initialize solution object for if we hit time limit.
+  AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
+  time_limit_solution.set_solution_time(TIME_LIMIT_MS);
+  time_limit_solution.set_worst_case_objective(-1);
   // Pass an AdaptiveInstance and solve using enumeration algorithm.
   // Enumeration maintained as in Orlov paper.
   bool next = true;
@@ -1055,8 +1070,6 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem) {
   // Initialize static robust model.
   try {
     long begin = GetCurrentTime();
-    RobustAlgoModel static_robust = RobustAlgoModel(problem);
-    static_robust.ConfigureModel(problem);
     // Objective value maintained here (and optimal partition).
     double best_worstcase_objective = 0;
     std::vector<double> final_objectives(k, 0);
@@ -1066,31 +1079,18 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem) {
       long current_time = GetCurrentTime() - begin;
       // Use milliseconds for time limit to check this, as we measured in
       // milliseconds with GetCurrentTime().
-      if (current_time >= TIME_LIMIT_MS) {
-        AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
-        time_limit_solution.set_solution_time(TIME_LIMIT_MS);
-        time_limit_solution.set_worst_case_objective(-1);
-        return time_limit_solution;
-      } 
+      if (current_time >= TIME_LIMIT_MS) return time_limit_solution; 
       std::vector<std::vector<double>> temp_sol(k, arc_vec);
       double temp_worst_objective = DBL_MAX;
       std::vector<double> temp_objectives(k, 0);
       std::vector<std::vector<int>> partition = kappa_to_partition(kappa, k, p);
       for (int w = 0; w < k; ++w) {
-        // For every subset in partition, solve M2 for k=1.
-        static_robust.Update(partition[w]);
-        std::pair<double, std::vector<double>> temp_single_solution =
-            static_robust.Solve();
+        // For every subset in partition, solve M2 for k=1 using the Benders.
+        std::pair<double, std::vector<double>> temp_single_solution = SolveBendersInEnumSolve(problem, partition[w]);
         // Check that the static model didn't hit the time limit:
-        if (temp_single_solution.first == -1) {
-          AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
-          time_limit_solution.set_solution_time(TIME_LIMIT_MS);
-          time_limit_solution.set_worst_case_objective(-1);
-          return time_limit_solution;
-        }
+        if (temp_single_solution.first == -1) return time_limit_solution;
         temp_objectives[w] = temp_single_solution.first;
         temp_sol[w] = temp_single_solution.second;
-        static_robust.ReverseUpdate(partition[w]);
         // Update temp_worst_objective and temp_sol if this subset is worse.
         if (temp_objectives[w] < temp_worst_objective) {
           temp_worst_objective = temp_objectives[w];
@@ -1105,12 +1105,7 @@ AdaptiveSolution EnumSolve(const ProblemInput& problem) {
       next = nextKappa(kappa, max, k, p);
     }
     long time = GetCurrentTime() - begin;
-    if (time >= TIME_LIMIT_MS) {
-      AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
-      time_limit_solution.set_solution_time(TIME_LIMIT_MS);
-      time_limit_solution.set_worst_case_objective(-1);
-      return time_limit_solution;
-    } 
+    if (time >= TIME_LIMIT_MS) return time_limit_solution;
     std::vector<std::vector<double>> final_policies(k);
     for (int w = 0; w < k; ++w) {
       final_policies[w] = sol[w];
@@ -1386,7 +1381,7 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
       log_line.append(std::to_string(benders_solution.solution_time()));
       log_line.append("ms ----- ");
     } else if (solver == ENUMERATION) {
-      AdaptiveSolution enum_solution = EnumSolve(problem);
+      AdaptiveSolution enum_solution = EnumSolve(problem_copyable);
       if (debug == 2)
         enum_solution.LogSolution(problem, true);
       else if (debug == 1)
