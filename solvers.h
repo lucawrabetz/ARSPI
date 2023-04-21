@@ -24,8 +24,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-// #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
-#include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
+#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+// #include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
 
 typedef std::numeric_limits<double> dbl;
@@ -33,7 +33,7 @@ typedef std::numeric_limits<double> dbl;
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
 
 const double EPSILON = 0.000001;
-const int DEBUG = 2;
+const int DEBUG = 0;
 
 const long TIME_LIMIT_S = 3600;
 const long TIME_LIMIT_MS = TIME_LIMIT_S * 1000;

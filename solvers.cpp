@@ -1065,7 +1065,6 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
   // Initialize solution vector.
   std::vector<double> arc_vec(m, 0);
   std::vector<std::vector<double>> sol(k, arc_vec);
-  // Initialize static robust model.
   try {
     long begin = GetCurrentTime();
     // Objective value maintained here (and optimal partition).
@@ -1086,7 +1085,7 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
         // For every subset in partition, solve M2 for k=1 using the Benders.
         std::pair<double, std::vector<double>> temp_single_solution =
             SolveBendersInEnumSolve(problem, partition[w]);
-        // Check that the static model didn't hit the time limit:
+        // Check that the static benders model didn't hit the time limit:
         if (temp_single_solution.first == -1) return time_limit_solution;
         temp_objectives[w] = temp_single_solution.first;
         temp_sol[w] = temp_single_solution.second;
@@ -1571,7 +1570,7 @@ void RunAllInstancesInSetDirectory(const int min_policies,
         }
       }
     }
-    result_file.close();
-    closedir(set_directory);
   }
+  result_file.close();
+  closedir(set_directory);
 }
