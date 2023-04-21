@@ -172,12 +172,12 @@ class AdaptiveInstance {
 
 class ProblemInput {
  public:
-  ProblemInput(const InstanceInput& instance_input, int policies, GRBEnv* env)
+  ProblemInput(const InstanceInput& instance_input, int policies, int budget, GRBEnv* env)
       : G_(Graph(instance_input.graph_input_.FileName(),
                  instance_input.graph_input_.nodes_)),
         instance_(AdaptiveInstance(instance_input)),
         policies_(policies),
-        budget_(instance_input.graph_input_.k_zero_),
+        budget_(budget),
         k_zero_(instance_input.graph_input_.k_zero_),
         env_(env){instance_.ReadCosts();}
   ProblemInput(ProblemInput& problem_input,
@@ -462,6 +462,6 @@ std::string SolutionPartitionToString(const AdaptiveSolution& solution, const Pr
 std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& problem, ProblemInput& problem_copyable,
                        const std::vector<ASPI_Solver>& solvers, int debug = 0);
 
-void RunAllInstancesInSetDirectory(const int min_policies, const int max_policies, const std::string& set_name, const std::vector<ASPI_Solver>& solvers);
+void RunAllInstancesInSetDirectory(const int min_policies, const int max_policies, const int min_budget, const int max_budget, const std::string& set_name, const std::vector<ASPI_Solver>& solvers);
 
 #endif

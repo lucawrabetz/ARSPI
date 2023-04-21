@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 from datetime import date
-import pdb
 
 def append_date(basename):
     """
@@ -36,33 +35,33 @@ def check_make_dir(path, i):
         return path + "-" + str(i)
 
 
-def arcs_for_current_layer(current_layer, next_layer, p):
-    '''
-    - add arcs for this layer - outgoing
-    - random arcs to nodes in all 'future layers'
-    - 'next' is just all the remaining nodes in future layers
-    - p is the probability that the node i is connected to any j in future layers - to simplify we use it as a proportion and convert to arcs_per_node
-    '''
-
-    new_arcs = []
-    arcs_per_node = math.floor(len(next_layer) * p)
-
-    if arcs_per_node < 1:
-        arcs_per_node = 1
-
-    for i in current_layer:
-        try:
-            sampled_nodes = random.sample(next_layer, arcs_per_node)
-        except ValueError:
-            print("SAMPLE EXCEPTION OCCURRED")
-            print("len next_layer: " + str(len(next_layer)))
-            print("arcs_per_node: " + str(arcs_per_node))
-            print("p: " + str(p))
-        for j in sampled_nodes:
-            new_arc = (i, j)
-            new_arcs.append(new_arc)
-
-    return new_arcs
+# def arcs_for_current_layer(current_layer, next_layer, p):
+#     '''
+#     - add arcs for this layer - outgoing
+#     - random arcs to nodes in all 'future layers'
+#     - 'next' is just all the remaining nodes in future layers
+#     - p is the probability that the node i is connected to any j in future layers - to simplify we use it as a proportion and convert to arcs_per_node
+#     '''
+# 
+#     new_arcs = []
+#     arcs_per_node = math.floor(len(next_layer) * p)
+# 
+#     if arcs_per_node < 1:
+#         arcs_per_node = 1
+# 
+#     for i in current_layer:
+#         try:
+#             sampled_nodes = random.sample(next_layer, arcs_per_node)
+#         except ValueError:
+#             print("SAMPLE EXCEPTION OCCURRED")
+#             print("len next_layer: " + str(len(next_layer)))
+#             print("arcs_per_node: " + str(arcs_per_node))
+#             print("p: " + str(p))
+#         for j in sampled_nodes:
+#             new_arc = (i, j)
+#             new_arcs.append(new_arc)
+# 
+#     return new_arcs
 
 
 class CompleteLayerInput:
@@ -71,13 +70,12 @@ class CompleteLayerInput:
                  num_per_layer=10,
                  followers=5,
                  follower_groups=3,
-                 budget=3,
+                 #budget=3,
                  high_mean=200,
                  low_mean=50,
                  standard_deviation=10,
-                 interdiction_delta=50,
                  set_name="graphs",
-                 set_directory="dat/graphs"):
+                 num_cost_files=30):
         '''
             - Assertions (input sanity checks):
                 - num_layers >= budget;
@@ -85,21 +83,20 @@ class CompleteLayerInput:
                 - create a directory for the set_directory if it doesn't exist.
         '''
         # Make assertions / sanity checks.
-        assert num_layers >= budget
-        assert num_per_layer >= follower_groups
-        if not os.path.isdir(set_directory):
-            os.mkdir(set_directory)
+        #assert num_layers >= budget
+        self.set_directory = os.path.join("dat", set_name)
+        if not os.path.isdir(self.set_directory):
+            os.mkdir(self.set_directory)
         self.num_layers = num_layers
         self.num_per_layer = num_per_layer
         self.followers = followers
         self.follower_groups = follower_groups
-        self.budget = budget
+        #self.budget = budget
         self.high_mean = high_mean
         self.low_mean = low_mean
         self.standard_deviation = standard_deviation
-        self.interdiction_delta = interdiction_delta
         self.set_name = set_name
-        self.set_directory = set_directory
+        self.num_cost_files = num_cost_files
 
 
 class CompleteLayerGraph:
@@ -117,16 +114,16 @@ class CompleteLayerGraph:
         self.sink = self.nodes - 1
         self.followers = instance_input.followers
         self.follower_groups = instance_input.follower_groups
-        self.budget = instance_input.budget
+        # self.budget = instance_input.budget
         self.high_mean = instance_input.high_mean
         self.low_mean = instance_input.low_mean
         self.standard_deviation = instance_input.standard_deviation
-        self.interdiction_delta = instance_input.interdiction_delta
         self.set_name = instance_input.set_name
         self.set_directory = instance_input.set_directory
         self.G = None
         self.full_graph_name = self.set_name + "-" + str(self.nodes) + "_" + str(self.follower_groups)
-        self.arc_costs = [[] for i in range(self.followers+1)] # Interdiction_costs are in last list / row.
+        self.num_cost_files = instance_input.num_cost_files
+        self.arc_costs = [[[] for i in range(self.followers)] for j in range(self.num_cost_files)]
 
     def populate_arc_list(self):
         '''
@@ -157,49 +154,48 @@ class CompleteLayerGraph:
             - these arcs will have costs drawn from N(low_mean, standard_deviation) for that group
             - the rest of the arcs will have costs drawn from N(high_mean, standard_deviation) for the group
         '''
-        cheap_matrix = [[0 for a in range(self.arcs)] for i in range(self.follower_groups)]
-        arcs_per_layer = self.num_per_layer ** 2
-        print("arcs", set(range(self.arcs)))
-        for layer in range(1, 1+self.budget):
-            # we are considering the first (node 0) and middle layers
-            # num_layers refers to the middle layers
-            if layer == 0:
-                first = 0
-                last = self.num_per_layer
-            elif layer == self.num_layers:
-                first = self.arcs - self.num_per_layer
-                last = self.arcs
-            else:
-                first = (layer - 1) * arcs_per_layer + self.num_per_layer
-                last = first + arcs_per_layer
-            arc_set = set(range(first, last))
-            print("arc set for layer " + str(layer), arc_set)
+        for cost_id in range(self.num_cost_files):
+            cheap_matrix = [[0 for a in range(self.arcs)] for i in range(self.follower_groups)]
+            # arcs_per_layer = self.num_per_layer ** 2
+            # for layer in range(1, 1+self.budget):
+            #     # we are considering the first (node 0) and middle layers
+            #     # num_layers refers to the middle layers
+            #     if layer == 0:
+            #         first = 0
+            #         last = self.num_per_layer
+            #     elif layer == self.num_layers:
+            #         first = self.arcs - self.num_per_layer
+            #         last = self.arcs
+            #     else:
+            #         first = (layer - 1) * arcs_per_layer + self.num_per_layer
+            #         last = first + arcs_per_layer
+            #     arc_set = set(range(first, last))
+
+            arc_set = set(range(self.source, self.arcs))
             for group in range(self.follower_groups):
-                cheap_arcs = set(random.sample(arc_set, 1))
-                arc_set = arc_set - cheap_arcs
+                cheap_arcs = set(random.sample(arc_set, self.follower_groups))
                 for arc in cheap_arcs:
                     cheap_matrix[group][arc] = 1
-        group_index = 0
-        for i in range(self.followers):
-            for a in range(self.arcs):
-                if cheap_matrix[group_index][a]:
-                    cost = int(np.round(np.random.normal(self.low_mean, self.standard_deviation)))
-                else:
-                    cost = int(np.round(np.random.normal(self.high_mean, self.standard_deviation)))
-                self.arc_costs[i].append(cost)
-            if group_index == self.follower_groups - 1: group_index = 0
-            else: group_index += 1
-        for a in range(self.arcs):
-            self.arc_costs[self.followers].append(self.interdiction_delta)
+            group_index = 0
+            for i in range(self.followers):
+                for a in range(self.arcs):
+                    if cheap_matrix[group_index][a]:
+                        cost = int(np.round(np.random.normal(self.low_mean, self.standard_deviation)))
+                    else:
+                        cost = int(np.round(np.random.normal(self.high_mean, self.standard_deviation)))
+                    self.arc_costs[cost_id][i].append(cost)
+                if group_index == self.follower_groups - 1: group_index = 0
+                else: group_index += 1
 
     def write_costs(self):
         '''
         write the generated costs to file
         '''
-        costs_file_name = self.full_graph_name + "-costs_" + str(self.followers) + ".csv"
-        costs_file_path = os.path.join(self.set_directory, costs_file_name)
-        costs_df = pd.DataFrame(self.arc_costs)
-        costs_df.to_csv(costs_file_path, header=False, index=False)
+        for cost_id in range(self.num_cost_files):
+            costs_file_name = self.full_graph_name + "-costs_" + str(self.followers) + "_" + str(cost_id) + ".csv"
+            costs_file_path = os.path.join(self.set_directory, costs_file_name)
+            costs_df = pd.DataFrame(self.arc_costs[cost_id])
+            costs_df.to_csv(costs_file_path, header=False, index=False)
 
     def write_graph(self):
         '''
@@ -617,95 +613,34 @@ def complete_layer_inputs():
     inputs.append(CompleteLayerInput())
     inputs.append(CompleteLayerInput(
                  num_layers=10,
-                 num_per_layer=20,
-                 followers=5,
-                 follower_groups=3,
-                 budget=3,
+                 num_per_layer=4,
+                 followers=10,
+                 follower_groups=10,
+                 #budget=5,
                  high_mean=200,
                  low_mean=50,
                  standard_deviation=10,
-                 interdiction_delta=50,
-                 set_name="aspi_testbed",
-                 set_directory="dat/graphs"))
+                 set_name="small_testbed_NE"))
     inputs.append(CompleteLayerInput(
-                 num_layers=20,
-                 num_per_layer=25,
-                 followers=5,
-                 follower_groups=3,
-                 budget=3,
+                 num_layers=8,
+                 num_per_layer=4,
+                 followers=10,
+                 follower_groups=10,
+                 #budget=5,
                  high_mean=200,
                  low_mean=50,
                  standard_deviation=10,
-                 interdiction_delta=50,
-                 set_name="aspi_testbed",
-                 set_directory="dat/graphs"))
-    inputs.append(CompleteLayerInput(
-                 followers=5,
-                 follower_groups=5,
-                 budget=3,
-                 high_mean=200,
-                 low_mean=50,
-                 standard_deviation=10,
-                 interdiction_delta=50,
-                 set_name="aspi_testbed",
-                 set_directory="dat/graphs"))
-    inputs.append(CompleteLayerInput(
-                 num_per_layer=15,
-                 followers=5,
-                 follower_groups=5,
-                 budget=3,
-                 high_mean=200,
-                 low_mean=50,
-                 standard_deviation=10,
-                 interdiction_delta=50,
-                 set_name="aspi_testbed",
-                 set_directory="dat/aspi_testbed"))
-    inputs.append(CompleteLayerInput(
-                 num_per_layer=20,
-                 followers=5,
-                 follower_groups=5,
-                 budget=3,
-                 high_mean=200,
-                 low_mean=50,
-                 standard_deviation=10,
-                 interdiction_delta=50,
-                 set_name="aspi_testbed",
-                 set_directory="dat/aspi_testbed"))
-    inputs.append(CompleteLayerInput(
-                 num_layers=10,
-                 num_per_layer=20,
-                 followers=5,
-                 follower_groups=5,
-                 budget=3,
-                 high_mean=200,
-                 low_mean=50,
-                 standard_deviation=10,
-                 interdiction_delta=50,
-                 set_name="aspi_testbed",
-                 set_directory="dat/aspi_testbed"))
-    inputs.append(CompleteLayerInput(
-                 num_layers=20,
-                 num_per_layer=20,
-                 followers=5,
-                 follower_groups=5,
-                 budget=3,
-                 high_mean=200,
-                 low_mean=50,
-                 standard_deviation=10,
-                 interdiction_delta=50,
-                 set_name="graphs",
-                 set_directory="dat/aspi_testbed"))
+                 set_name="tiny_testbed_NE"))
     return inputs
 
 if __name__ == "__main__":
-    # inputs = layer_inputs()
-    # G = CompleteLayerGraph(inputs[5])
-    # G.populate_graph()
-    # G = CompleteLayerGraph(inputs[6])
-    # G.populate_graph()
+    for i in range(2, 3):
+        inputs = complete_layer_inputs()
+        G = CompleteLayerGraph(inputs[i])
+        G.populate_graph()
 
-    tree = PseudoTreeInput()
-    instance = PseudoTree(tree)
-    print(instance.G.nodes, instance.G.edges)
-    print(len(instance.G.nodes))
-    print(instance.nodes)
+    # FOR TREE STUFF AND TESTING
+    # tree = PseudoTreeInput()
+    # instance = PseudoTree(tree)
+    # print(instance.G.nodes, instance.G.edges)
+    # print(len(instance.G.nodes))

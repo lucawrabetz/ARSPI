@@ -1448,7 +1448,7 @@ std::string SolveAndPrintTest(const std::string& set_name, const ProblemInput& p
   return final_csv_string;
 }
 
-void RunAllInstancesInSetDirectory(const int min_policies, const int max_policies, const std::string& set_name, const std::vector<ASPI_Solver>& solvers) {
+void RunAllInstancesInSetDirectory(const int min_policies, const int max_policies, const int min_budget, const int max_budget, const std::string& set_name, const std::vector<ASPI_Solver>& solvers) {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
   // Use seconds, since gurobi takes the parameter value in seconds.
   env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
@@ -1517,16 +1517,20 @@ void RunAllInstancesInSetDirectory(const int min_policies, const int max_policie
       GraphInput graph_input(set_name, nodes, kzero);
       InstanceInput instance_input(graph_input, scenarios, id);
       for (int k = min_policies; k <= max_policies; k++) {
-        if (k > instance_input.scenarios_) break;
-        const ProblemInput problem(instance_input, k, env);
-        ProblemInput problem_copyable(instance_input, k, env);
-        std::cout << "RUNNING INSTANCE: " << problem.instance_.name() << ", K = " << std::to_string(k) << std::endl;
-        std::string result = SolveAndPrintTest(set_name, problem, problem_copyable, solvers, DEBUG);
-        std::cout << std::endl;
-        result_file << result << std::endl;
+        for (int budget = min_budget; budget <= max_budget; budget++) {
+          if (k > instance_input.scenarios_) break;
+          if (budget > graph_input.k_zero_) break;
+          const ProblemInput problem(instance_input, k, budget, env);
+          ProblemInput problem_copyable(instance_input, k, budget, env);
+          std::cout << "RUNNING INSTANCE: " << problem.instance_.name() << ", K = " << std::to_string(k) << std::endl;
+          std::string result = SolveAndPrintTest(set_name, problem, problem_copyable, solvers, DEBUG);
+          std::cout << std::endl;
+          result_file << result << std::endl;
+        } 
       }
-    } 
-  }
+    }
   result_file.close();
   closedir(set_directory);
+  }
 }
+
