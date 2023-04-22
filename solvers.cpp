@@ -148,7 +148,7 @@ void AdaptiveInstance::PrintInstance(const Graph& G) const {
   G.PrintGraphWithCosts(arc_costs_, interdiction_delta_);
 }
 
-double AdaptiveInstance::SPModel(int q, const Graph& G, GRBEnv* env) {
+double AdaptiveInstance::SPModel(int q, const Graph& G, GRBEnv* env) const {
   // Return shortest path objective function for follower q on instance.
   try {
     // Initialize Model/Environment.
@@ -200,6 +200,15 @@ double AdaptiveInstance::SPModel(int q, const Graph& G, GRBEnv* env) {
               << std::endl;
     return -1;
   }
+}
+
+double AdaptiveInstance::SolveASPIZeroPolicies(const Graph& G, GRBEnv* env) const {
+  double worst_case_objective = DBL_MAX;
+  for (int q = 0; q < scenarios_; q++) {
+    double obj = SPModel(q, G, env);
+    if (obj < worst_case_objective) worst_case_objective = obj;
+  }
+  return worst_case_objective;
 }
 
 void AdaptiveInstance::ApplyInterdiction(const std::vector<double>& x_bar,
@@ -1368,6 +1377,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(", ");
       log_line.append(std::to_string(sp_solution.solution_time()));
       log_line.append("ms ----- ");
+      std::cout << "MIP done" << std::endl;
     } else if (solver == BENDERS) {
       SetPartitioningBenders benders = SetPartitioningBenders(problem);
       benders.ConfigureSolver(problem);
@@ -1405,6 +1415,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(",");
       log_line.append(std::to_string(benders_solution.solution_time()));
       log_line.append("ms ----- ");
+      std::cout << "BENDERS done" << std::endl;
     } else if (solver == ENUMERATION) {
       AdaptiveSolution enum_solution = EnumSolve(problem_copyable);
       if (debug == 2)
@@ -1435,6 +1446,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(", ");
       log_line.append(std::to_string(enum_solution.solution_time()));
       log_line.append("ms ----- ");
+      std::cout << "ENUM done" << std::endl;
     } else if (solver == GREEDY) {
       AdaptiveSolution greedy_solution = GreedyAlgorithm(problem_copyable);
       if (debug == 2)
@@ -1455,6 +1467,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(std::to_string(greedy_solution.solution_time()));
       log_line.append("ms ---------- ");
       // adaptive_objectives.push_back(enum_solution.worst_case_objective());
+      std::cout << "GREEDY done" << std::endl;
     }
   }
   std::cout << log_line << std::endl;
@@ -1569,6 +1582,128 @@ void RunAllInstancesInSetDirectory(const int min_policies,
           result_file << result << std::endl;
         }
       }
+    }
+  }
+  result_file.close();
+  closedir(set_directory);
+}
+
+std::string SolveAndPrintUninterdicted(const std::string& set_name, const ProblemInput& problem) {
+  std::string final_csv_string = set_name;
+  final_csv_string.append(",");
+  final_csv_string.append(problem.instance_.name());
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.G_.nodes()));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.G_.arcs()));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.k_zero_));
+  double nodes = problem.G_.nodes();
+  double arcs = problem.G_.arcs();
+  double density = (arcs) / ((nodes) * (nodes - 1));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(density));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.instance_.scenarios()));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.budget_));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.policies_));
+
+  // MIP Fill-in. (Put uninterdicted solution here).
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.instance_.SolveASPIZeroPolicies(problem.G_, problem.env_)));
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  // Benders Fill-in.
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  // Enumeration Fill-in.
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  // Greedy Fill-In.
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  final_csv_string.append(",");
+  std::cout << problem.instance_.name() << " done." <<  std::endl;
+  return final_csv_string;
+}
+
+void UninterdictedObjectiveForAllInstances(const std::string& set_name) {
+  GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
+  // Use seconds, since gurobi takes the parameter value in seconds.
+  env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
+  std::cout << std::endl;
+  /* Set Name */
+  std::string full_path_s = DATA_DIRECTORY + set_name;
+  char* full_path = new char[full_path_s.length() + 1];
+  std::strcpy(full_path, full_path_s.c_str());
+  DIR* set_directory = opendir(full_path);
+  /* -------- */
+  struct dirent* entity;
+  entity = readdir(set_directory);
+  auto t = std::time(nullptr);
+  auto tt = *std::localtime(&t);
+  std::ostringstream oss;
+  oss << std::put_time(&tt, "%d-%m-%Y--%H-%M-%S");
+  std::string today = oss.str();
+  std::string base_name = DATA_DIRECTORY;
+  base_name.append(set_name);
+  base_name.append("/");
+  base_name.append(set_name);
+  base_name.append("_run_");
+  base_name.append(today);
+  std::string result_file_name = base_name;
+  result_file_name.append(".csv");
+  std::ofstream result_file(result_file_name);
+
+  std::string CSV_HEADER = INSTANCE_INFO_COLUMN_HEADERS;
+  CSV_HEADER.append(",");
+  CSV_HEADER.append(MIP_COLUMN_HEADERS);
+  CSV_HEADER.append(",");
+  CSV_HEADER.append(BENDERS_COLUMN_HEADERS);
+  CSV_HEADER.append(",");
+  CSV_HEADER.append(ENUMERATION_COLUMN_HEADERS);
+  CSV_HEADER.append(",");
+  CSV_HEADER.append(GREEDY_COLUMN_HEADERS);
+  result_file << CSV_HEADER << std::endl;
+  while (entity != NULL) {
+    std::string name = entity->d_name;
+    entity = readdir(set_directory);
+    if (name.size() < set_name.size())
+      continue;  // This is not a data file, data files start with <set_name> so
+                 // are at least as long as set_name.size().
+    std::string set_name_in_name(name.begin(), name.begin() + set_name.size());
+    if (set_name_in_name != set_name)
+      continue;  // For sanity, check that the data file matches the set_name
+                 // which should always be the case.
+    if (IsRunFile(name))
+      continue;  // Cannot run on a output data file (in case we are running
+                 // again on this directory). Since we include full timestamps
+                 // in the result file names we may do this, e.g. with a
+                 // different max policies, and won't ovewrite result file
+                 // names.
+    if (IsCostFile(name)) {
+      std::pair<int, int> n_kzero = GetNodesKZero(name, set_name.size() + 1);
+      int nodes = n_kzero.first;
+      int kzero = n_kzero.second;
+      std::pair<int, int> scenarios_id = GetScenariosID(name);
+      int scenarios = scenarios_id.first;
+      int id = scenarios_id.second;
+      GraphInput graph_input(set_name, nodes, kzero);
+      InstanceInput instance_input(graph_input, scenarios, id);
+      const ProblemInput problem(instance_input, 0, 0, env);
+      std::string result = SolveAndPrintUninterdicted(set_name, problem);
+      std::cout << std::endl;
+      result_file << result << std::endl;
     }
   }
   result_file.close();

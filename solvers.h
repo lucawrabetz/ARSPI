@@ -150,7 +150,8 @@ class AdaptiveInstance {
                    std::vector<int>& keep_scenarios);
   void ReadCosts();
   void PrintInstance(const Graph& G) const;
-  double SPModel(int q, const Graph& G, GRBEnv* env);
+  double SPModel(int q, const Graph& G, GRBEnv* env) const;
+  double SolveASPIZeroPolicies(const Graph& G, GRBEnv* env) const;
   void ApplyInterdiction(const std::vector<double>& x_bar, bool rev = false);
   double ValidatePolicy(std::vector<double>& x_bar, const Graph& G,
                         GRBEnv* env);
@@ -492,5 +493,7 @@ void RunAllInstancesInSetDirectory(const int min_policies,
                                    const int max_budget,
                                    const std::string& set_name,
                                    const std::vector<ASPI_Solver>& solvers);
+
+void UninterdictedObjectiveForAllInstances(const std::string& set_name);
 
 #endif

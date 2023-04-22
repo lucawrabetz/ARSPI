@@ -11,24 +11,22 @@ CPPLIB = -L$(GRBPATH)/lib/ -lgurobi_c++ -lgurobi<xx> $(CPPSTDLIB) -lpthread -lm 
 
 # *****************************************************
 # Compiler/Flags.
-CXX = clang++
+# CXX = clang++ # Choose Your Preferred compiler, and tweak flags.
+# CXX = g++
 CXXFLAGS = -m64 -std=c++11 -g -Wall -Wextra -pedantic
 # ****************************************************
 
 format:
 	clang-format -i *.cpp *.h
 
-main:
-	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)main main.cpp -I$(GRBINC) $(CPPLIB) 
+zeropolicies:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)zeropolicies zeropolicies.cpp -I$(GRBINC) $(CPPLIB) 
+
+runall:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)runall runall.cpp -I$(GRBINC) $(CPPLIB) 
 
 test:
 	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)test test.cpp -I$(GRBINC) $(CPPLIB) 
-
-sp:
-	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)sp sp.cpp -I$(GRBINC) $(CPPLIB) 
-
-enum:
-	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)enum enum.cpp -I$(GRBINC) $(CPPLIB) 
 
 clean:
 	rm -rf *.lp *.o $(BIN)*.dSYM $(BIN)main $(BIN)test
