@@ -1154,6 +1154,15 @@ std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(
     return {-1, {-1}};
 }
 
+int FirstFollowerInGreedyAlgorithm(ProblemInput& problem) {
+    std::pair<int, double> min_subset = {-1, DBL_MAX};
+    for (int q = 0; q < problem.instance_.scenarios(); q++) {
+      double obj = problem.instance_.SPModel(q, problem.G_, problem.env_);
+      if (obj < min_subset.second) min_subset = {q, obj};
+    }
+    return min_subset.first;
+}
+
 AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
   // Solution in case we hit time limit.
   AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
@@ -1165,7 +1174,7 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
   std::vector<std::vector<double>> final_policies;
   // Choose the first scenario to solve SPI for arbitrarily (we'll just use
   // index 0).
-  int next_follower = 0;
+  int next_follower = FirstFollowerInGreedyAlgorithm(problem);
   centers.insert(next_follower);
   // Solve problem for next follower, and add a new vector to objective matrix,
   // i.e. the objective value of the new policy interdicting each follower.
@@ -1377,7 +1386,6 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(", ");
       log_line.append(std::to_string(sp_solution.solution_time()));
       log_line.append("ms ----- ");
-      std::cout << "MIP done" << std::endl;
     } else if (solver == BENDERS) {
       SetPartitioningBenders benders = SetPartitioningBenders(problem);
       benders.ConfigureSolver(problem);
@@ -1415,7 +1423,6 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(",");
       log_line.append(std::to_string(benders_solution.solution_time()));
       log_line.append("ms ----- ");
-      std::cout << "BENDERS done" << std::endl;
     } else if (solver == ENUMERATION) {
       AdaptiveSolution enum_solution = EnumSolve(problem_copyable);
       if (debug == 2)
@@ -1446,7 +1453,6 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(", ");
       log_line.append(std::to_string(enum_solution.solution_time()));
       log_line.append("ms ----- ");
-      std::cout << "ENUM done" << std::endl;
     } else if (solver == GREEDY) {
       AdaptiveSolution greedy_solution = GreedyAlgorithm(problem_copyable);
       if (debug == 2)
@@ -1467,7 +1473,6 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(std::to_string(greedy_solution.solution_time()));
       log_line.append("ms ---------- ");
       // adaptive_objectives.push_back(enum_solution.worst_case_objective());
-      std::cout << "GREEDY done" << std::endl;
     }
   }
   std::cout << log_line << std::endl;
