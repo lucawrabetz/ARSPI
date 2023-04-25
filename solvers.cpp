@@ -1594,6 +1594,7 @@ void RunAllInstancesInSetDirectory(const int min_policies,
   result_file.close();
   closedir(set_directory);
   delete env;
+  delete[] full_path;
 }
 
 std::string SolveAndPrintUninterdicted(const std::string& set_name, const ProblemInput& problem) {
@@ -1717,4 +1718,5 @@ void UninterdictedObjectiveForAllInstances(const std::string& set_name) {
   result_file.close();
   closedir(set_directory);
   delete env;
+  delete[] full_path;
 }
