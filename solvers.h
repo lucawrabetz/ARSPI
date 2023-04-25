@@ -316,6 +316,7 @@ class RobustAlgoModel {
   // Reformulation - can also be used to solve non-robust shortest path
   // interdiction problems - just call update with only the desired scenario.
  public:
+  ~RobustAlgoModel() {delete algo_model_;}
   RobustAlgoModel() : scenarios_(0), budget_(0), nodes_(0), arcs_(0){};
   RobustAlgoModel(const ProblemInput& problem)
       : scenarios_(problem.instance_.scenarios()),
@@ -348,6 +349,7 @@ class RobustAlgoModel {
 class SetPartitioningModel {
   // Set Partitioning MIP for solving an adaptive instance.
  public:
+  ~SetPartitioningModel() {delete sp_model_;}
   SetPartitioningModel()
       : big_m_(0),
         scenarios_(0),
@@ -384,6 +386,9 @@ class SetPartitioningModel {
 
 class BendersCallback : public GRBCallback {
  public:
+   ~BendersCallback() {for (std::vector<GRBModel*>& vec : submodels_) {
+     for (GRBModel* model : vec) {delete model;}
+   }}
   BendersCallback() : upper_bound_(DBL_MAX){};
   BendersCallback(const ProblemInput& problem, GRBVar& z_var,
                   std::vector<std::vector<GRBVar>>& h_var,
@@ -435,6 +440,7 @@ class BendersCallback : public GRBCallback {
 
 class SetPartitioningBenders {
  public:
+  ~SetPartitioningBenders() {delete benders_model_;}
   SetPartitioningBenders() : big_m_(0){};
   SetPartitioningBenders(const ProblemInput& problem)
       : big_m_(problem.instance_.big_m()),

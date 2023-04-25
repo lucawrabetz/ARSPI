@@ -187,7 +187,9 @@ double AdaptiveInstance::SPModel(int q, const Graph& G, GRBEnv* env) const {
     //     "spmodel" + std::to_string(w) + "_" + std::to_string(q) + ".lp";
     // sp_model->write(modelname);
     sp_model->optimize();
-    return sp_model->get(GRB_DoubleAttr_ObjVal);
+    double obj = sp_model->get(GRB_DoubleAttr_ObjVal);
+    delete sp_model;
+    return obj;
   } catch (GRBException e) {
     std::cout
         << "Gurobi error number [SetPartitioningBenders::ConfigureSolver]: "
@@ -1591,6 +1593,7 @@ void RunAllInstancesInSetDirectory(const int min_policies,
   }
   result_file.close();
   closedir(set_directory);
+  delete env;
 }
 
 std::string SolveAndPrintUninterdicted(const std::string& set_name, const ProblemInput& problem) {
@@ -1713,4 +1716,5 @@ void UninterdictedObjectiveForAllInstances(const std::string& set_name) {
   }
   result_file.close();
   closedir(set_directory);
+  delete env;
 }
