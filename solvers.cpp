@@ -204,7 +204,8 @@ double AdaptiveInstance::SPModel(int q, const Graph& G, GRBEnv* env) const {
   }
 }
 
-double AdaptiveInstance::SolveASPIZeroPolicies(const Graph& G, GRBEnv* env) const {
+double AdaptiveInstance::SolveASPIZeroPolicies(const Graph& G,
+                                               GRBEnv* env) const {
   double worst_case_objective = DBL_MAX;
   for (int q = 0; q < scenarios_; q++) {
     double obj = SPModel(q, G, env);
@@ -1087,7 +1088,11 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
       long current_time = GetCurrentTime() - begin;
       // Use milliseconds for time limit to check this, as we measured in
       // milliseconds with GetCurrentTime().
-      if (current_time >= TIME_LIMIT_MS) return time_limit_solution;
+      if (current_time >= TIME_LIMIT_MS) {
+        time_limit_solution.set_partition(best_worstcase_partition);
+        time_limit_solution.set_worst_case_objective(best_worstcase_objective);
+        return time_limit_solution;
+      }
       std::vector<std::vector<double>> temp_sol(k, arc_vec);
       double temp_worst_objective = DBL_MAX;
       std::vector<double> temp_objectives(k, 0);
@@ -1097,7 +1102,11 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
         std::pair<double, std::vector<double>> temp_single_solution =
             SolveBendersInEnumSolve(problem, partition[w]);
         // Check that the static benders model didn't hit the time limit:
-        if (temp_single_solution.first == -1) return time_limit_solution;
+        if (temp_single_solution.first == -1) {
+          time_limit_solution.set_partition(best_worstcase_partition);
+          time_limit_solution.set_worst_case_objective(best_worstcase_objective);
+          return time_limit_solution;
+        }
         temp_objectives[w] = temp_single_solution.first;
         temp_sol[w] = temp_single_solution.second;
         // Update temp_worst_objective and temp_sol if this subset is worse.
@@ -1114,7 +1123,11 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
       next = nextKappa(kappa, max, k, p);
     }
     long time = GetCurrentTime() - begin;
-    if (time >= TIME_LIMIT_MS) return time_limit_solution;
+    if (time >= TIME_LIMIT_MS) {
+      time_limit_solution.set_partition(best_worstcase_partition);
+      time_limit_solution.set_worst_case_objective(best_worstcase_objective);
+      return time_limit_solution;
+    }
     std::vector<std::vector<double>> final_policies(k);
     for (int w = 0; w < k; ++w) {
       final_policies[w] = sol[w];
@@ -1157,12 +1170,12 @@ std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(
 }
 
 int FirstFollowerInGreedyAlgorithm(ProblemInput& problem) {
-    std::pair<int, double> min_subset = {-1, DBL_MAX};
-    for (int q = 0; q < problem.instance_.scenarios(); q++) {
-      double obj = problem.instance_.SPModel(q, problem.G_, problem.env_);
-      if (obj < min_subset.second) min_subset = {q, obj};
-    }
-    return min_subset.first;
+  std::pair<int, double> min_subset = {-1, DBL_MAX};
+  for (int q = 0; q < problem.instance_.scenarios(); q++) {
+    double obj = problem.instance_.SPModel(q, problem.G_, problem.env_);
+    if (obj < min_subset.second) min_subset = {q, obj};
+  }
+  return min_subset.first;
 }
 
 AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
@@ -1597,7 +1610,8 @@ void RunAllInstancesInSetDirectory(const int min_policies,
   delete[] full_path;
 }
 
-std::string SolveAndPrintUninterdicted(const std::string& set_name, const ProblemInput& problem) {
+std::string SolveAndPrintUninterdicted(const std::string& set_name,
+                                       const ProblemInput& problem) {
   std::string final_csv_string = set_name;
   final_csv_string.append(",");
   final_csv_string.append(problem.instance_.name());
@@ -1622,7 +1636,8 @@ std::string SolveAndPrintUninterdicted(const std::string& set_name, const Proble
   // MIP Fill-in. (Put uninterdicted solution here).
   final_csv_string.append(",");
   final_csv_string.append(",");
-  final_csv_string.append(std::to_string(problem.instance_.SolveASPIZeroPolicies(problem.G_, problem.env_)));
+  final_csv_string.append(std::to_string(
+      problem.instance_.SolveASPIZeroPolicies(problem.G_, problem.env_)));
   final_csv_string.append(",");
   final_csv_string.append(",");
   final_csv_string.append(",");
@@ -1642,7 +1657,7 @@ std::string SolveAndPrintUninterdicted(const std::string& set_name, const Proble
   final_csv_string.append(",");
   final_csv_string.append(",");
   final_csv_string.append(",");
-  std::cout << problem.instance_.name() << " done." <<  std::endl;
+  std::cout << problem.instance_.name() << " done." << std::endl;
   return final_csv_string;
 }
 
