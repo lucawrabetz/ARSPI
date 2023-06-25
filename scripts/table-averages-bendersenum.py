@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 GOODRUNS = "~/Dropbox/aspi_good_data"
-CSVNAME = "follower_testbed_sm_final.csv"
+CSVNAME = "follower_testbed_final.csv"
 RUNPATH = os.path.join(GOODRUNS, CSVNAME)
 OUTNAME = "aspi_testbed_table-averages-enumbenders_latex.csv"
 OUTPATH = os.path.join(GOODRUNS, OUTNAME)
@@ -37,7 +37,7 @@ AVG_COLUMNS = ["k_zero",
            "scenarios","policies",
            # "MIP_time","MIP_gap",
            "BENDERS_time","BENDERS_gap","BENDERS_cuts_rounds",
-           "ENUMERATION_time",
+           "ENUMERATION_time", "ratio",
            # "GREEDY_time","approximation_ratio"
                ]
 
@@ -63,6 +63,7 @@ def round_columns(data):
     round_to_dp(data, "BENDERS_time", 2)
     round_to_dp(data, "ENUMERATION_time", 2)
     round_to_dp(data, "BENDERS_gap", 2)
+    round_to_dp(data, "ratio", 2)
     round_to_int(data, "BENDERS_objective")
     round_to_int(data, "ENUMERATION_objective")
 
@@ -76,6 +77,10 @@ def k_new_rows_for_instance(group, max_k):
         mean_df = df.mean()
         new_rows.append(mean_df)
     return new_rows
+
+def compute_ratio_column(data):
+    data["ratio"] = data["BENDERS_objective"] / data["ENUMERATION_objective"]
+    return data
 
 def take_averages(data):
     grouped_by_n = data.groupby(["nodes"])
@@ -94,6 +99,7 @@ if __name__=="__main__":
     run_df = pd.read_csv(RUNPATH)
     run_df.replace(",", "", regex=True, inplace=True)
     convert_numerical_to_float(run_df)
+    run_df = compute_ratio_column(run_df)
     avg_df = take_averages(run_df)
     convert_all_times(avg_df)
     round_columns(avg_df)
