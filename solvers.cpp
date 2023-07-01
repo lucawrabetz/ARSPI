@@ -1591,7 +1591,8 @@ void RunAllInstancesInSetDirectory(const int min_policies,
       for (int k = min_policies; k <= max_policies; k++) {
         for (int budget = min_budget; budget <= max_budget; budget++) {
           if (k > instance_input.scenarios_) break;
-          if (budget > graph_input.k_zero_) break;
+          // removing budget > k_zero check for now, because I want to run some instances of that type
+          // if (budget > graph_input.k_zero_) break;
           const ProblemInput problem(instance_input, k, budget, env);
           ProblemInput problem_copyable(instance_input, k, budget, env);
           std::cout << "RUNNING INSTANCE: " << problem.instance_.name()
