@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
   const int max_k = std::stoi(argv[3]);
   const int min_budget = std::stoi(argv[4]);
   const int max_budget = std::stoi(argv[5]);
-  const std::vector<ASPI_Solver> solvers{ENUMERATION, GREEDY};
+  const std::vector<ASPI_Solver> solvers{BENDERS, GREEDY};
   RunAllInstancesInSetDirectory(min_k, max_k, min_budget, max_budget, set_name,
                                 solvers);
 }
