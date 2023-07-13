@@ -1156,12 +1156,15 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
 }
 
 std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(
-    ProblemInput& problem, int q) {
+    ProblemInput& problem, int q, double mip_gap_threshold) {
   // Solve the nominal problem for follower q.
   std::vector<int> Update_vector{q};  // Vector with follower q.
   ProblemInput sub_problem(problem, Update_vector, 1);
   SetPartitioningBenders sub_benders(sub_problem);
   sub_benders.ConfigureSolver(sub_problem);
+  if ( mip_gap_threshold != -1 ) {
+    sub_benders.SetMIPGap(mip_gap_threshold); 
+  }
   AdaptiveSolution sol = sub_benders.Solve(sub_problem);
   if (sol.optimal())
     return {sol.worst_case_objective(), sol.solution()[0]};
@@ -1178,7 +1181,7 @@ int FirstFollowerInGreedyAlgorithm(ProblemInput& problem) {
   return min_subset.first;
 }
 
-AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
+AdaptiveSolution GreedyAlgorithm(ProblemInput& problem, double mip_gap_threshold) {
   // Solution in case we hit time limit.
   AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
   time_limit_solution.set_solution_time(TIME_LIMIT_MS);
@@ -1194,7 +1197,7 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
   // Solve problem for next follower, and add a new vector to objective matrix,
   // i.e. the objective value of the new policy interdicting each follower.
   std::pair<double, std::vector<double>> temp_single_solution =
-      SolveBendersInGreedyAlgorithm(problem, next_follower);
+      SolveBendersInGreedyAlgorithm(problem, next_follower, mip_gap_threshold);
   if (temp_single_solution.first == -1) return time_limit_solution;
   std::vector<double> new_objectives(problem.instance_.scenarios());
   for (int q = 0; q < problem.instance_.scenarios(); q++) {
@@ -1233,7 +1236,7 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
     // spi_model.Solve();
     //
     temp_single_solution =
-        SolveBendersInGreedyAlgorithm(problem, next_follower);
+        SolveBendersInGreedyAlgorithm(problem, next_follower, mip_gap_threshold);
     if (temp_single_solution.first == -1) return time_limit_solution;
     std::vector<double> new_objectives(problem.instance_.scenarios());
     for (int q = 0; q < problem.instance_.scenarios(); q++) {
@@ -1344,7 +1347,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
                               const ProblemInput& problem,
                               ProblemInput& problem_copyable,
                               const std::vector<ASPI_Solver>& solvers,
-                              int debug) {
+                              int debug, double greedy_mip_gap_threshold) {
   std::vector<double> adaptive_objectives;
   std::string final_csv_string = set_name;
   final_csv_string.append(",");
@@ -1469,7 +1472,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(std::to_string(enum_solution.solution_time()));
       log_line.append("ms ----- ");
     } else if (solver == GREEDY) {
-      AdaptiveSolution greedy_solution = GreedyAlgorithm(problem_copyable);
+      AdaptiveSolution greedy_solution = GreedyAlgorithm(problem_copyable, greedy_mip_gap_threshold);
       if (debug == 2)
         greedy_solution.LogSolution(problem, true);
       else if (debug == 1)
@@ -1514,7 +1517,7 @@ void RunAllInstancesInSetDirectory(const int min_policies,
                                    const int max_policies, const int min_budget,
                                    const int max_budget,
                                    const std::string& set_name,
-                                   const std::vector<ASPI_Solver>& solvers) {
+                                   const std::vector<ASPI_Solver>& solvers, double greedy_mip_gap_threshold) {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
   // Use seconds, since gurobi takes the parameter value in seconds.
   env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
@@ -1598,7 +1601,7 @@ void RunAllInstancesInSetDirectory(const int min_policies,
           std::cout << "RUNNING INSTANCE: " << problem.instance_.name()
                     << ", K = " << std::to_string(k) << std::endl;
           std::string result = SolveAndPrintTest(
-              set_name, problem, problem_copyable, solvers, DEBUG);
+              set_name, problem, problem_copyable, solvers, DEBUG, greedy_mip_gap_threshold);
           std::cout << std::endl;
           result_file << result << std::endl;
         }

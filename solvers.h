@@ -458,6 +458,7 @@ class SetPartitioningBenders {
         env_(problem.env_){};
   void ConfigureSolver(const ProblemInput& problem);
   AdaptiveSolution Solve(const ProblemInput& problem);
+  void SetMIPGap(double mip_gap) { benders_model_->set(GRB_DoubleParam_MIPGap, mip_gap); }
 
  private:
   const int big_m_;
@@ -474,7 +475,7 @@ class SetPartitioningBenders {
 
 AdaptiveSolution EnumSolve(ProblemInput& problem);
 
-AdaptiveSolution GreedyAlgorithm(ProblemInput& problem);
+AdaptiveSolution GreedyAlgorithm(ProblemInput& problem, double mip_gap_threshold);
 
 long GetCurrentTime();
 
@@ -497,13 +498,13 @@ std::string SolveAndPrintTest(const std::string& set_name,
                               const ProblemInput& problem,
                               ProblemInput& problem_copyable,
                               const std::vector<ASPI_Solver>& solvers,
-                              int debug = 0);
+                              int debug = 0, double greedy_mip_gap_threshold = -1);
 
 void RunAllInstancesInSetDirectory(const int min_policies,
                                    const int max_policies, const int min_budget,
                                    const int max_budget,
                                    const std::string& set_name,
-                                   const std::vector<ASPI_Solver>& solvers);
+                                   const std::vector<ASPI_Solver>& solvers, double greedy_mip_gap_threshold);
 
 void UninterdictedObjectiveForAllInstances(const std::string& set_name);
 

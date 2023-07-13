@@ -1,7 +1,18 @@
 #include "solvers.h"
 
 int main(int argc, char *argv[]) {
-  if (argc != 6) {
+  double greedy_mip_gap_threshold;
+  if (argc < 6) {
+    std::cout << argc << std::endl;
+    std::cout << "Please input set name, min policies, max policies, min "
+                 "budget and max budget."
+              << std::endl;
+    return 1;
+  } else if (argc == 6) {
+    greedy_mip_gap_threshold = -1;
+  } else if (argc == 7) {
+    greedy_mip_gap_threshold = std::stoi(argv[6]);
+  } else {
     std::cout << argc << std::endl;
     std::cout << "Please input set name, min policies, max policies, min "
                  "budget and max budget."
@@ -15,5 +26,5 @@ int main(int argc, char *argv[]) {
   const int max_budget = std::stoi(argv[5]);
   const std::vector<ASPI_Solver> solvers{MIP, BENDERS, ENUMERATION, GREEDY};
   RunAllInstancesInSetDirectory(min_k, max_k, min_budget, max_budget, set_name,
-                                solvers);
+                                solvers, greedy_mip_gap_threshold);
 }
