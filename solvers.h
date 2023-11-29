@@ -24,6 +24,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
 #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
 // #include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
@@ -458,7 +459,9 @@ class SetPartitioningBenders {
         env_(problem.env_){};
   void ConfigureSolver(const ProblemInput& problem);
   AdaptiveSolution Solve(const ProblemInput& problem);
-  void SetMIPGap(double mip_gap) { benders_model_->set(GRB_DoubleParam_MIPGap, mip_gap); }
+  void SetMIPGap(double mip_gap) {
+    benders_model_->set(GRB_DoubleParam_MIPGap, mip_gap);
+  }
 
  private:
   const int big_m_;
@@ -475,7 +478,8 @@ class SetPartitioningBenders {
 
 AdaptiveSolution EnumSolve(ProblemInput& problem);
 
-AdaptiveSolution GreedyAlgorithm(ProblemInput& problem, double mip_gap_threshold);
+AdaptiveSolution GreedyAlgorithm(ProblemInput& problem,
+                                 double mip_gap_threshold);
 
 long GetCurrentTime();
 
@@ -498,13 +502,15 @@ std::string SolveAndPrintTest(const std::string& set_name,
                               const ProblemInput& problem,
                               ProblemInput& problem_copyable,
                               const std::vector<ASPI_Solver>& solvers,
-                              int debug = 0, double greedy_mip_gap_threshold = -1);
+                              int debug = 0,
+                              double greedy_mip_gap_threshold = -1);
 
 void RunAllInstancesInSetDirectory(const int min_policies,
                                    const int max_policies, const int min_budget,
                                    const int max_budget,
                                    const std::string& set_name,
-                                   const std::vector<ASPI_Solver>& solvers, double greedy_mip_gap_threshold);
+                                   const std::vector<ASPI_Solver>& solvers,
+                                   double greedy_mip_gap_threshold);
 
 void UninterdictedObjectiveForAllInstances(const std::string& set_name);
 
