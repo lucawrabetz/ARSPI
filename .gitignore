@@ -40,7 +40,13 @@ dat/
 
 # personal makefile
 makefile
-=======
+
+# ASPI instance, raw experiment outputs, results, image plots (stored in Dropbox)
+instances/
+raw/
+results/
+images/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
