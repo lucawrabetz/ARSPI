@@ -2,49 +2,78 @@ import os
 import argparse
 import pandas as pd
 
+# Names of experiment instance sets.
+ALL_INSTANCES = 'experiment_allalgorithms'
+BE_INSTANCES = 'experiment_bendersenum'
+LAYERRATIO_INSTANCES = 'experiment_layerratio'
+
+# Names of experiment output types.
+ALL_TYPENAME = 'all_algorithms'
+BE_TYPENAME = 'benders_enum'
+
 # Decimal points to be rounded to for decimal columns.
 DP = 2
-BE_ratio = True
-EXACT_SOLVERS = [
-    #    'MIP',
-    'BENDERS',
-    'ENUMERATION'
-]
-APPROXIMATE_SOLVERS = [
-    #    'GREEDY'
-]
-SOLVERS = EXACT_SOLVERS + APPROXIMATE_SOLVERS
 
-TIME_COLUMNS = [solver + '_time' for solver in SOLVERS]
-PARAM_COLUMNS = ['k_zero', 'nodes', 'arcs', 'scenarios', 'policies']
-OBJECTIVE_COLUMNS = [solver + '_objective' for solver in SOLVERS]
-INT_COLUMNS = PARAM_COLUMNS + OBJECTIVE_COLUMNS
+class OutputStructure:
+    """
+    Object to abstract misc params + columns about the output.
+    Args:
+        exp_type: experiment type (e.g. 'all_algorithms')
+    Attributes:
+        BE_ratio (bool)
+        approximation_ratio (bool)
+        sp_column (str)
+        solvers (list[str])
+        exact_solvers (list[str])
+        time_columns (list[str])
+        input_columns (list[str])
+        int_columns (list[str])
+        increment_columns (list[str])
+        rational_columns (list[str])
+        output_columns (list[str])
+    """
+    def __init__(self, exp_type):
+        self.BE_ratio = False
+        self.approximation_ratio = True
+        self.sp_column = 'MIP_objective'
+        if exp_type == BE_TYPENAME:
+            self.BE_ratio = True
+            self.sp_column = 'BENDERS_objective'
+        self.solvers = []
+        if exp_type == ALL_TYPENAME:
+            self.solvers.append('MIP')
+        self.solvers.extend(['BENDERS', 'ENUMERATION', 'GREEDY'])
+        self.exact_solvers = [sol for sol in self.solvers if sol != 'GREEDY']
 
-INCREMENT_COLUMNS = [solver + '_adaptiveincrement' for solver in SOLVERS]
-DECIMAL_COLUMNS = INCREMENT_COLUMNS + TIME_COLUMNS
+        self.time_columns = [sol + '_time' for sol in self.solvers]
+        self.input_columns = ['k_zero', 'nodes', 'arcs', 'scenarios', 'policies']
+        self.objective_columns = [sol + '_objective' for sol in self.solvers]
+        self.int_columns = self.input_columns + self.objective_columns
 
-MIP_OUT = ['MIP_time', 'MIP_gap', 'MIP_adaptiveincrement']
-BENDERS_OUT = ['BENDERS_time', 'BENDERS_gap',
-               'BENDERS_cuts_rounds', 'BENDERS_adaptiveincrement']
-ENUMERATION_OUT = ['ENUMERATION_time', 'ENUMERATION_adaptiveincrement']
-GREEDY_OUT = ['GREEDY_time', 'approximation_ratio', 'GREEDY_adaptiveincrement']
-OUTPUT_COLUMNS = PARAM_COLUMNS
+        self.increment_columns = [sol + '_adaptiveincrement' for sol in self.solvers]
+        self.rational_columns = self.increment_columns + self.time_columns
+        MIP_OUT = ['MIP_time', 'MIP_gap', 'MIP_adaptiveincrement']
+        BENDERS_OUT = ['BENDERS_time', 'BENDERS_gap',
+                       'BENDERS_cuts_rounds', 'BENDERS_adaptiveincrement']
+        ENUMERATION_OUT = ['ENUMERATION_time', 'ENUMERATION_adaptiveincrement']
+        GREEDY_OUT = ['GREEDY_time', 'approximation_ratio', 'GREEDY_adaptiveincrement']
+        self.output_columns = self.input_columns
 
-if 'MIP' in SOLVERS:
-    OUTPUT_COLUMNS.extend(MIP_OUT)
-    DECIMAL_COLUMNS.append('MIP_gap')
-if 'BENDERS' in SOLVERS:
-    OUTPUT_COLUMNS.extend(BENDERS_OUT)
-    DECIMAL_COLUMNS.append('BENDERS_cuts_rounds')
-    DECIMAL_COLUMNS.append('BENDERS_gap')
-if 'ENUMERATION' in SOLVERS:
-    OUTPUT_COLUMNS.extend(ENUMERATION_OUT)
-if 'GREEDY' in SOLVERS:
-    DECIMAL_COLUMNS.append('approximation_ratio')
-    OUTPUT_COLUMNS.extend(GREEDY_OUT)
-if BE_ratio:
-    DECIMAL_COLUMNS.append('BE_ratio')
-    OUTPUT_COLUMNS.append('BE_ratio')
+        if 'MIP' in self.solvers:
+            self.output_columns.extend(MIP_OUT)
+            self.rational_columns.append('MIP_gap')
+        if 'BENDERS' in self.solvers:
+            self.output_columns.extend(BENDERS_OUT)
+            self.rational_columns.append('BENDERS_cuts_rounds')
+            self.rational_columns.append('BENDERS_gap')
+        if 'ENUMERATION' in self.solvers:
+            self.output_columns.extend(ENUMERATION_OUT)
+        if self.BE_ratio:
+            self.output_columns.append('BE_ratio')
+            self.rational_columns.append('BE_ratio')
+        if 'GREEDY' in self.solvers:
+            self.rational_columns.append('approximation_ratio')
+            self.output_columns.extend(GREEDY_OUT)
 
 
 def ms_to_s(df, col):
@@ -54,45 +83,45 @@ def ms_to_s(df, col):
     df[col] = df[col].div(1000)
 
 
-def round_int_columns(df):
+def round_int_columns(df, out):
     '''
     Round all integer columns.
     '''
-    for col in INT_COLUMNS:
+    for col in out.int_columns:
         df[col] = df[col].astype(int)
 
 
-def convert_all_times(df):
+def convert_all_times(df, out):
     '''
     Convert all time columns to s.
     '''
-    for col in TIME_COLUMNS:
+    for col in out.time_columns:
         ms_to_s(df, col)
 
 
-def round_dp_columns(df):
+def round_dp_columns(df, out):
     '''
     Round all decimal columns to DP decimal points.
     '''
-    for col in DECIMAL_COLUMNS:
+    for col in out.rational_columns:
         df[col] = df[col].astype(float)
         df[col] = df[col].round(DP)
 
 
-def post_cleanup(df):
+def post_cleanup(df, out):
     '''
     Complete any final rounding, units conversions.
     '''
-    round_int_columns(df)
-    convert_all_times(df)
-    round_dp_columns(df)
+    round_int_columns(df, out)
+    convert_all_times(df, out)
+    round_dp_columns(df, out)
 
 
-def compute_approximation_ratio(df):
+def compute_approximation_ratio(df, out):
     '''
     Compute empirical approximation ratio using an exact solution.
     '''
-    exact_columns = [solver + '_objective' for solver in EXACT_SOLVERS]
+    exact_columns = [solver + '_objective' for solver in out.exact_solvers]
     max_exact_objective = df[exact_columns].max(axis=1)
     df['approximation_ratio'] = df['GREEDY_objective'] / max_exact_objective
 
@@ -110,13 +139,13 @@ def add_shortest_path_column(df, objective_col):
     df['shortest_path'] = df['instance_name'].map(shortest_paths_dict)
 
 
-def compute_adaptive_increment(df, objective_col='MIP_objective'):
+def compute_adaptive_increment(df, out):
     '''
     Compute the 'adaptive increment', that is, the ratio between the objective value of a solution and the uninterdicted shortest path for that instance.
     Compute this for every solver's output as passed in the parameter solvers, and add it as a new column solver+'_adaptiveincrement' for each.
     '''
-    add_shortest_path_column(df, objective_col)
-    for solver in SOLVERS:
+    add_shortest_path_column(df, out.sp_column)
+    for solver in out.solvers:
         newcolumnname = solver + '_adaptiveincrement'
         objectivecolumnname = solver + '_objective'
         df[newcolumnname] = df[objectivecolumnname] / df['shortest_path']
@@ -165,26 +194,31 @@ def read_results_data(args):
     return df
 
 
-def write_latex_table(args, df):
+def write_latex_table(args, df, out):
     latex_csv = args.set_name[0] + '-latex.csv'
     latex_csv_path = os.path.join('results', latex_csv)
     df.to_csv(path_or_buf=latex_csv_path, sep='&',
-              columns=OUTPUT_COLUMNS, index=False)
+              columns=out.output_columns, index=False)
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Create a latex table from a results csv.')
-    parser.add_argument('set_name', metavar='S', type=str, nargs=1,
-                        help='name of experiment')
+        prog='AspiLatexTable',
+        description='Create a latex table from a results csv for an Aspi computational experiment.')
+    parser.add_argument('set_name', metavar='S', type=str, nargs=1, default=ALL_INSTANCES,
+                        choices=[ALL_INSTANCES, BE_INSTANCES, LAYERRATIO_INSTANCES],
+                        help='name of experiment set - ' + ALL_INSTANCES + ' or ' + BE_INSTANCES + ' or ' + LAYERRATIO_INSTANCES)
+    parser.add_argument('experiment_type', metavar='E', type=str, nargs=1, default=ALL_TYPENAME,
+                        choices=[ALL_TYPENAME, BE_TYPENAME],
+                        help='name of experiment type - ' + ALL_TYPENAME + ' or ' + BE_TYPENAME)
     args = parser.parse_args()
     run_df = read_results_data(args)
-    # compute_approximation_ratio(run_df)
-    compute_adaptive_increment(run_df, objective_col='BENDERS_objective')
-    compute_bendersenum_ratio(run_df)
+    out_structure = OutputStructure(args.experiment_type[0])
+    if out_structure.approximation_ratio: compute_approximation_ratio(run_df, out_structure)
+    compute_adaptive_increment(run_df, out_structure)
+    if out_structure.BE_ratio: compute_bendersenum_ratio(run_df)
     avg_df = take_averages(run_df)
-    post_cleanup(avg_df)
-
-    write_latex_table(args, avg_df)
+    post_cleanup(avg_df, out_structure)
+    write_latex_table(args, avg_df, out_structure)
 
 
 if __name__ == "__main__":
