@@ -171,43 +171,6 @@ def write_latex_table(args, df):
     df.to_csv(path_or_buf=latex_csv_path, sep='&',
               columns=OUTPUT_COLUMNS, index=False)
 
-
-# ALLCOLUMNS = ["set_name", "instance_name", "nodes", "arcs", "k_zero", "density", "scenarios", "budget", "policies",
-#               "MIP_OPTIMAL", "MIP_objective", "MIP_gap", "MIP_time", "MIP_partition",
-#               "BENDERS_OPTIMAL", "BENDERS_objective", "BENDERS_gap", "BENDERS_time", "BENDERS_cuts_rounds", "BENDERS_partition",
-#               "ENUMERATION_OPTIMAL", "ENUMERATION_objective", "ENUMERATION_time", "ENUMERATION_partition",
-#               "GREEDY_objective", "GREEDY_time", "GREEDY_partition"
-#               ]
-#
-# # output columns
-# COLUMNS = ["k_zero",
-#            "nodes", "arcs",
-#            "scenarios", "policies",
-#            "MIP_objective", "MIP_time", "MIP_gap",
-#            "BENDERS_objective", "BENDERS_time", "BENDERS_gap", "BENDERS_cuts_rounds",
-#            "ENUMERATION_objective", "ENUMERATION_time",
-#            "GREEDY_objective", "GREEDY_time", "approximation_ratio"]
-#
-# NUM_COLUMNS = ["MIP_objective", "MIP_time", "MIP_gap", "MIP_adaptiveincrement",
-#                "BENDERS_objective", "BENDERS_time", "BENDERS_gap", "BENDERS_cuts_rounds", "BENDERS_adaptiveincrement",
-#                "ENUMERATION_objective", "ENUMERATION_time", "ENUMERATION_adaptiveincrement",
-#                "GREEDY_objective", "GREEDY_time", "approximation_ratio", "GREEDY_adaptiveincrement"]
-#
-# # output columns for averages
-# AVG_COLUMNS = ["k_zero",
-#                "nodes", "arcs",
-#                "scenarios", "policies",
-#                "MIP_time", "MIP_gap", "MIP_adaptiveincrement",
-#                "BENDERS_time", "BENDERS_gap", "BENDERS_cuts_rounds", "BENDERS_adaptiveincrement",
-#                "ENUMERATION_time", "ENUMERATION_adaptiveincrement",
-#                "GREEDY_time", "approximation_ratio", "GREEDY_adaptiveincrement"]
-
-
-# def convert_numerical_to_float(data):
-#     for col in NUM_COLUMNS:
-#         data[col] = data[col].astype(float)
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='Create a latex table from a results csv.')
@@ -215,11 +178,9 @@ def main():
                         help='name of experiment')
     args = parser.parse_args()
     run_df = read_results_data(args)
-    # run_df.replace(",", "", regex=True, inplace=True)
     # compute_approximation_ratio(run_df)
     compute_adaptive_increment(run_df, objective_col='BENDERS_objective')
     compute_bendersenum_ratio(run_df)
-    # convert_numerical_to_float(run_df)
     avg_df = take_averages(run_df)
     post_cleanup(avg_df)
 
