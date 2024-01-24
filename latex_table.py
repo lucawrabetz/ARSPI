@@ -193,12 +193,25 @@ def read_results_data(args):
     df = pd.read_csv(csvpath)
     return df
 
-
 def write_latex_table(args, df, out):
     latex_csv = args.set_name[0] + '-latex.csv'
     latex_csv_path = os.path.join('results', latex_csv)
     df.to_csv(path_or_buf=latex_csv_path, sep='&',
               columns=out.output_columns, index=False)
+    return latex_csv_path
+
+def final_table_cleanup(path):
+    output_path = path.split('.')[0] + '-clean.csv'
+
+    with open(path, 'r') as input_file, open(output_path, 'w') as output_file:
+        # Read and write the header without modification
+        header = input_file.readline().strip()
+        output_file.write(header + '\n')
+        # Process the rest of the lines
+        for line in input_file:
+            # Strip any leading or trailing whitespace, and append '\\'
+            modified_line = line.strip() + '\\\\'
+            output_file.write(modified_line + '\n')
 
 def main():
     parser = argparse.ArgumentParser(
@@ -218,7 +231,8 @@ def main():
     if out_structure.BE_ratio: compute_bendersenum_ratio(run_df)
     avg_df = take_averages(run_df)
     post_cleanup(avg_df, out_structure)
-    write_latex_table(args, avg_df, out_structure)
+    latex_table_path = write_latex_table(args, avg_df, out_structure)
+    final_table_cleanup(latex_table_path)
 
 
 if __name__ == "__main__":
