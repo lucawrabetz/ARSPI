@@ -37,7 +37,7 @@ enumbenders:
 enumtest:
 	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)enumtest enumtest.cpp -I$(GRBINC) $(CPPLIB) 
 
-miptest:
+mip:
 	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)mip mip.cpp -I$(GRBINC) $(CPPLIB) 
 
 miptest:
