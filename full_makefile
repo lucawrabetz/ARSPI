@@ -22,13 +22,30 @@ format:
 zeropolicies:
 	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)zeropolicies zeropolicies.cpp -I$(GRBINC) $(CPPLIB) 
 
+benders:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)benders benders.cpp -I$(GRBINC) $(CPPLIB) 
+
+greedy:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)greedy greedy.cpp -I$(GRBINC) $(CPPLIB) 
+
 runall:
 	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)runall runall.cpp -I$(GRBINC) $(CPPLIB) 
+
+enumbenders:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)enumbenders enumbenders.cpp -I$(GRBINC) $(CPPLIB) 
+
+enumtest:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)enumtest enumtest.cpp -I$(GRBINC) $(CPPLIB) 
+
+miptest:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)mip mip.cpp -I$(GRBINC) $(CPPLIB) 
+
+miptest:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)miptest miptest.cpp -I$(GRBINC) $(CPPLIB) 
 
 test:
 	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)test test.cpp -I$(GRBINC) $(CPPLIB) 
 
 clean:
 	rm -rf *.lp *.o $(BIN)*.dSYM $(BIN)main $(BIN)test
-
 
