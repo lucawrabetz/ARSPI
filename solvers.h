@@ -15,6 +15,7 @@
 #include <cstring>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <limits>
 #include <queue>
 #include <random>
@@ -505,12 +506,11 @@ std::string SolveAndPrintTest(const std::string& set_name,
                               int debug = 0,
                               double greedy_mip_gap_threshold = -1);
 
-void RunAllInstancesInSetDirectory(const int min_policies,
-                                   const int max_policies, const int min_budget,
-                                   const int max_budget,
-                                   const std::string& set_name,
-                                   const std::vector<ASPI_Solver>& solvers,
-                                   double greedy_mip_gap_threshold);
+void RunAllInstancesInSetDirectory(
+    const int min_policies, const int max_policies, const int min_budget,
+    const int max_budget, const std::string& set_name,
+    const std::vector<ASPI_Solver>& solvers, int manual_symmetry_constraints,
+    int gurobi_symmetry_detection, double greedy_mip_gap_threshold = 0);
 
 void UninterdictedObjectiveForAllInstances(const std::string& set_name);
 

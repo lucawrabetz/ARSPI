@@ -1516,12 +1516,12 @@ std::string SolveAndPrintTest(const std::string& set_name,
   return final_csv_string;
 }
 
-void RunAllInstancesInSetDirectory(const int min_policies,
-                                   const int max_policies, const int min_budget,
-                                   const int max_budget,
-                                   const std::string& set_name,
-                                   const std::vector<ASPI_Solver>& solvers,
-                                   double greedy_mip_gap_threshold) {
+// TODO: Add consequence of symmetry parameters being passed, manual and gurobi.
+void RunAllInstancesInSetDirectory(
+    const int min_policies, const int max_policies, const int min_budget,
+    const int max_budget, const std::string& set_name,
+    const std::vector<ASPI_Solver>& solvers, int manual_symmetry_constraints,
+    int gurobi_symmetry_detection, double greedy_mip_gap_threshold) {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
   // Use seconds, since gurobi takes the parameter value in seconds.
   env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
