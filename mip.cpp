@@ -9,7 +9,8 @@ void usage(char* name) {
       << "    [-m]: manual symmetric constraints (pass 0 for none, 1 for "
          "assignment constraints, or 2 for non-decreasing cluster constraints)"
       << std::endl;
-  std::cout << "    [-g]: gurobi symmetry detection (pass 0 for off, 1 "
+  std::cout << "    [-g]: gurobi symmetry detection (pass -1 for automatic, 0 "
+               "for off, 1 "
                "for conservative, or 2 for aggressive)"
             << std::endl;
 }
@@ -19,7 +20,7 @@ void runfile_instructions(bool param_error = false) {
   if (param_error) {
     std::cout
         << "    check your parameters: (min_policies -- max_policies) and "
-           "(min_budget -- max_budget) should represent logical "
+           "(min_budget -- max_budget) should represent "
            "non-decreasing ranges"
         << std::endl;
     return;
@@ -40,7 +41,8 @@ int main(int argc, char* argv[]) {
                                         // constraints, 2 = non-decreasing
                                         // cluster constraints. Default to 0.
   int gurobi_symmetry_detection =
-      0;  // 0 = off, 1 = conservative, 2 = aggressive. Default to 0.
+      -1;  // -1 for automatic, 0 = off, 1 = conservative, 2 = aggressive.
+           // Default to -1.
   if (argc < 2) {
     usage(argv[0]);
     return 1;
@@ -138,8 +140,8 @@ int main(int argc, char* argv[]) {
       if (strcmp(argv[i], "-g") == 0) {
         i++;
         int arg = std::stoi(argv[i]);
-        if (arg > 2 || arg < 0) {
-          // Gurobi symmetry detection parameter should be 0, 1, or 2.
+        if (arg > 2 || arg < -1) {
+          // Gurobi symmetry detection parameter should be -1, 0, 1, or 2.
           usage(argv[0]);
           return 1;
         }
