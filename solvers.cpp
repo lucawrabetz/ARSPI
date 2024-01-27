@@ -1157,14 +1157,14 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
 }
 
 std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(
-    ProblemInput& problem, int q, double mip_gap_threshold) {
+    ProblemInput& problem, int q) {
   // Solve the nominal problem for follower q.
   std::vector<int> Update_vector{q};  // Vector with follower q.
   ProblemInput sub_problem(problem, Update_vector, 1);
   SetPartitioningBenders sub_benders(sub_problem);
   sub_benders.ConfigureSolver(sub_problem);
-  if (mip_gap_threshold != -1) {
-    sub_benders.SetMIPGap(mip_gap_threshold);
+  if (problem.greedy_mip_gap_threshold_ != -1) {
+    sub_benders.SetMIPGap(problem.greedy_mip_gap_threshold_);
   }
   AdaptiveSolution sol = sub_benders.Solve(sub_problem);
   if (sol.optimal())
@@ -1182,8 +1182,7 @@ int FirstFollowerInGreedyAlgorithm(ProblemInput& problem) {
   return min_subset.first;
 }
 
-AdaptiveSolution GreedyAlgorithm(ProblemInput& problem,
-                                 double mip_gap_threshold) {
+AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
   // Solution in case we hit time limit.
   AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
   time_limit_solution.set_solution_time(TIME_LIMIT_MS);
@@ -1199,7 +1198,7 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem,
   // Solve problem for next follower, and add a new vector to objective matrix,
   // i.e. the objective value of the new policy interdicting each follower.
   std::pair<double, std::vector<double>> temp_single_solution =
-      SolveBendersInGreedyAlgorithm(problem, next_follower, mip_gap_threshold);
+      SolveBendersInGreedyAlgorithm(problem, next_follower);
   if (temp_single_solution.first == -1) return time_limit_solution;
   std::vector<double> new_objectives(problem.instance_.scenarios());
   for (int q = 0; q < problem.instance_.scenarios(); q++) {
@@ -1237,8 +1236,8 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem,
     // std::pair<double, std::vector<double>> temp_single_solution =
     // spi_model.Solve();
     //
-    temp_single_solution = SolveBendersInGreedyAlgorithm(problem, next_follower,
-                                                         mip_gap_threshold);
+    temp_single_solution =
+        SolveBendersInGreedyAlgorithm(problem, next_follower);
     if (temp_single_solution.first == -1) return time_limit_solution;
     std::vector<double> new_objectives(problem.instance_.scenarios());
     for (int q = 0; q < problem.instance_.scenarios(); q++) {
@@ -1349,7 +1348,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
                               const ProblemInput& problem,
                               ProblemInput& problem_copyable,
                               const std::vector<ASPI_Solver>& solvers,
-                              int debug, double greedy_mip_gap_threshold) {
+                              int debug) {
   std::vector<double> adaptive_objectives;
   std::string final_csv_string = set_name;
   final_csv_string.append(",");
@@ -1474,8 +1473,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(std::to_string(enum_solution.solution_time()));
       log_line.append("ms ----- ");
     } else if (solver == GREEDY) {
-      AdaptiveSolution greedy_solution =
-          GreedyAlgorithm(problem_copyable, greedy_mip_gap_threshold);
+      AdaptiveSolution greedy_solution = GreedyAlgorithm(problem_copyable);
       if (debug == 2)
         greedy_solution.LogSolution(problem, true);
       else if (debug == 1)
@@ -1600,13 +1598,16 @@ void RunAllInstancesInSetDirectory(
           if (k > instance_input.scenarios_) break;
           // removing budget > k_zero check for now, because I want to run some
           // instances of that type if (budget > graph_input.k_zero_) break;
-          const ProblemInput problem(instance_input, k, budget, env);
-          ProblemInput problem_copyable(instance_input, k, budget, env);
+          const ProblemInput problem(
+              instance_input, k, budget, env, manual_symmetry_constraints,
+              gurobi_symmetry_detection, greedy_mip_gap_threshold);
+          ProblemInput problem_copyable(
+              instance_input, k, budget, env, manual_symmetry_constraints,
+              gurobi_symmetry_detection, greedy_mip_gap_threshold);
           std::cout << "RUNNING INSTANCE: " << problem.instance_.name()
                     << ", K = " << std::to_string(k) << std::endl;
-          std::string result =
-              SolveAndPrintTest(set_name, problem, problem_copyable, solvers,
-                                DEBUG, greedy_mip_gap_threshold);
+          std::string result = SolveAndPrintTest(
+              set_name, problem, problem_copyable, solvers, DEBUG);
           std::cout << std::endl;
           result_file << result << std::endl;
         }
@@ -1733,7 +1734,12 @@ void UninterdictedObjectiveForAllInstances(const std::string& set_name) {
       int id = scenarios_id.second;
       GraphInput graph_input(set_name, nodes, kzero);
       InstanceInput instance_input(graph_input, scenarios, id);
-      const ProblemInput problem(instance_input, 0, 0, env);
+      const ProblemInput problem(
+          instance_input, /*policies=*/0, /*budget=*/0, env,
+          /*manual_symmetry_constraints=*/
+          MANUAL_SYMMETRY_NONE,
+          /*gurobi_symmetry_detection=*/GUROBI_SYMMETRY_AUTO,
+          /*greedy_mip_gap_threshold=*/0);
       std::string result = SolveAndPrintUninterdicted(set_name, problem);
       std::cout << std::endl;
       result_file << result << std::endl;

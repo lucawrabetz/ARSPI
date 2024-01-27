@@ -1,5 +1,3 @@
-#include <complex>
-
 #include "solvers.h"
 
 void usage(char* name) {
@@ -37,12 +35,15 @@ void runfile_instructions(bool param_error = false) {
 }
 
 int main(int argc, char* argv[]) {
-  int manual_symmetry_constraints = 0;  // 0 = none, 1 = assignment type
-                                        // constraints, 2 = non-decreasing
-                                        // cluster constraints. Default to 0.
+  int manual_symmetry_constraints =
+      MANUAL_SYMMETRY_NONE;  // (Constants defined in solvers.h) - 0 = none, 1 =
+                             // assignment type constraints, 2 = non-decreasing
+                             // cluster constraints. Default to 0.
   int gurobi_symmetry_detection =
       -1;  // -1 for automatic, 0 = off, 1 = conservative, 2 = aggressive.
            // Default to -1.
+  double greedy_mip_gap_threshold = -1;  // Always -1 (causes it to be ignored
+                                         // in the greedy algorithm) for now.
   if (argc < 2) {
     usage(argv[0]);
     return 1;
@@ -152,5 +153,6 @@ int main(int argc, char* argv[]) {
   const std::vector<ASPI_Solver> solvers{MIP};
   RunAllInstancesInSetDirectory(
       min_policies, max_policies, min_budget, max_budget, set_name, solvers,
-      manual_symmetry_constraints, gurobi_symmetry_detection);
+      manual_symmetry_constraints, gurobi_symmetry_detection,
+      greedy_mip_gap_threshold);
 }

@@ -35,6 +35,17 @@ typedef std::numeric_limits<double> dbl;
 
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
 
+// Manual MIP symmetry constraint parameters.
+const int MANUAL_SYMMETRY_NONE = 0;  // Default.
+const int MANUAL_SYMMETRY_ASSIGNMENT = 1;
+const int MANUAL_SYMMETRY_NONDECREASING = 2;
+
+// Gurobi MIP symmetry parameters.
+const int GUROBI_SYMMETRY_AUTO = -1;  // Default.
+const int GUROBI_SYMMETRY_NONE = 0;
+const int GUROBI_SYMMETRY_CONSERVATIVE = 1;
+const int GUROBI_SYMMETRY_AGGRESSIVE = 2;
+
 const double EPSILON = 0.000001;
 const int DEBUG = 0;
 
@@ -187,13 +198,17 @@ class AdaptiveInstance {
 class ProblemInput {
  public:
   ProblemInput(const InstanceInput& instance_input, int policies, int budget,
-               GRBEnv* env)
+               GRBEnv* env, int manual_symmetry_constraints,
+               int gurobi_symmetry_detection, double greedy_mip_gap_threshold)
       : G_(Graph(instance_input.graph_input_.FileName(),
                  instance_input.graph_input_.nodes_)),
         instance_(AdaptiveInstance(instance_input)),
         policies_(policies),
         budget_(budget),
         k_zero_(instance_input.graph_input_.k_zero_),
+        manual_symmetry_constraints_(manual_symmetry_constraints),
+        gurobi_symmetry_detection_(gurobi_symmetry_detection),
+        greedy_mip_gap_threshold_(greedy_mip_gap_threshold),
         env_(env) {
     instance_.ReadCosts();
   }
@@ -204,11 +219,18 @@ class ProblemInput {
         policies_(policies),
         budget_(problem_input.budget_),
         k_zero_(problem_input.k_zero_),
+        manual_symmetry_constraints_(
+            problem_input.manual_symmetry_constraints_),
+        gurobi_symmetry_detection_(problem_input.gurobi_symmetry_detection_),
+        greedy_mip_gap_threshold_(problem_input.greedy_mip_gap_threshold_),
         env_(problem_input.env_) {}
   void WriteLineToLogFile();
   const Graph G_;
   AdaptiveInstance instance_;
   int policies_, budget_, k_zero_;
+  int manual_symmetry_constraints_;
+  int gurobi_symmetry_detection_;
+  double greedy_mip_gap_threshold_;
   GRBEnv* env_;
 };
 
@@ -479,8 +501,7 @@ class SetPartitioningBenders {
 
 AdaptiveSolution EnumSolve(ProblemInput& problem);
 
-AdaptiveSolution GreedyAlgorithm(ProblemInput& problem,
-                                 double mip_gap_threshold);
+AdaptiveSolution GreedyAlgorithm(ProblemInput& problem);
 
 long GetCurrentTime();
 
@@ -503,14 +524,13 @@ std::string SolveAndPrintTest(const std::string& set_name,
                               const ProblemInput& problem,
                               ProblemInput& problem_copyable,
                               const std::vector<ASPI_Solver>& solvers,
-                              int debug = 0,
-                              double greedy_mip_gap_threshold = -1);
+                              int debug = 0);
 
 void RunAllInstancesInSetDirectory(
     const int min_policies, const int max_policies, const int min_budget,
     const int max_budget, const std::string& set_name,
     const std::vector<ASPI_Solver>& solvers, int manual_symmetry_constraints,
-    int gurobi_symmetry_detection, double greedy_mip_gap_threshold = 0);
+    int gurobi_symmetry_detection, double greedy_mip_gap_threshold);
 
 void UninterdictedObjectiveForAllInstances(const std::string& set_name);
 
