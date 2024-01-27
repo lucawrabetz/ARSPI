@@ -262,6 +262,10 @@ void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
   try {
     sp_model_ = new GRBModel(*env_);
     sp_model_->set(GRB_IntParam_OutputFlag, 0);
+    // Gurobi Symmetry parameters.
+    if (problem.gurobi_symmetry_detection_ != GUROBI_SYMMETRY_AUTO) {
+      sp_model_->set(GRB_IntParam_Symmetry, problem.gurobi_symmetry_detection_);
+    }
     // Set partitioning variables.
     std::vector<GRBVar> new_vector;
     for (int w = 0; w < policies_; ++w) {
