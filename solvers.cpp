@@ -385,6 +385,35 @@ void SetPartitioningModel::AddRootNodeZeroConstraint() {
   }
 }
 
+void SetPartitioningModel::AddAssignmentSymmetryConstraints() {
+  for (int q = 0; q < policies_; q++) {
+    GRBLinExpr linexpr = 0;
+    for (int w = 0; w <= q; w++) {
+      linexpr += h_var_[w][q];
+    }
+    sp_model_->addConstr(linexpr == 1);
+  }
+}
+
+void SetPartitioningModel::AddNonDecreasingSymmetryConstraints() {}
+
+void SetPartitioningModel::ProcessInputSymmetryParameters(
+    const ProblemInput& problem) {
+  // Gurobi Symmetry parameters.
+  if (problem.gurobi_symmetry_detection_ != GUROBI_SYMMETRY_AUTO) {
+    sp_model_->set(GRB_IntParam_Symmetry, problem.gurobi_symmetry_detection_);
+  }
+  // Manual Symmetry constraints.
+  if (problem.manual_symmetry_constraints_ == MANUAL_SYMMETRY_ASSIGNMENT) {
+    AddAssignmentSymmetryConstraints();
+  }
+  if (problem.manual_symmetry_constraints_ == MANUAL_SYMMETRY_NONDECREASING) {
+    AddNonDecreasingSymmetryConstraints();
+  }
+  // if problem.manual_symmetry_constraints_ == MANUAL_SYMMETRY_NONE: do
+  // nothing.
+}
+
 void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
   try {
     sp_model_ = new GRBModel(*env_);
@@ -394,16 +423,13 @@ void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
     AddInterdictionPolicyVariables();
     AddObjectiveValueLinearizedVariable();
     AddDualLambdaArcVariable();
-    // Add base constraints.
+    // Add model constraints.
     AddBudgetConstraint();
     AddObjectiveBoundingConstraint();
     AddArcCostBoundingConstraint(problem);
     AddSetPartitioningConstraint();
     AddRootNodeZeroConstraint();
-    // Gurobi Symmetry parameters.
-    if (problem.gurobi_symmetry_detection_ != GUROBI_SYMMETRY_AUTO) {
-      sp_model_->set(GRB_IntParam_Symmetry, problem.gurobi_symmetry_detection_);
-    }
+    ProcessInputSymmetryParameters(problem);
     sp_model_->update();
   } catch (GRBException e) {
     std::cout << "Gurobi error number [SetPartitioningModel::ConfigureSolver]: "

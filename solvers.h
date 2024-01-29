@@ -403,6 +403,9 @@ class SetPartitioningModel {
   void AddArcCostBoundingConstraint(const ProblemInput& problem);
   void AddSetPartitioningConstraint();
   void AddRootNodeZeroConstraint();
+  void AddAssignmentSymmetryConstraints();
+  void AddNonDecreasingSymmetryConstraints();
+  void ProcessInputSymmetryParameters(const ProblemInput& problem);
   const int big_m_;
   int scenarios_, policies_, budget_, nodes_, arcs_;
   GRBEnv* env_;
