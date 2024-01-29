@@ -23,11 +23,10 @@ void runfile_instructions(bool param_error = false) {
         << std::endl;
     return;
   }
-  std::cout
-      << "    please provide a file dat/<setname>_run.txt in the root project "
-         "directory with four lines, each containing an integer representing "
-         "the following parameters, in the following order:"
-      << std::endl;
+  std::cout << "    please provide a file dat/<setname>_run.txt "
+               "with four lines, each containing an integer representing "
+               "the following parameters, in the following order:"
+            << std::endl;
   std::cout << "    <min_policies>" << std::endl;
   std::cout << "    <max_policies>" << std::endl;
   std::cout << "    <min_budget>" << std::endl;
