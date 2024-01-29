@@ -116,6 +116,7 @@ int main(int argc, char* argv[]) {
   }
   if (argc > 2) {
     if (argc == 3 || argc == 5) {
+      std::cout << "argc: " << argc << std::endl;
       // If optional args -m or -g are passed, they must also have a value.
       // So argc should be 2 (if neither are passed) or 4 or 6.
       usage(argv[0]);
@@ -149,7 +150,7 @@ int main(int argc, char* argv[]) {
       }
     }
   }
-  const std::vector<ASPI_Solver> solvers{MIP, BENDERS, ENUMERATION, GREEDY};
+  const std::vector<ASPI_Solver> solvers{MIP};
   RunAllInstancesInSetDirectory(
       min_policies, max_policies, min_budget, max_budget, set_name, solvers,
       manual_symmetry_constraints, gurobi_symmetry_detection,

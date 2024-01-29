@@ -258,115 +258,189 @@ double AdaptiveInstance::ValidatePolicy(std::vector<double>& x_bar,
   return objective;
 }
 
+void SetPartitioningModel::AddSetPartitioningVariables() {
+  // Set partitioning variables.
+  std::vector<GRBVar> new_vector;
+  for (int w = 0; w < policies_; ++w) {
+    h_var_.push_back(new_vector);
+    for (int q = 0; q < scenarios_; ++q) {
+      std::string varname = "H_" + std::to_string(w) + "_" + std::to_string(q);
+      h_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
+    }
+  }
+}
+
+void SetPartitioningModel::AddInterdictionPolicyVariables() {
+  // Interdiction policy on arcs.
+  std::vector<GRBVar> new_vector;
+  for (int w = 0; w < policies_; ++w) {
+    x_var_.push_back(new_vector);
+    for (int a = 0; a < arcs_; a++) {
+      std::string varname = "x_" + std::to_string(w) + "_" + std::to_string(a);
+      x_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
+    }
+  }
+}
+
+void SetPartitioningModel::AddObjectiveValueLinearizedVariable() {
+  // Objective value variable, piecewise linearization, and pi.
+  z_var_ = sp_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
+  for (int w = 0; w < policies_; ++w) {
+    std::vector<std::vector<GRBVar>> newnew_vector;
+    pi_var_.push_back(newnew_vector);
+    for (int q = 0; q < scenarios_; q++) {
+      std::vector<GRBVar> new_vector;
+      pi_var_[w].push_back(new_vector);
+      for (int i = 0; i < nodes_; i++) {
+        std::string varname = "pi_" + std::to_string(w) + "_" +
+                              std::to_string(q) + "_" + std::to_string(i);
+        pi_var_[w][q].push_back(sp_model_->addVar(-GRB_INFINITY, GRB_INFINITY,
+                                                  0, GRB_CONTINUOUS, varname));
+      }
+    }
+  }
+}
+
+void SetPartitioningModel::AddDualLambdaArcVariable() {
+  // arc variable 'lambda'
+  for (int w = 0; w < policies_; ++w) {
+    std::vector<std::vector<GRBVar>> newnew_vector;
+    lambda_var_.push_back(newnew_vector);
+    for (int q = 0; q < scenarios_; q++) {
+      std::vector<GRBVar> new_vector;
+      lambda_var_[w].push_back(new_vector);
+      for (int a = 0; a < arcs_; a++) {
+        std::string varname = "lambda_" + std::to_string(w) + "_" +
+                              std::to_string(q) + "_" + std::to_string(a);
+        lambda_var_[w][q].push_back(
+            sp_model_->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+      }
+    }
+  }
+}
+
+void SetPartitioningModel::AddBudgetConstraint() {
+  for (int w = 0; w < policies_; ++w) {
+    GRBLinExpr linexpr = 0;
+    for (int a = 0; a < arcs_; a++) {
+      linexpr += x_var_[w][a];
+    }
+    sp_model_->addConstr(linexpr <= budget_);
+  }
+}
+
+void SetPartitioningModel::AddObjectiveBoundingConstraint() {
+  for (int w = 0; w < policies_; ++w) {
+    for (int q = 0; q < scenarios_; q++) {
+      GRBLinExpr linexpr = 0;
+      linexpr += (pi_var_[w][q][nodes_ - 1] -
+                  pi_var_[w][q][0]);  // b^\top pi (our b is simply a
+                                      // source-sink single unit of flow)
+      for (int a = 0; a < arcs_; ++a) {
+        linexpr += -lambda_var_[w][q][a];  // u^\top \cdot lambda (our u is 1)
+      }
+
+      linexpr += big_m_ * (1 - h_var_[w][q]);
+      sp_model_->addConstr(z_var_ <= linexpr);
+    }
+  }
+}
+
+void SetPartitioningModel::AddArcCostBoundingConstraint(
+    const ProblemInput& problem) {
+  int j_node, arc;
+  for (int w = 0; w < policies_; ++w) {
+    for (int q = 0; q < scenarios_; ++q) {
+      for (int i = 0; i < nodes_; ++i) {
+        for (size_t j = 0; j < problem.G_.adjacency_list()[i].size(); ++j) {
+          j_node = problem.G_.adjacency_list()[i][j];
+          arc = problem.G_.arc_index_hash()[i][j];
+          // add constraint
+          sp_model_->addConstr(
+              (pi_var_[w][q][j_node] - pi_var_[w][q][i] -
+               lambda_var_[w][q][arc]) <=
+              problem.instance_.arc_costs()[q][arc] +
+                  (problem.instance_.interdiction_delta() * x_var_[w][arc]));
+        }
+      }
+    }
+  }
+}
+
+void SetPartitioningModel::AddSetPartitioningConstraint() {
+  for (int q = 0; q < scenarios_; ++q) {
+    GRBLinExpr linexpr = 0;
+    for (int w = 0; w < policies_; ++w) {
+      linexpr += h_var_[w][q];
+    }
+    sp_model_->addConstr(linexpr == 1);
+  }
+}
+
+void SetPartitioningModel::AddRootNodeZeroConstraint() {
+  for (int w = 0; w < policies_; ++w) {
+    for (int q = 0; q < scenarios_; q++) {
+      sp_model_->addConstr(pi_var_[w][q][0] == 0);
+    }
+  }
+}
+
+void SetPartitioningModel::AddAssignmentSymmetryConstraints() {
+  for (int q = 0; q < policies_; q++) {
+    GRBLinExpr linexpr = 0;
+    for (int w = 0; w <= q; w++) {
+      linexpr += h_var_[w][q];
+    }
+    sp_model_->addConstr(linexpr == 1);
+  }
+}
+
+void SetPartitioningModel::AddNonDecreasingSymmetryConstraints() {
+  for (int w = 0; w < policies_ - 1; w++) {
+    int v = w + 1;  // "Next" cluster.
+    GRBLinExpr lhs = 0;
+    GRBLinExpr rhs = 0;
+    for (int q = 0; q < scenarios_; q++) {
+      lhs += h_var_[w][q];
+      rhs += h_var_[v][q];
+    }
+    sp_model_->addConstr(lhs <= rhs);
+  }
+}
+
+void SetPartitioningModel::ProcessInputSymmetryParameters(
+    const ProblemInput& problem) {
+  // Gurobi Symmetry parameters.
+  if (problem.gurobi_symmetry_detection_ != GUROBI_SYMMETRY_AUTO) {
+    sp_model_->set(GRB_IntParam_Symmetry, problem.gurobi_symmetry_detection_);
+  }
+  // Manual Symmetry constraints.
+  if (problem.manual_symmetry_constraints_ == MANUAL_SYMMETRY_ASSIGNMENT) {
+    AddAssignmentSymmetryConstraints();
+  }
+  if (problem.manual_symmetry_constraints_ == MANUAL_SYMMETRY_NONDECREASING) {
+    AddNonDecreasingSymmetryConstraints();
+  }
+  // if problem.manual_symmetry_constraints_ == MANUAL_SYMMETRY_NONE: do
+  // nothing.
+}
+
 void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
   try {
     sp_model_ = new GRBModel(*env_);
     sp_model_->set(GRB_IntParam_OutputFlag, 0);
-    // Set partitioning variables.
-    std::vector<GRBVar> new_vector;
-    for (int w = 0; w < policies_; ++w) {
-      h_var_.push_back(new_vector);
-      for (int q = 0; q < scenarios_; ++q) {
-        std::string varname =
-            "H_" + std::to_string(w) + "_" + std::to_string(q);
-        h_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
-      }
-    }
-    // Interdiction policy on arcs.
-    for (int w = 0; w < policies_; ++w) {
-      x_var_.push_back(new_vector);
-      for (int a = 0; a < arcs_; a++) {
-        std::string varname =
-            "x_" + std::to_string(w) + "_" + std::to_string(a);
-        x_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
-      }
-    }
-    // Objective value variable, piecewise linearization.
-    z_var_ = sp_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
-    std::vector<std::vector<GRBVar>> newnew_vector;
-    // post interdiction flow 'pi'
-    for (int w = 0; w < policies_; ++w) {
-      pi_var_.push_back(newnew_vector);
-      for (int q = 0; q < scenarios_; q++) {
-        pi_var_[w].push_back(new_vector);
-        for (int i = 0; i < nodes_; i++) {
-          std::string varname = "pi_" + std::to_string(w) + "_" +
-                                std::to_string(q) + "_" + std::to_string(i);
-          pi_var_[w][q].push_back(sp_model_->addVar(
-              -GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
-        }
-      }
-    }
-    // arc variable 'lambda'
-    for (int w = 0; w < policies_; ++w) {
-      lambda_var_.push_back(newnew_vector);
-      for (int q = 0; q < scenarios_; q++) {
-        lambda_var_[w].push_back(new_vector);
-        for (int a = 0; a < arcs_; a++) {
-          std::string varname = "lambda_" + std::to_string(w) + "_" +
-                                std::to_string(q) + "_" + std::to_string(a);
-          lambda_var_[w][q].push_back(
-              sp_model_->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
-        }
-      }
-    }
-    // ------ Constraints ------
-    // budget constraint
-    for (int w = 0; w < policies_; ++w) {
-      GRBLinExpr linexpr = 0;
-      for (int a = 0; a < arcs_; a++) {
-        linexpr += x_var_[w][a];
-      }
-      sp_model_->addConstr(linexpr <= budget_);
-    }
-    // z constraints
-    for (int w = 0; w < policies_; ++w) {
-      for (int q = 0; q < scenarios_; q++) {
-        GRBLinExpr linexpr = 0;
-        linexpr += (pi_var_[w][q][nodes_ - 1] -
-                    pi_var_[w][q][0]);  // b^\top pi (our b is simply a
-                                        // source-sink single unit of flow)
-        for (int a = 0; a < arcs_; ++a) {
-          linexpr += -lambda_var_[w][q][a];  // u^\top \cdot lambda (our u is 1)
-        }
-
-        linexpr += big_m_ * (1 - h_var_[w][q]);
-        sp_model_->addConstr(z_var_ <= linexpr);
-      }
-    }
-    // main constraint for each arc
-    int i;
-    int jn;  // node j
-    int a;
-    for (int w = 0; w < policies_; ++w) {
-      for (int q = 0; q < scenarios_; ++q) {
-        for (i = 0; i < nodes_; ++i) {
-          for (size_t j = 0; j < problem.G_.adjacency_list()[i].size(); ++j) {
-            jn = problem.G_.adjacency_list()[i][j];
-            a = problem.G_.arc_index_hash()[i][j];
-            // add constraint
-            sp_model_->addConstr(
-                (pi_var_[w][q][jn] - pi_var_[w][q][i] - lambda_var_[w][q][a]) <=
-                problem.instance_.arc_costs()[q][a] +
-                    (problem.instance_.interdiction_delta() * x_var_[w][a]));
-          }
-        }
-      }
-    }
-    // set-partitioning constraint
-    for (int q = 0; q < scenarios_; ++q) {
-      GRBLinExpr linexpr = 0;
-      for (int w = 0; w < policies_; ++w) {
-        linexpr += h_var_[w][q];
-      }
-      sp_model_->addConstr(linexpr == 1);
-    }
-    // pi[0] = 0
-    for (int w = 0; w < policies_; ++w) {
-      for (int q = 0; q < scenarios_; q++) {
-        sp_model_->addConstr(pi_var_[w][q][0] == 0);
-      }
-    }
+    // Add model variables.
+    AddSetPartitioningVariables();
+    AddInterdictionPolicyVariables();
+    AddObjectiveValueLinearizedVariable();
+    AddDualLambdaArcVariable();
+    // Add model constraints.
+    AddBudgetConstraint();
+    AddObjectiveBoundingConstraint();
+    AddArcCostBoundingConstraint(problem);
+    AddSetPartitioningConstraint();
+    AddRootNodeZeroConstraint();
+    ProcessInputSymmetryParameters(problem);
     sp_model_->update();
   } catch (GRBException e) {
     std::cout << "Gurobi error number [SetPartitioningModel::ConfigureSolver]: "
@@ -1157,14 +1231,14 @@ AdaptiveSolution EnumSolve(ProblemInput& problem) {
 }
 
 std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(
-    ProblemInput& problem, int q, double mip_gap_threshold) {
+    ProblemInput& problem, int q) {
   // Solve the nominal problem for follower q.
   std::vector<int> Update_vector{q};  // Vector with follower q.
   ProblemInput sub_problem(problem, Update_vector, 1);
   SetPartitioningBenders sub_benders(sub_problem);
   sub_benders.ConfigureSolver(sub_problem);
-  if (mip_gap_threshold != -1) {
-    sub_benders.SetMIPGap(mip_gap_threshold);
+  if (problem.greedy_mip_gap_threshold_ != -1) {
+    sub_benders.SetMIPGap(problem.greedy_mip_gap_threshold_);
   }
   AdaptiveSolution sol = sub_benders.Solve(sub_problem);
   if (sol.optimal())
@@ -1182,8 +1256,7 @@ int FirstFollowerInGreedyAlgorithm(ProblemInput& problem) {
   return min_subset.first;
 }
 
-AdaptiveSolution GreedyAlgorithm(ProblemInput& problem,
-                                 double mip_gap_threshold) {
+AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
   // Solution in case we hit time limit.
   AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
   time_limit_solution.set_solution_time(TIME_LIMIT_MS);
@@ -1199,7 +1272,7 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem,
   // Solve problem for next follower, and add a new vector to objective matrix,
   // i.e. the objective value of the new policy interdicting each follower.
   std::pair<double, std::vector<double>> temp_single_solution =
-      SolveBendersInGreedyAlgorithm(problem, next_follower, mip_gap_threshold);
+      SolveBendersInGreedyAlgorithm(problem, next_follower);
   if (temp_single_solution.first == -1) return time_limit_solution;
   std::vector<double> new_objectives(problem.instance_.scenarios());
   for (int q = 0; q < problem.instance_.scenarios(); q++) {
@@ -1237,8 +1310,8 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem,
     // std::pair<double, std::vector<double>> temp_single_solution =
     // spi_model.Solve();
     //
-    temp_single_solution = SolveBendersInGreedyAlgorithm(problem, next_follower,
-                                                         mip_gap_threshold);
+    temp_single_solution =
+        SolveBendersInGreedyAlgorithm(problem, next_follower);
     if (temp_single_solution.first == -1) return time_limit_solution;
     std::vector<double> new_objectives(problem.instance_.scenarios());
     for (int q = 0; q < problem.instance_.scenarios(); q++) {
@@ -1349,7 +1422,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
                               const ProblemInput& problem,
                               ProblemInput& problem_copyable,
                               const std::vector<ASPI_Solver>& solvers,
-                              int debug, double greedy_mip_gap_threshold) {
+                              int debug) {
   std::vector<double> adaptive_objectives;
   std::string final_csv_string = set_name;
   final_csv_string.append(",");
@@ -1474,8 +1547,7 @@ std::string SolveAndPrintTest(const std::string& set_name,
       log_line.append(std::to_string(enum_solution.solution_time()));
       log_line.append("ms ----- ");
     } else if (solver == GREEDY) {
-      AdaptiveSolution greedy_solution =
-          GreedyAlgorithm(problem_copyable, greedy_mip_gap_threshold);
+      AdaptiveSolution greedy_solution = GreedyAlgorithm(problem_copyable);
       if (debug == 2)
         greedy_solution.LogSolution(problem, true);
       else if (debug == 1)
@@ -1516,12 +1588,12 @@ std::string SolveAndPrintTest(const std::string& set_name,
   return final_csv_string;
 }
 
-void RunAllInstancesInSetDirectory(const int min_policies,
-                                   const int max_policies, const int min_budget,
-                                   const int max_budget,
-                                   const std::string& set_name,
-                                   const std::vector<ASPI_Solver>& solvers,
-                                   double greedy_mip_gap_threshold) {
+// TODO: Add consequence of symmetry parameters being passed, manual and gurobi.
+void RunAllInstancesInSetDirectory(
+    const int min_policies, const int max_policies, const int min_budget,
+    const int max_budget, const std::string& set_name,
+    const std::vector<ASPI_Solver>& solvers, int manual_symmetry_constraints,
+    int gurobi_symmetry_detection, double greedy_mip_gap_threshold) {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
   // Use seconds, since gurobi takes the parameter value in seconds.
   env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
@@ -1600,13 +1672,16 @@ void RunAllInstancesInSetDirectory(const int min_policies,
           if (k > instance_input.scenarios_) break;
           // removing budget > k_zero check for now, because I want to run some
           // instances of that type if (budget > graph_input.k_zero_) break;
-          const ProblemInput problem(instance_input, k, budget, env);
-          ProblemInput problem_copyable(instance_input, k, budget, env);
+          const ProblemInput problem(
+              instance_input, k, budget, env, manual_symmetry_constraints,
+              gurobi_symmetry_detection, greedy_mip_gap_threshold);
+          ProblemInput problem_copyable(
+              instance_input, k, budget, env, manual_symmetry_constraints,
+              gurobi_symmetry_detection, greedy_mip_gap_threshold);
           std::cout << "RUNNING INSTANCE: " << problem.instance_.name()
                     << ", K = " << std::to_string(k) << std::endl;
-          std::string result =
-              SolveAndPrintTest(set_name, problem, problem_copyable, solvers,
-                                DEBUG, greedy_mip_gap_threshold);
+          std::string result = SolveAndPrintTest(
+              set_name, problem, problem_copyable, solvers, DEBUG);
           std::cout << std::endl;
           result_file << result << std::endl;
         }
@@ -1733,7 +1808,12 @@ void UninterdictedObjectiveForAllInstances(const std::string& set_name) {
       int id = scenarios_id.second;
       GraphInput graph_input(set_name, nodes, kzero);
       InstanceInput instance_input(graph_input, scenarios, id);
-      const ProblemInput problem(instance_input, 0, 0, env);
+      const ProblemInput problem(
+          instance_input, /*policies=*/0, /*budget=*/0, env,
+          /*manual_symmetry_constraints=*/
+          MANUAL_SYMMETRY_NONE,
+          /*gurobi_symmetry_detection=*/GUROBI_SYMMETRY_AUTO,
+          /*greedy_mip_gap_threshold=*/0);
       std::string result = SolveAndPrintUninterdicted(set_name, problem);
       std::cout << std::endl;
       result_file << result << std::endl;
