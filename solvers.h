@@ -394,6 +394,11 @@ class SetPartitioningModel {
   AdaptiveSolution Solve(const ProblemInput& problem);
 
  private:
+  void AddSetPartitioningVariables();
+  void AddInterdictionPolicyVariables();
+  void AddObjectiveValueLinearizedVariable();
+  void AddDualLambdaArcVariable();
+  void AddAllGurobiVariables();
   const int big_m_;
   int scenarios_, policies_, budget_, nodes_, arcs_;
   GRBEnv* env_;

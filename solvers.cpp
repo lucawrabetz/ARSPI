@@ -258,62 +258,79 @@ double AdaptiveInstance::ValidatePolicy(std::vector<double>& x_bar,
   return objective;
 }
 
+void SetPartitioningModel::AddSetPartitioningVariables() {
+  // Set partitioning variables.
+  std::vector<GRBVar> new_vector;
+  for (int w = 0; w < policies_; ++w) {
+    h_var_.push_back(new_vector);
+    for (int q = 0; q < scenarios_; ++q) {
+      std::string varname = "H_" + std::to_string(w) + "_" + std::to_string(q);
+      h_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
+    }
+  }
+}
+
+void SetPartitioningModel::AddInterdictionPolicyVariables() {
+  // Interdiction policy on arcs.
+  std::vector<GRBVar> new_vector;
+  for (int w = 0; w < policies_; ++w) {
+    x_var_.push_back(new_vector);
+    for (int a = 0; a < arcs_; a++) {
+      std::string varname = "x_" + std::to_string(w) + "_" + std::to_string(a);
+      x_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
+    }
+  }
+}
+
+void SetPartitioningModel::AddObjectiveValueLinearizedVariable() {
+  // Objective value variable, piecewise linearization, and pi.
+  z_var_ = sp_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
+  for (int w = 0; w < policies_; ++w) {
+    std::vector<std::vector<GRBVar>> newnew_vector;
+    pi_var_.push_back(newnew_vector);
+    for (int q = 0; q < scenarios_; q++) {
+      std::vector<GRBVar> new_vector;
+      pi_var_[w].push_back(new_vector);
+      for (int i = 0; i < nodes_; i++) {
+        std::string varname = "pi_" + std::to_string(w) + "_" +
+                              std::to_string(q) + "_" + std::to_string(i);
+        pi_var_[w][q].push_back(sp_model_->addVar(-GRB_INFINITY, GRB_INFINITY,
+                                                  0, GRB_CONTINUOUS, varname));
+      }
+    }
+  }
+}
+
+void SetPartitioningModel::AddDualLambdaArcVariable() {
+  // arc variable 'lambda'
+  for (int w = 0; w < policies_; ++w) {
+    std::vector<std::vector<GRBVar>> newnew_vector;
+    lambda_var_.push_back(newnew_vector);
+    for (int q = 0; q < scenarios_; q++) {
+      std::vector<GRBVar> new_vector;
+      lambda_var_[w].push_back(new_vector);
+      for (int a = 0; a < arcs_; a++) {
+        std::string varname = "lambda_" + std::to_string(w) + "_" +
+                              std::to_string(q) + "_" + std::to_string(a);
+        lambda_var_[w][q].push_back(
+            sp_model_->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+      }
+    }
+  }
+}
+
+void SetPartitioningModel::AddAllGurobiVariables() {
+  AddSetPartitioningVariables();
+  AddInterdictionPolicyVariables();
+  AddObjectiveValueLinearizedVariable();
+  AddDualLambdaArcVariable();
+}
+
 void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
   try {
     sp_model_ = new GRBModel(*env_);
     sp_model_->set(GRB_IntParam_OutputFlag, 0);
-    // Gurobi Symmetry parameters.
-    if (problem.gurobi_symmetry_detection_ != GUROBI_SYMMETRY_AUTO) {
-      sp_model_->set(GRB_IntParam_Symmetry, problem.gurobi_symmetry_detection_);
-    }
-    // Set partitioning variables.
-    std::vector<GRBVar> new_vector;
-    for (int w = 0; w < policies_; ++w) {
-      h_var_.push_back(new_vector);
-      for (int q = 0; q < scenarios_; ++q) {
-        std::string varname =
-            "H_" + std::to_string(w) + "_" + std::to_string(q);
-        h_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
-      }
-    }
-    // Interdiction policy on arcs.
-    for (int w = 0; w < policies_; ++w) {
-      x_var_.push_back(new_vector);
-      for (int a = 0; a < arcs_; a++) {
-        std::string varname =
-            "x_" + std::to_string(w) + "_" + std::to_string(a);
-        x_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
-      }
-    }
-    // Objective value variable, piecewise linearization.
-    z_var_ = sp_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
-    std::vector<std::vector<GRBVar>> newnew_vector;
-    // post interdiction flow 'pi'
-    for (int w = 0; w < policies_; ++w) {
-      pi_var_.push_back(newnew_vector);
-      for (int q = 0; q < scenarios_; q++) {
-        pi_var_[w].push_back(new_vector);
-        for (int i = 0; i < nodes_; i++) {
-          std::string varname = "pi_" + std::to_string(w) + "_" +
-                                std::to_string(q) + "_" + std::to_string(i);
-          pi_var_[w][q].push_back(sp_model_->addVar(
-              -GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
-        }
-      }
-    }
-    // arc variable 'lambda'
-    for (int w = 0; w < policies_; ++w) {
-      lambda_var_.push_back(newnew_vector);
-      for (int q = 0; q < scenarios_; q++) {
-        lambda_var_[w].push_back(new_vector);
-        for (int a = 0; a < arcs_; a++) {
-          std::string varname = "lambda_" + std::to_string(w) + "_" +
-                                std::to_string(q) + "_" + std::to_string(a);
-          lambda_var_[w][q].push_back(
-              sp_model_->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
-        }
-      }
-    }
+    AddAllGurobiVariables();
     // ------ Constraints ------
     // budget constraint
     for (int w = 0; w < policies_; ++w) {
@@ -370,6 +387,10 @@ void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
       for (int q = 0; q < scenarios_; q++) {
         sp_model_->addConstr(pi_var_[w][q][0] == 0);
       }
+    }
+    // Gurobi Symmetry parameters.
+    if (problem.gurobi_symmetry_detection_ != GUROBI_SYMMETRY_AUTO) {
+      sp_model_->set(GRB_IntParam_Symmetry, problem.gurobi_symmetry_detection_);
     }
     sp_model_->update();
   } catch (GRBException e) {
