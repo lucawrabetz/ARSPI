@@ -319,75 +319,87 @@ void SetPartitioningModel::AddDualLambdaArcVariable() {
   }
 }
 
-void SetPartitioningModel::AddAllGurobiVariables() {
-  AddSetPartitioningVariables();
-  AddInterdictionPolicyVariables();
-  AddObjectiveValueLinearizedVariable();
-  AddDualLambdaArcVariable();
+void SetPartitioningModel::AddBudgetConstraint() {
+  for (int w = 0; w < policies_; ++w) {
+    GRBLinExpr linexpr = 0;
+    for (int a = 0; a < arcs_; a++) {
+      linexpr += x_var_[w][a];
+    }
+    sp_model_->addConstr(linexpr <= budget_);
+  }
+}
+
+void SetPartitioningModel::AddObjectiveBoundingConstraint() {
+  for (int w = 0; w < policies_; ++w) {
+    for (int q = 0; q < scenarios_; q++) {
+      GRBLinExpr linexpr = 0;
+      linexpr += (pi_var_[w][q][nodes_ - 1] -
+                  pi_var_[w][q][0]);  // b^\top pi (our b is simply a
+                                      // source-sink single unit of flow)
+      for (int a = 0; a < arcs_; ++a) {
+        linexpr += -lambda_var_[w][q][a];  // u^\top \cdot lambda (our u is 1)
+      }
+
+      linexpr += big_m_ * (1 - h_var_[w][q]);
+      sp_model_->addConstr(z_var_ <= linexpr);
+    }
+  }
+}
+
+void SetPartitioningModel::AddArcCostBoundingConstraint(
+    const ProblemInput& problem) {
+  int j_node, arc;
+  for (int w = 0; w < policies_; ++w) {
+    for (int q = 0; q < scenarios_; ++q) {
+      for (int i = 0; i < nodes_; ++i) {
+        for (size_t j = 0; j < problem.G_.adjacency_list()[i].size(); ++j) {
+          j_node = problem.G_.adjacency_list()[i][j];
+          arc = problem.G_.arc_index_hash()[i][j];
+          // add constraint
+          sp_model_->addConstr(
+              (pi_var_[w][q][j_node] - pi_var_[w][q][i] -
+               lambda_var_[w][q][arc]) <=
+              problem.instance_.arc_costs()[q][arc] +
+                  (problem.instance_.interdiction_delta() * x_var_[w][arc]));
+        }
+      }
+    }
+  }
+}
+
+void SetPartitioningModel::AddSetPartitioningConstraint() {
+  for (int q = 0; q < scenarios_; ++q) {
+    GRBLinExpr linexpr = 0;
+    for (int w = 0; w < policies_; ++w) {
+      linexpr += h_var_[w][q];
+    }
+    sp_model_->addConstr(linexpr == 1);
+  }
+}
+
+void SetPartitioningModel::AddRootNodeZeroConstraint() {
+  for (int w = 0; w < policies_; ++w) {
+    for (int q = 0; q < scenarios_; q++) {
+      sp_model_->addConstr(pi_var_[w][q][0] == 0);
+    }
+  }
 }
 
 void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
   try {
     sp_model_ = new GRBModel(*env_);
     sp_model_->set(GRB_IntParam_OutputFlag, 0);
-    AddAllGurobiVariables();
-    // ------ Constraints ------
-    // budget constraint
-    for (int w = 0; w < policies_; ++w) {
-      GRBLinExpr linexpr = 0;
-      for (int a = 0; a < arcs_; a++) {
-        linexpr += x_var_[w][a];
-      }
-      sp_model_->addConstr(linexpr <= budget_);
-    }
-    // z constraints
-    for (int w = 0; w < policies_; ++w) {
-      for (int q = 0; q < scenarios_; q++) {
-        GRBLinExpr linexpr = 0;
-        linexpr += (pi_var_[w][q][nodes_ - 1] -
-                    pi_var_[w][q][0]);  // b^\top pi (our b is simply a
-                                        // source-sink single unit of flow)
-        for (int a = 0; a < arcs_; ++a) {
-          linexpr += -lambda_var_[w][q][a];  // u^\top \cdot lambda (our u is 1)
-        }
-
-        linexpr += big_m_ * (1 - h_var_[w][q]);
-        sp_model_->addConstr(z_var_ <= linexpr);
-      }
-    }
-    // main constraint for each arc
-    int i;
-    int jn;  // node j
-    int a;
-    for (int w = 0; w < policies_; ++w) {
-      for (int q = 0; q < scenarios_; ++q) {
-        for (i = 0; i < nodes_; ++i) {
-          for (size_t j = 0; j < problem.G_.adjacency_list()[i].size(); ++j) {
-            jn = problem.G_.adjacency_list()[i][j];
-            a = problem.G_.arc_index_hash()[i][j];
-            // add constraint
-            sp_model_->addConstr(
-                (pi_var_[w][q][jn] - pi_var_[w][q][i] - lambda_var_[w][q][a]) <=
-                problem.instance_.arc_costs()[q][a] +
-                    (problem.instance_.interdiction_delta() * x_var_[w][a]));
-          }
-        }
-      }
-    }
-    // set-partitioning constraint
-    for (int q = 0; q < scenarios_; ++q) {
-      GRBLinExpr linexpr = 0;
-      for (int w = 0; w < policies_; ++w) {
-        linexpr += h_var_[w][q];
-      }
-      sp_model_->addConstr(linexpr == 1);
-    }
-    // pi[0] = 0
-    for (int w = 0; w < policies_; ++w) {
-      for (int q = 0; q < scenarios_; q++) {
-        sp_model_->addConstr(pi_var_[w][q][0] == 0);
-      }
-    }
+    // Add model variables.
+    AddSetPartitioningVariables();
+    AddInterdictionPolicyVariables();
+    AddObjectiveValueLinearizedVariable();
+    AddDualLambdaArcVariable();
+    // Add base constraints.
+    AddBudgetConstraint();
+    AddObjectiveBoundingConstraint();
+    AddArcCostBoundingConstraint(problem);
+    AddSetPartitioningConstraint();
+    AddRootNodeZeroConstraint();
     // Gurobi Symmetry parameters.
     if (problem.gurobi_symmetry_detection_ != GUROBI_SYMMETRY_AUTO) {
       sp_model_->set(GRB_IntParam_Symmetry, problem.gurobi_symmetry_detection_);

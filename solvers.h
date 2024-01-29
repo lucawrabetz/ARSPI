@@ -398,7 +398,11 @@ class SetPartitioningModel {
   void AddInterdictionPolicyVariables();
   void AddObjectiveValueLinearizedVariable();
   void AddDualLambdaArcVariable();
-  void AddAllGurobiVariables();
+  void AddBudgetConstraint();
+  void AddObjectiveBoundingConstraint();
+  void AddArcCostBoundingConstraint(const ProblemInput& problem);
+  void AddSetPartitioningConstraint();
+  void AddRootNodeZeroConstraint();
   const int big_m_;
   int scenarios_, policies_, budget_, nodes_, arcs_;
   GRBEnv* env_;
