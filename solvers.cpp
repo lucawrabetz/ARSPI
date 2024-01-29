@@ -395,7 +395,18 @@ void SetPartitioningModel::AddAssignmentSymmetryConstraints() {
   }
 }
 
-void SetPartitioningModel::AddNonDecreasingSymmetryConstraints() {}
+void SetPartitioningModel::AddNonDecreasingSymmetryConstraints() {
+  for (int w = 0; w < policies_ - 1; w++) {
+    int v = w + 1;  // "Next" cluster.
+    GRBLinExpr lhs = 0;
+    GRBLinExpr rhs = 0;
+    for (int q = 0; q < scenarios_; q++) {
+      lhs += h_var_[w][q];
+      rhs += h_var_[v][q];
+    }
+    sp_model_->addConstr(lhs <= rhs);
+  }
+}
 
 void SetPartitioningModel::ProcessInputSymmetryParameters(
     const ProblemInput& problem) {
