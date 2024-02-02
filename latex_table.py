@@ -4,7 +4,7 @@ import pandas as pd
 
 # Names of experiment instance sets.
 ALL_INSTANCES = 'experiment_allalgorithms'
-MIPSYM_INSTANCES = 'experiment_allalgorithms_symmetrynondecreasing_none'
+MIPSYM_INSTANCES = 'experiment_allalgorithms_symmetrynondecreasinggurobiaggressive'
 BE_INSTANCES = 'experiment_bendersenum'
 LAYERRATIO_INSTANCES = 'experiment_layerratio'
 
