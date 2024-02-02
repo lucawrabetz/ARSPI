@@ -4,12 +4,14 @@ import pandas as pd
 
 # Names of experiment instance sets.
 ALL_INSTANCES = 'experiment_allalgorithms'
+MIPSYM_INSTANCES = 'experiment_allalgorithms_symmetrynondecreasing_none'
 BE_INSTANCES = 'experiment_bendersenum'
 LAYERRATIO_INSTANCES = 'experiment_layerratio'
 
 # Names of experiment output types.
 ALL_TYPENAME = 'all_algorithms'
 BE_TYPENAME = 'benders_enum'
+MIPSYM_TYPENAME = 'mip_symmetry'
 
 # Decimal points to be rounded to for decimal columns.
 DP = 2
@@ -35,16 +37,20 @@ class OutputStructure:
     def __init__(self, exp_type):
         self.BE_ratio = False
         self.approximation_ratio = True
+        if exp_type == MIPSYM_TYPENAME:
+            self.approximation_ratio = False
         self.sp_column = 'MIP_objective'
         if exp_type == BE_TYPENAME:
             self.BE_ratio = True
             self.sp_column = 'BENDERS_objective'
         self.solvers = []
         if exp_type == ALL_TYPENAME:
-            self.solvers.append('MIP')
-        self.solvers.extend(['BENDERS', 'ENUMERATION', 'GREEDY'])
+            self.solvers = ['MIP', 'BENDERS', 'ENUMERATION', 'GREEDY']
+        elif exp_type == MIPSYM_TYPENAME:
+            self.solvers = ['MIP']
+        elif exp_type == BE_TYPENAME:
+            self.solvers = ['BENDERS', 'ENUMERATION', 'GREEDY']
         self.exact_solvers = [sol for sol in self.solvers if sol != 'GREEDY']
-
         self.time_columns = [sol + '_time' for sol in self.solvers]
         self.input_columns = ['k_zero', 'nodes', 'arcs', 'scenarios', 'policies']
         self.objective_columns = [sol + '_objective' for sol in self.solvers]
@@ -218,11 +224,11 @@ def main():
         prog='AspiLatexTable',
         description='Create a latex table from a results csv for an Aspi computational experiment.')
     parser.add_argument('set_name', metavar='S', type=str, nargs=1, default=ALL_INSTANCES,
-                        choices=[ALL_INSTANCES, BE_INSTANCES, LAYERRATIO_INSTANCES],
-                        help='name of experiment set - ' + ALL_INSTANCES + ' or ' + BE_INSTANCES + ' or ' + LAYERRATIO_INSTANCES)
+                        choices=[ALL_INSTANCES, BE_INSTANCES, MIPSYM_INSTANCES, LAYERRATIO_INSTANCES],
+                        help='name of experiment set - ' + ALL_INSTANCES + ' or ' + BE_INSTANCES + ' or ' + LAYERRATIO_INSTANCES + ' or '+ MIPSYM_INSTANCES)
     parser.add_argument('experiment_type', metavar='E', type=str, nargs=1, default=ALL_TYPENAME,
-                        choices=[ALL_TYPENAME, BE_TYPENAME],
-                        help='name of experiment type - ' + ALL_TYPENAME + ' or ' + BE_TYPENAME)
+                        choices=[ALL_TYPENAME, BE_TYPENAME, MIPSYM_TYPENAME],
+                        help='name of experiment type - ' + ALL_TYPENAME + ' or ' + BE_TYPENAME + ' or ' + MIPSYM_TYPENAME)
     args = parser.parse_args()
     run_df = read_results_data(args)
     out_structure = OutputStructure(args.experiment_type[0])
