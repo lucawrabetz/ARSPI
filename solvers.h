@@ -389,14 +389,26 @@ class SetPartitioningModel {
         budget_(problem.budget_),
         nodes_(problem.instance_.nodes()),
         arcs_(problem.G_.arcs()),
-        env_(problem.env_){};
+        env_(problem.env_),
+        sp_model_(new GRBModel(env_)),
+        z_var_(sp_model_->addVar(0, big_m_, -1, GRB_CONTINUOUS, "z")),
+        h_var_(std::vector<std::vector<GRBVar>>(
+            policies_, std::vector<GRBVar>(scenarios_))),
+        x_var_(std::vector<std::vector<GRBVar>>(policies_,
+                                                std::vector<GRBVar>(arcs_))),
+        pi_var_(std::vector<std::vector<std::vector<GRBVar>>>(
+            policies_, std::vector<std::vector<GRBVar>>(
+                           scenarios_, std::vector<GRBVar>(nodes_)))),
+        lambda_var_(std::vector<std::vector<std::vector<GRBVar>>>(
+            policies_, std::vector<std::vector<GRBVar>>(
+                           scenarios_, std::vector<GRBVar>(arcs_)))){};
   void ConfigureSolver(const ProblemInput& problem);
   AdaptiveSolution Solve(const ProblemInput& problem);
 
  private:
   void AddSetPartitioningVariables();
   void AddInterdictionPolicyVariables();
-  void AddObjectiveValueLinearizedVariable();
+  void AddPiShortestPathVariable();
   void AddDualLambdaArcVariable();
   void AddBudgetConstraint();
   void AddObjectiveBoundingConstraint();
@@ -491,7 +503,13 @@ class SetPartitioningBenders {
         scenarios_(problem.instance_.scenarios()),
         policies_(problem.policies_),
         interdiction_delta_(problem.instance_.interdiction_delta()),
-        env_(problem.env_){};
+        env_(problem.env_),
+        benders_model_(new GRBModel(env_)),
+        z_var_(benders_model_->addVar(0, big_m_, -1, GRB_CONTINUOUS, "z")),
+        h_var_(std::vector<std::vector<GRBVar>>(
+            policies_, std::vector<GRBVar>(scenarios_))),
+        x_var_(std::vector<std::vector<GRBVar>>(policies_,
+                                                std::vector<GRBVar>(arcs_))){};
   void ConfigureSolver(const ProblemInput& problem);
   AdaptiveSolution Solve(const ProblemInput& problem);
   void SetMIPGap(double mip_gap) {
@@ -499,6 +517,8 @@ class SetPartitioningBenders {
   }
 
  private:
+  void AddSetPartitioningVariables();
+  void AddInterdictionPolicyVariables();
   const int big_m_;
   int nodes_, arcs_, budget_, scenarios_, policies_, interdiction_delta_;
   GRBEnv* env_;
