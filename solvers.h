@@ -521,6 +521,9 @@ class SetPartitioningBenders {
   void AddInterdictionPolicyVariables();
   void AddBudgetConstraints();
   void AddSetPartitioningConstraints();
+  void AddAssignmentSymmetryConstraints();
+  void AddNonDecreasingSymmetryConstraints();
+  void ProcessInputSymmetryParameters(const ProblemInput& problem);
   const int big_m_;
   int nodes_, arcs_, budget_, scenarios_, policies_, interdiction_delta_;
   GRBEnv* env_;
