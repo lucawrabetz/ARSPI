@@ -699,6 +699,47 @@ void SetPartitioningBenders::AddSetPartitioningConstraints() {
   }
 }
 
+void SetPartitioningBenders::AddAssignmentSymmetryConstraints() {
+  for (int q = 0; q < policies_; q++) {
+    GRBLinExpr linexpr = 0;
+    for (int w = 0; w <= q; w++) {
+      linexpr += h_var_[w][q];
+    }
+    benders_model_->addConstr(linexpr == 1);
+  }
+}
+
+void SetPartitioningBenders::AddNonDecreasingSymmetryConstraints() {
+  for (int w = 0; w < policies_ - 1; w++) {
+    int v = w + 1;  // "Next" cluster.
+    GRBLinExpr lhs = 0;
+    GRBLinExpr rhs = 0;
+    for (int q = 0; q < scenarios_; q++) {
+      lhs += h_var_[w][q];
+      rhs += h_var_[v][q];
+    }
+    benders_model_->addConstr(lhs <= rhs);
+  }
+}
+
+void SetPartitioningBenders::ProcessInputSymmetryParameters(
+    const ProblemInput& problem) {
+  // Gurobi Symmetry parameters.
+  if (problem.gurobi_symmetry_detection_ != GUROBI_SYMMETRY_AUTO) {
+    benders_model_->set(GRB_IntParam_Symmetry,
+                        problem.gurobi_symmetry_detection_);
+  }
+  // Manual Symmetry constraints.
+  if (problem.manual_symmetry_constraints_ == MANUAL_SYMMETRY_ASSIGNMENT) {
+    AddAssignmentSymmetryConstraints();
+  }
+  if (problem.manual_symmetry_constraints_ == MANUAL_SYMMETRY_NONDECREASING) {
+    AddNonDecreasingSymmetryConstraints();
+  }
+  // if problem.manual_symmetry_constraints_ == MANUAL_SYMMETRY_NONE: do
+  // nothing.
+}
+
 void SetPartitioningBenders::ConfigureSolver(const ProblemInput& problem) {
   try {
     benders_model_->set(GRB_IntParam_OutputFlag, 0);
@@ -707,6 +748,7 @@ void SetPartitioningBenders::ConfigureSolver(const ProblemInput& problem) {
     AddInterdictionPolicyVariables();
     AddBudgetConstraints();
     AddSetPartitioningConstraints();
+    ProcessInputSymmetryParameters(problem);
     callback_ = BendersCallback(problem, z_var_, h_var_, x_var_);
     callback_.ConfigureSubModels(problem);
   } catch (GRBException e) {
