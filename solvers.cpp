@@ -1599,7 +1599,6 @@ std::string SolveAndPrintTest(const std::string& set_name,
   return final_csv_string;
 }
 
-// TODO: Add consequence of symmetry parameters being passed, manual and gurobi.
 void RunAllInstancesInSetDirectory(
     const int min_policies, const int max_policies, const int min_budget,
     const int max_budget, const std::string& set_name,
