@@ -320,7 +320,7 @@ void SetPartitioningModel::AddDualLambdaArcVariable() {
   }
 }
 
-void SetPartitioningModel::AddBudgetConstraint() {
+void SetPartitioningModel::AddBudgetConstraints() {
   for (int w = 0; w < policies_; ++w) {
     GRBLinExpr linexpr = 0;
     for (int a = 0; a < arcs_; a++) {
@@ -368,7 +368,7 @@ void SetPartitioningModel::AddArcCostBoundingConstraint(
   }
 }
 
-void SetPartitioningModel::AddSetPartitioningConstraint() {
+void SetPartitioningModel::AddSetPartitioningConstraints() {
   for (int q = 0; q < scenarios_; ++q) {
     GRBLinExpr linexpr = 0;
     for (int w = 0; w < policies_; ++w) {
@@ -435,10 +435,10 @@ void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
     AddPiShortestPathVariable();
     AddDualLambdaArcVariable();
     // Add model constraints.
-    AddBudgetConstraint();
+    AddBudgetConstraints();
     AddObjectiveBoundingConstraint();
     AddArcCostBoundingConstraint(problem);
-    AddSetPartitioningConstraint();
+    AddSetPartitioningConstraints();
     AddRootNodeZeroConstraint();
     ProcessInputSymmetryParameters(problem);
     sp_model_->update();
@@ -679,29 +679,34 @@ void SetPartitioningBenders::AddInterdictionPolicyVariables() {
   }
 }
 
+void SetPartitioningBenders::AddBudgetConstraints() {
+  for (int w = 0; w < policies_; ++w) {
+    GRBLinExpr linexpr = 0;
+    for (int a = 0; a < arcs_; a++) {
+      linexpr += x_var_[w][a];
+    }
+    benders_model_->addConstr(linexpr <= budget_);
+  }
+}
+
+void SetPartitioningBenders::AddSetPartitioningConstraints() {
+  for (int q = 0; q < scenarios_; ++q) {
+    GRBLinExpr linexpr = 0;
+    for (int w = 0; w < policies_; ++w) {
+      linexpr += h_var_[w][q];
+    }
+    benders_model_->addConstr(linexpr == 1);
+  }
+}
+
 void SetPartitioningBenders::ConfigureSolver(const ProblemInput& problem) {
   try {
     benders_model_->set(GRB_IntParam_OutputFlag, 0);
     benders_model_->getEnv().set(GRB_IntParam_LazyConstraints, 1);
     AddSetPartitioningVariables();
     AddInterdictionPolicyVariables();
-    // Add Budget Constraints.
-    for (int w = 0; w < policies_; ++w) {
-      GRBLinExpr linexpr = 0;
-      for (int a = 0; a < arcs_; a++) {
-        linexpr += x_var_[w][a];
-      }
-      benders_model_->addConstr(linexpr <= budget_);
-    }
-    // Add Set Partitioning Constraint.
-    for (int q = 0; q < scenarios_; ++q) {
-      GRBLinExpr linexpr = 0;
-      for (int w = 0; w < policies_; ++w) {
-        linexpr += h_var_[w][q];
-      }
-      benders_model_->addConstr(linexpr == 1);
-    }
-    // Initialize Separation Object, passing decision variables.
+    AddBudgetConstraints();
+    AddSetPartitioningConstraints();
     callback_ = BendersCallback(problem, z_var_, h_var_, x_var_);
     callback_.ConfigureSubModels(problem);
   } catch (GRBException e) {

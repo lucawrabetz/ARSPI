@@ -410,10 +410,10 @@ class SetPartitioningModel {
   void AddInterdictionPolicyVariables();
   void AddPiShortestPathVariable();
   void AddDualLambdaArcVariable();
-  void AddBudgetConstraint();
+  void AddBudgetConstraints();
   void AddObjectiveBoundingConstraint();
   void AddArcCostBoundingConstraint(const ProblemInput& problem);
-  void AddSetPartitioningConstraint();
+  void AddSetPartitioningConstraints();
   void AddRootNodeZeroConstraint();
   void AddAssignmentSymmetryConstraints();
   void AddNonDecreasingSymmetryConstraints();
@@ -519,6 +519,8 @@ class SetPartitioningBenders {
  private:
   void AddSetPartitioningVariables();
   void AddInterdictionPolicyVariables();
+  void AddBudgetConstraints();
+  void AddSetPartitioningConstraints();
   const int big_m_;
   int nodes_, arcs_, budget_, scenarios_, policies_, interdiction_delta_;
   GRBEnv* env_;
