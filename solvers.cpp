@@ -1,5 +1,7 @@
 #include "solvers.h"
 
+#include <string>
+
 long GetCurrentTime() {
   // Helper function to get current time in milliseconds.
   struct timeval tv;
@@ -114,9 +116,8 @@ AdaptiveInstance::AdaptiveInstance(AdaptiveInstance& adaptive_instance,
 
 void AdaptiveInstance::ReadCosts() {
   // Read arc costs from a file.
-  // Compute interdiction_delta_, big_m_:
-  // interdiction_delta_ = (max_q,a c_a * (n)).
-  // big_m_ = (max_q,a c_a * (n)) + 1.
+  // Compute interdiction_delta_, big_m_. (Maximum cost over all followers and
+  // arcs, times the number of nodes).
   std::string line, word;
   std::ifstream myfile(costs_filename_);
   int q = 0;
@@ -191,14 +192,13 @@ double AdaptiveInstance::SPModel(int q, const Graph& G, GRBEnv* env) const {
     delete sp_model;
     return obj;
   } catch (GRBException e) {
-    std::cout
-        << "Gurobi error number [SetPartitioningBenders::ConfigureSolver]: "
-        << e.getErrorCode() << std::endl;
+    std::cout << "Gurobi error number [AdaptiveInstance::SPModel]: "
+              << e.getErrorCode() << std::endl;
     std::cout << e.getMessage() << std::endl;
     return -1;
   } catch (...) {
     std::cout << "Non-gurobi error during optimization "
-                 "[SetPartitioningBenders::ConfigureSolver]"
+                 "[AdaptiveInstance::SPModel]"
               << std::endl;
     return -1;
   }
@@ -260,42 +260,43 @@ double AdaptiveInstance::ValidatePolicy(std::vector<double>& x_bar,
 
 void SetPartitioningModel::AddSetPartitioningVariables() {
   // Set partitioning variables.
-  std::vector<GRBVar> new_vector;
   for (int w = 0; w < policies_; ++w) {
-    h_var_.push_back(new_vector);
     for (int q = 0; q < scenarios_; ++q) {
-      std::string varname = "H_" + std::to_string(w) + "_" + std::to_string(q);
-      h_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
+      std::string varname = std::string("H_")
+                                .append(std::to_string(w))
+                                .append("_")
+                                .append(std::to_string(q));
+      h_var_[w][q] = sp_model_->addVar(0, 1, 0, GRB_BINARY, varname);
     }
   }
 }
 
 void SetPartitioningModel::AddInterdictionPolicyVariables() {
   // Interdiction policy on arcs.
-  std::vector<GRBVar> new_vector;
   for (int w = 0; w < policies_; ++w) {
-    x_var_.push_back(new_vector);
     for (int a = 0; a < arcs_; a++) {
-      std::string varname = "x_" + std::to_string(w) + "_" + std::to_string(a);
-      x_var_[w].push_back(sp_model_->addVar(0, 1, 0, GRB_BINARY, varname));
+      std::string varname = std::string("x_")
+                                .append(std::to_string(w))
+                                .append("_")
+                                .append(std::to_string(a));
+      x_var_[w][a] = sp_model_->addVar(0, 1, 0, GRB_BINARY, varname);
     }
   }
 }
 
-void SetPartitioningModel::AddObjectiveValueLinearizedVariable() {
-  // Objective value variable, piecewise linearization, and pi.
-  z_var_ = sp_model_->addVar(0, GRB_INFINITY, -1, GRB_CONTINUOUS);
+void SetPartitioningModel::AddPiShortestPathVariable() {
+  // Pi shortest path variable.
   for (int w = 0; w < policies_; ++w) {
-    std::vector<std::vector<GRBVar>> newnew_vector;
-    pi_var_.push_back(newnew_vector);
     for (int q = 0; q < scenarios_; q++) {
-      std::vector<GRBVar> new_vector;
-      pi_var_[w].push_back(new_vector);
       for (int i = 0; i < nodes_; i++) {
-        std::string varname = "pi_" + std::to_string(w) + "_" +
-                              std::to_string(q) + "_" + std::to_string(i);
-        pi_var_[w][q].push_back(sp_model_->addVar(-GRB_INFINITY, GRB_INFINITY,
-                                                  0, GRB_CONTINUOUS, varname));
+        std::string varname = std::string("pi_")
+                                  .append(std::to_string(w))
+                                  .append("_")
+                                  .append(std::to_string(q))
+                                  .append("_")
+                                  .append(std::to_string(i));
+        pi_var_[w][q][i] = sp_model_->addVar(-GRB_INFINITY, GRB_INFINITY, 0,
+                                             GRB_CONTINUOUS, varname);
       }
     }
   }
@@ -304,22 +305,22 @@ void SetPartitioningModel::AddObjectiveValueLinearizedVariable() {
 void SetPartitioningModel::AddDualLambdaArcVariable() {
   // arc variable 'lambda'
   for (int w = 0; w < policies_; ++w) {
-    std::vector<std::vector<GRBVar>> newnew_vector;
-    lambda_var_.push_back(newnew_vector);
     for (int q = 0; q < scenarios_; q++) {
-      std::vector<GRBVar> new_vector;
-      lambda_var_[w].push_back(new_vector);
       for (int a = 0; a < arcs_; a++) {
-        std::string varname = "lambda_" + std::to_string(w) + "_" +
-                              std::to_string(q) + "_" + std::to_string(a);
-        lambda_var_[w][q].push_back(
-            sp_model_->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname));
+        std::string varname = std::string("lambda_")
+                                  .append(std::to_string(w))
+                                  .append("_")
+                                  .append(std::to_string(q))
+                                  .append("_")
+                                  .append(std::to_string(a));
+        lambda_var_[w][q][a] =
+            sp_model_->addVar(0, GRB_INFINITY, 0, GRB_CONTINUOUS, varname);
       }
     }
   }
 }
 
-void SetPartitioningModel::AddBudgetConstraint() {
+void SetPartitioningModel::AddBudgetConstraints() {
   for (int w = 0; w < policies_; ++w) {
     GRBLinExpr linexpr = 0;
     for (int a = 0; a < arcs_; a++) {
@@ -367,7 +368,7 @@ void SetPartitioningModel::AddArcCostBoundingConstraint(
   }
 }
 
-void SetPartitioningModel::AddSetPartitioningConstraint() {
+void SetPartitioningModel::AddSetPartitioningConstraints() {
   for (int q = 0; q < scenarios_; ++q) {
     GRBLinExpr linexpr = 0;
     for (int w = 0; w < policies_; ++w) {
@@ -427,18 +428,17 @@ void SetPartitioningModel::ProcessInputSymmetryParameters(
 
 void SetPartitioningModel::ConfigureSolver(const ProblemInput& problem) {
   try {
-    sp_model_ = new GRBModel(*env_);
     sp_model_->set(GRB_IntParam_OutputFlag, 0);
     // Add model variables.
     AddSetPartitioningVariables();
     AddInterdictionPolicyVariables();
-    AddObjectiveValueLinearizedVariable();
+    AddPiShortestPathVariable();
     AddDualLambdaArcVariable();
     // Add model constraints.
-    AddBudgetConstraint();
+    AddBudgetConstraints();
     AddObjectiveBoundingConstraint();
     AddArcCostBoundingConstraint(problem);
-    AddSetPartitioningConstraint();
+    AddSetPartitioningConstraints();
     AddRootNodeZeroConstraint();
     ProcessInputSymmetryParameters(problem);
     sp_model_->update();
@@ -653,49 +653,60 @@ void BendersCallback::callback() {
   }
 }
 
+void SetPartitioningBenders::AddSetPartitioningVariables() {
+  // Set partitioning variables.
+  for (int w = 0; w < policies_; ++w) {
+    for (int q = 0; q < scenarios_; ++q) {
+      std::string varname = std::string("H_")
+                                .append(std::to_string(w))
+                                .append("_")
+                                .append(std::to_string(q));
+      h_var_[w][q] = benders_model_->addVar(0, 1, 0, GRB_BINARY, varname);
+    }
+  }
+}
+
+void SetPartitioningBenders::AddInterdictionPolicyVariables() {
+  // Interdiction policy on arcs.
+  for (int w = 0; w < policies_; ++w) {
+    for (int a = 0; a < arcs_; a++) {
+      std::string varname = std::string("x_")
+                                .append(std::to_string(w))
+                                .append("_")
+                                .append(std::to_string(a));
+      x_var_[w][a] = benders_model_->addVar(0, 1, 0, GRB_BINARY, varname);
+    }
+  }
+}
+
+void SetPartitioningBenders::AddBudgetConstraints() {
+  for (int w = 0; w < policies_; ++w) {
+    GRBLinExpr linexpr = 0;
+    for (int a = 0; a < arcs_; a++) {
+      linexpr += x_var_[w][a];
+    }
+    benders_model_->addConstr(linexpr <= budget_);
+  }
+}
+
+void SetPartitioningBenders::AddSetPartitioningConstraints() {
+  for (int q = 0; q < scenarios_; ++q) {
+    GRBLinExpr linexpr = 0;
+    for (int w = 0; w < policies_; ++w) {
+      linexpr += h_var_[w][q];
+    }
+    benders_model_->addConstr(linexpr == 1);
+  }
+}
+
 void SetPartitioningBenders::ConfigureSolver(const ProblemInput& problem) {
   try {
-    // Initialize Model/Environment.
-    benders_model_ = new GRBModel(env_);
     benders_model_->set(GRB_IntParam_OutputFlag, 0);
     benders_model_->getEnv().set(GRB_IntParam_LazyConstraints, 1);
-    // Add Decision variables - z, h(w)(q) and x(w).
-    z_var_ = benders_model_->addVar(0, big_m_, -1, GRB_CONTINUOUS, "z");
-    h_var_ = std::vector<std::vector<GRBVar>>(policies_,
-                                              std::vector<GRBVar>(scenarios_));
-    for (int w = 0; w < policies_; ++w) {
-      for (int q = 0; q < scenarios_; ++q) {
-        std::string varname =
-            "H_" + std::to_string(w) + "_" + std::to_string(q);
-        h_var_[w][q] = benders_model_->addVar(0, 1, 0, GRB_BINARY, varname);
-      }
-    }
-    x_var_ =
-        std::vector<std::vector<GRBVar>>(policies_, std::vector<GRBVar>(arcs_));
-    for (int w = 0; w < policies_; ++w) {
-      for (int a = 0; a < arcs_; a++) {
-        std::string varname =
-            "x_" + std::to_string(w) + "_" + std::to_string(a);
-        x_var_[w][a] = benders_model_->addVar(0, 1, 0, GRB_BINARY, varname);
-      }
-    }
-    // Add Budget Constraints.
-    for (int w = 0; w < policies_; ++w) {
-      GRBLinExpr linexpr = 0;
-      for (int a = 0; a < arcs_; a++) {
-        linexpr += x_var_[w][a];
-      }
-      benders_model_->addConstr(linexpr <= budget_);
-    }
-    // Add Set Partitioning Constraint.
-    for (int q = 0; q < scenarios_; ++q) {
-      GRBLinExpr linexpr = 0;
-      for (int w = 0; w < policies_; ++w) {
-        linexpr += h_var_[w][q];
-      }
-      benders_model_->addConstr(linexpr == 1);
-    }
-    // Initialize Separation Object, passing decision variables.
+    AddSetPartitioningVariables();
+    AddInterdictionPolicyVariables();
+    AddBudgetConstraints();
+    AddSetPartitioningConstraints();
     callback_ = BendersCallback(problem, z_var_, h_var_, x_var_);
     callback_.ConfigureSubModels(problem);
   } catch (GRBException e) {
