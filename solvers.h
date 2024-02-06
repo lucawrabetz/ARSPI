@@ -63,10 +63,11 @@ const std::string INSTANCE_INFO_COLUMN_HEADERS =
 // have p=3 and k=2, with followers 0,1 in partition 0, and follower 2 in
 // partition 1, we have: "0-0-1".
 const std::string MIP_COLUMN_HEADERS =
-    "MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,MIP_partition";
+    "MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,MIP_partition,MIP_m_sym,MIP_g_"
+    "sym";
 const std::string BENDERS_COLUMN_HEADERS =
     "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_"
-    "rounds,BENDERS_partition";
+    "rounds,BENDERS_partition,BENDERS_m_sym,BENDERS_g_sym";
 const std::string ENUMERATION_COLUMN_HEADERS =
     "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,ENUMERATION_"
     "partition";
