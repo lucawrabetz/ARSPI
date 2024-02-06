@@ -1525,7 +1525,17 @@ std::string SolveAndPrintTest(const std::string& set_name,
       final_csv_string.append(std::to_string(sp_solution.solution_time()));
       final_csv_string.append(",");
       final_csv_string.append(SolutionPartitionToString(sp_solution, problem));
-      log_line.append("MIP: ");
+      final_csv_string.append(",");
+      final_csv_string.append(
+          std::to_string(problem.manual_symmetry_constraints_));
+      final_csv_string.append(",");
+      final_csv_string.append(
+          std::to_string(problem.gurobi_symmetry_detection_));
+      log_line.append("MIP (-m ");
+      log_line.append(std::to_string(problem.manual_symmetry_constraints_));
+      log_line.append(", -g ");
+      log_line.append(std::to_string(problem.gurobi_symmetry_detection_));
+      log_line.append("): ");
       log_line.append(optimal);
       log_line.append(" - ");
       log_line.append(std::to_string(sp_solution.worst_case_objective()));
@@ -1562,7 +1572,17 @@ std::string SolveAndPrintTest(const std::string& set_name,
       final_csv_string.append(",");
       final_csv_string.append(
           SolutionPartitionToString(benders_solution, problem));
-      log_line.append("BENDERS: ");
+      final_csv_string.append(",");
+      final_csv_string.append(
+          std::to_string(problem.manual_symmetry_constraints_));
+      final_csv_string.append(",");
+      final_csv_string.append(
+          std::to_string(problem.gurobi_symmetry_detection_));
+      log_line.append("BENDERS: (-m ");
+      log_line.append(std::to_string(problem.manual_symmetry_constraints_));
+      log_line.append(", -g ");
+      log_line.append(std::to_string(problem.gurobi_symmetry_detection_));
+      log_line.append("): ");
       log_line.append(optimal);
       log_line.append(" - ");
       log_line.append(std::to_string(benders_solution.worst_case_objective()));
