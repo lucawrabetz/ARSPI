@@ -19,6 +19,7 @@
 #include <limits>
 #include <queue>
 #include <random>
+#include <set>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -138,9 +139,14 @@ class Graph {
  private:
   int nodes_, arcs_;
   const std::string filename_;
-  // Arc vectors - adjacency_list_ is a linked list representation of the arc
-  // list (outgoing arcs). The vector arc_index_hash_ directly maps every arc j
-  // = adjacency_list_[i] to its index a in 0,...,m-1.
+  // Arc vectors - adjacency_list_ is a classic linked list representation of
+  // the arc list (outgoing arcs). The vector arc_index_hash_ directly maps
+  // every arc (i, j), (so adjacency_list[i] includes j) to its index a in
+  // 0,...,m-1. adjacency_list[i] and arc_index_hash[i] are aligned. For
+  // example, if node i = 0 has 2 outgoing arcs, to nodes j = 1, 2, with arc
+  // indices a = 0, 1, respectively, we will have:
+  //    adjacency_list[0] = {1, 2}
+  //    arc_index_hash[0] = {0, 1}
   std::vector<std::vector<int>> arc_index_hash_;
   std::vector<std::vector<int>> adjacency_list_;
   // Similarly, rev_adjacency_list and rev_arc_index_hash represent a linked
@@ -165,6 +171,7 @@ class AdaptiveInstance {
                    std::vector<int>& keep_scenarios);
   void ReadCosts();
   void PrintInstance(const Graph& G) const;
+  double SPDijkstra(int q, const Graph& G) const;
   double SPModel(int q, const Graph& G, GRBEnv* env) const;
   double SolveASPIZeroPolicies(const Graph& G, GRBEnv* env) const;
   void ApplyInterdiction(const std::vector<double>& x_bar, bool rev = false);
