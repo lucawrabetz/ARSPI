@@ -1,5 +1,6 @@
 #include "solvers.h"
 
+#include <cstddef>
 #include <string>
 
 long GetCurrentTime() {
@@ -149,6 +150,50 @@ void AdaptiveInstance::PrintInstance(const Graph& G) const {
   G.PrintGraphWithCosts(arc_costs_, interdiction_delta_);
 }
 
+double AdaptiveInstance::SPDijkstra(int q, const Graph& G) const {
+  // Create a set to store vertices that are being
+  // processed. Vertex pair -> std::pair<int, int>> = {distance, i}.
+  // Set sorts on element->first.
+  std::set<std::pair<int, int>> unvisited;
+  std::vector<int> distances(nodes_, big_m_);
+  unvisited.insert(std::make_pair(/*distance=*/0, /*node_index=*/0));
+  distances[0] = 0;
+  std::vector<std::vector<int>> adjacency_list = G.adjacency_list();
+  std::vector<std::vector<int>> arc_index_hash = G.arc_index_hash();
+
+  while (!unvisited.empty()) {
+    // Pop vertex with minimum distance (set is self sorting).
+    auto it = unvisited.begin();
+    std::pair<int, int> tmp = *it;
+    unvisited.erase(it);
+    int u = tmp.second;
+    for (size_t i = 0; i < adjacency_list[u].size(); i++) {
+      // Get vertex label and weight of current adjacent
+      // of u.
+      int v = adjacency_list[u][i];
+      int a = arc_index_hash[u][i];
+      int weight = arc_costs_[q][a];
+
+      //    If there is shorter path to v through u.
+      if (distances[v] > distances[u] + weight) {
+        /*  If distance of v is not INF then it must be in
+            our set, so removing it and inserting again
+            with updated less distance.
+            Note : We extract only those vertices from Set
+            for which distance is finalized. So for them,
+            we would never reach here.  */
+        if (distances[v] != big_m_)
+          unvisited.erase(unvisited.find(std::make_pair(distances[v], v)));
+
+        // Updating distance of v
+        distances[v] = distances[u] + weight;
+        unvisited.insert(std::make_pair(distances[v], v));
+      }
+    }
+  }
+  return distances[nodes_ - 1];
+}
+
 double AdaptiveInstance::SPModel(int q, const Graph& G, GRBEnv* env) const {
   // Return shortest path objective function for follower q on instance.
   try {
@@ -238,7 +283,7 @@ double ComputeObjectiveOfPolicyForScenario(
     int q) {
   AdaptiveInstance instance_copy = problem.instance_;
   instance_copy.ApplyInterdiction(binary_policy);
-  double objective = instance_copy.SPModel(q, problem.G_, problem.env_);
+  double objective = instance_copy.SPDijkstra(q, problem.G_);
   return objective;
 }
 
@@ -496,7 +541,8 @@ AdaptiveSolution SetPartitioningModel::Solve(const ProblemInput& problem) {
     // milliseconds, since GetCurrentTime() returns milliseconds.
     final_solution.set_unbounded(false);
     final_solution.set_solution_time(TIME_LIMIT_MS);
-    // Check if there is an incumbent - in this case set solution and objective.
+    // Check if there is an incumbent - in this case set solution and
+    // objective.
     if (sp_model_->get(GRB_IntAttr_SolCount) > 0) {
       final_solution.set_mip_gap(sp_model_->get(GRB_DoubleAttr_MIPGap));
       final_solution.set_worst_case_objective(
@@ -985,8 +1031,8 @@ void AdaptiveSolution::ComputePartition() {
   // Set up the partition when it is uninitialized (only needed for the
   // approximation algorithm). Objective matrix should be populated at this
   // point - i.e. ComputeObjectiveMatrix should be called first. For each
-  // scenario, find the policy w that maximizes their objectives (all k will be
-  // available in objectives_).
+  // scenario, find the policy w that maximizes their objectives (all k will
+  // be available in objectives_).
   for (int q = 0; q < scenarios_; ++q) {
     double max_objective = DBL_MIN;
     int partition_index = -1;
@@ -1002,10 +1048,10 @@ void AdaptiveSolution::ComputePartition() {
 }
 
 void AdaptiveSolution::ComputeAdaptiveObjective() {
-  // Minimizing - finding the worst (minimum) objective value, out of all of the
-  // follower's objectives (using the best (maximum) policy for each follower).
-  // Only to be run once ComputeAllObjectives is run.
-  // Only reassigns worst_case_objective_ if it was -1 - otherwise, it does
+  // Minimizing - finding the worst (minimum) objective value, out of all of
+  // the follower's objectives (using the best (maximum) policy for each
+  // follower). Only to be run once ComputeAllObjectives is run. Only
+  // reassigns worst_case_objective_ if it was -1 - otherwise, it does
   // nothing, but will output a warning if the computed objective and previous
   // objective are different by more than epsilon. If unbounded_ was set to
   // true, the function is skipped all together.
@@ -1159,15 +1205,14 @@ MergeEnumSols(std::pair<std::vector<std::vector<int>>,
               std::pair<std::vector<std::vector<int>>,
                         std::vector<std::vector<double>>>& sol2,
               int w_index) {
-  // Merge 2 solutions e.g. when extending an enum solve, combine the new split
-  // worst subset w_index is the position of the split subset in the original
-  // solution (sol1)
-  // place the first subset/policy of sol2 at position w_index of sol1,
-  // replacing the subset that was split
+  // Merge 2 solutions e.g. when extending an enum solve, combine the new
+  // split worst subset w_index is the position of the split subset in the
+  // original solution (sol1) place the first subset/policy of sol2 at
+  // position w_index of sol1, replacing the subset that was split
   sol1.first[w_index] = sol2.first[0];
   sol1.second[w_index] = sol2.second[0];
-  // place the second subset/policy of sol2 at the end of sol1, extending it to
-  // k+1
+  // place the second subset/policy of sol2 at the end of sol1, extending it
+  // to k+1
   sol1.first.push_back(sol2.first[1]);
   sol1.second.push_back(sol2.second[1]);
   return sol1;
@@ -1303,10 +1348,23 @@ std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(
 int FirstFollowerInGreedyAlgorithm(ProblemInput& problem) {
   std::pair<int, double> min_subset = {-1, DBL_MAX};
   for (int q = 0; q < problem.instance_.scenarios(); q++) {
-    double obj = problem.instance_.SPModel(q, problem.G_, problem.env_);
+    double obj = problem.instance_.SPDijkstra(q, problem.G_);
     if (obj < min_subset.second) min_subset = {q, obj};
   }
   return min_subset.first;
+}
+
+void log_time(long begin, long end, const std::string& partname) {
+  std::cout << partname << ": " << end - begin << "ms" << std::endl;
+}
+
+void log_matrix(const std::vector<std::vector<double>>& m) {
+  for (const auto& v : m) {
+    for (double x : v) {
+      std::cout << x << " ";
+    }
+    std::cout << std::endl;
+  }
 }
 
 AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
@@ -1314,31 +1372,38 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
   AdaptiveSolution time_limit_solution = AdaptiveSolution(false, false, false);
   time_limit_solution.set_solution_time(TIME_LIMIT_MS);
   time_limit_solution.set_worst_case_objective(-1);
+  // PART 1 Choose first follower and initialize. (SLOW ~250ms).
   long begin = GetCurrentTime();
-  std::vector<std::vector<double>> objective_matrix;
+  std::vector<std::vector<double>> objective_matrix(
+      problem.policies_, std::vector<double>(problem.instance_.scenarios()));
   std::unordered_set<int> centers;
-  std::vector<std::vector<double>> final_policies;
+  std::vector<std::vector<double>> final_policies(
+      problem.policies_, std::vector<double>(problem.G_.arcs()));
   // Choose the first scenario to solve SPI for arbitrarily (we'll just use
   // index 0).
   int next_follower = FirstFollowerInGreedyAlgorithm(problem);
   centers.insert(next_follower);
-  // Solve problem for next follower, and add a new vector to objective matrix,
-  // i.e. the objective value of the new policy interdicting each follower.
+  // PART 2 Solve subproblem first time for first follower. (NOT so SLOW).
+  // Solve problem for next follower, and add a new vector to objective
+  // matrix, i.e. the objective value of the new policy interdicting each
+  // follower.
   std::pair<double, std::vector<double>> temp_single_solution =
       SolveBendersInGreedyAlgorithm(problem, next_follower);
+  // PART 3 Update objective matrix. (SLOW ~250ms).
   if (temp_single_solution.first == -1) return time_limit_solution;
-  std::vector<double> new_objectives(problem.instance_.scenarios());
+
   for (int q = 0; q < problem.instance_.scenarios(); q++) {
-    new_objectives[q] = ComputeObjectiveOfPolicyForScenario(
+    objective_matrix[0][q] = ComputeObjectiveOfPolicyForScenario(
         problem, temp_single_solution.second, q);
   }
-  objective_matrix.push_back(new_objectives);
-  final_policies.push_back(temp_single_solution.second);
+  final_policies[0] = temp_single_solution.second;
+  // PART 4: Solve k-1 subproblems
   size_t policies = problem.policies_;
+  int w = 1;
   while (centers.size() < policies) {
     long current_time = GetCurrentTime() - begin;
-    // Use milliseconds since we used GetCurrentTime, which is in milliseconds,
-    // to measure.
+    // Use milliseconds since we used GetCurrentTime, which is in
+    // milliseconds, to measure.
     if (current_time >= TIME_LIMIT_MS) {
       AdaptiveSolution time_limit_solution =
           AdaptiveSolution(false, false, false);
@@ -1368,13 +1433,14 @@ AdaptiveSolution GreedyAlgorithm(ProblemInput& problem) {
     if (temp_single_solution.first == -1) return time_limit_solution;
     std::vector<double> new_objectives(problem.instance_.scenarios());
     for (int q = 0; q < problem.instance_.scenarios(); q++) {
-      new_objectives[q] = ComputeObjectiveOfPolicyForScenario(
+      objective_matrix[w][q] = ComputeObjectiveOfPolicyForScenario(
           problem, temp_single_solution.second, q);
     }
-    objective_matrix.push_back(new_objectives);
-    final_policies.push_back(temp_single_solution.second);
+    final_policies[w] = temp_single_solution.second;
     centers.insert(next_follower);
+    w++;
   }
+  // Part 5 final solution.
   std::vector<std::vector<int>> temp_partition(problem.policies_,
                                                std::vector<int>(0));
   // Benders == false, optimal == false.
@@ -1714,8 +1780,8 @@ void RunAllInstancesInSetDirectory(
     std::string name = entity->d_name;
     entity = readdir(set_directory);
     if (name.size() < set_name.size())
-      continue;  // This is not a data file, data files start with <set_name> so
-                 // are at least as long as set_name.size().
+      continue;  // This is not a data file, data files start with <set_name>
+                 // so are at least as long as set_name.size().
     std::string set_name_in_name(name.begin(), name.begin() + set_name.size());
     if (set_name_in_name != set_name)
       continue;  // For sanity, check that the data file matches the set_name
@@ -1728,8 +1794,8 @@ void RunAllInstancesInSetDirectory(
                  // names.
     // We will loop through all cost files (which are analogous to all
     // InstanceInputs) parse their names to get params for both GraphInput and
-    // InstanceInput, and then run the our single run function for every k from
-    // 1 to max k (as long as k <= scenarios).
+    // InstanceInput, and then run the our single run function for every k
+    // from 1 to max k (as long as k <= scenarios).
     if (IsCostFile(name)) {
       std::pair<int, int> n_kzero = GetNodesKZero(name, set_name.size() + 1);
       int nodes = n_kzero.first;
@@ -1742,8 +1808,9 @@ void RunAllInstancesInSetDirectory(
       for (int k = min_policies; k <= max_policies; k++) {
         for (int budget = min_budget; budget <= max_budget; budget++) {
           if (k > instance_input.scenarios_) break;
-          // removing budget > k_zero check for now, because I want to run some
-          // instances of that type if (budget > graph_input.k_zero_) break;
+          // removing budget > k_zero check for now, because I want to run
+          // some instances of that type if (budget > graph_input.k_zero_)
+          // break;
           const ProblemInput problem(
               instance_input, k, budget, env, manual_symmetry_constraints,
               gurobi_symmetry_detection, greedy_mip_gap_threshold);
@@ -1859,8 +1926,8 @@ void UninterdictedObjectiveForAllInstances(const std::string& set_name) {
     std::string name = entity->d_name;
     entity = readdir(set_directory);
     if (name.size() < set_name.size())
-      continue;  // This is not a data file, data files start with <set_name> so
-                 // are at least as long as set_name.size().
+      continue;  // This is not a data file, data files start with <set_name>
+                 // so are at least as long as set_name.size().
     std::string set_name_in_name(name.begin(), name.begin() + set_name.size());
     if (set_name_in_name != set_name)
       continue;  // For sanity, check that the data file matches the set_name
