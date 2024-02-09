@@ -169,28 +169,20 @@ double AdaptiveInstance::SPDijkstra(int q, const Graph& G) const {
     int u = tmp.second;
     for (size_t i = 0; i < adjacency_list[u].size(); i++) {
       // Get vertex label and weight of current adjacent
-      // of u.
+      // vertex of u, which we denote v. arc indexed by a = (u,v).
       int v = adjacency_list[u][i];
       int a = arc_index_hash[u][i];
       int weight = arc_costs_[q][a];
-
-      //    If there is shorter path to v through u.
       if (distances[v] > distances[u] + weight) {
-        /*  If distance of v is not INF then it must be in
-            our set, so removing it and inserting again
-            with updated less distance.
-            Note : We extract only those vertices from Set
-            for which distance is finalized. So for them,
-            we would never reach here.  */
-        if (distances[v] != big_m_)
+        if (distances[v] != big_m_) {
           unvisited.erase(unvisited.find(std::make_pair(distances[v], v)));
-
-        // Updating distance of v
+        }
         distances[v] = distances[u] + weight;
         unvisited.insert(std::make_pair(distances[v], v));
       }
     }
   }
+  // Just return distance to sink node.
   return distances[nodes_ - 1];
 }
 
