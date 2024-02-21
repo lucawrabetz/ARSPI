@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <utility>
 
 long GetCurrentTime() {
   // Helper function to get current time in milliseconds.
@@ -556,95 +557,132 @@ AdaptiveSolution SetPartitioningModel::Solve(const ProblemInput& problem) {
   return final_solution;
 }
 
-void BendersCallback::ConfigureIndividualSubModel(const Graph& G, int w,
-                                                  int q) {
-  submodels_[w][q]->set(GRB_IntParam_OutputFlag, 0);
-  // Add decision variables.
-  for (int a = 0; a < arcs_; ++a) {
-    std::string varname = "y_" + std::to_string(a);
-    y_var_[w][q].push_back(submodels_[w][q]->addVar(0, 1, arc_costs_[q][a],
-                                                    GRB_CONTINUOUS, varname));
-  }
-  // Add flow constraints.
-  for (int i = 0; i < nodes_; ++i) {
-    if (G.arc_index_hash()[i].empty() && G.rev_arc_index_hash()[i].empty())
-      continue;
-    GRBLinExpr lhs = 0;
-    int rhs = 0;
-    if (i == 0)
-      rhs = 1;
-    else if (i == nodes_ - 1)
-      rhs = -1;
-    for (size_t index = 0; index < G.arc_index_hash()[i].size(); index++) {
-      int a = G.arc_index_hash()[i][index];
-      lhs += (1) * y_var_[w][q][a];
-    }
-    for (size_t index = 0; index < G.rev_arc_index_hash()[i].size(); index++) {
-      int a = G.rev_arc_index_hash()[i][index];
-      lhs += (-1) * y_var_[w][q][a];
-    }
-    submodels_[w][q]->addConstr(lhs == rhs);
-  }
-}
-
-void BendersCallback::ConfigureSubModels(const ProblemInput& problem) {
-  // Initialize models (k x p).
-  for (int w = 0; w < policies_; ++w) {
-    submodels_.push_back(std::vector<GRBModel*>());
-    for (int q = 0; q < scenarios_; ++q) {
-      submodels_[w].push_back(new GRBModel(*env_));
-    }
-  }
-  y_var_ = std::vector<std::vector<std::vector<GRBVar>>>(
-      policies_, std::vector<std::vector<GRBVar>>(scenarios_));
-  // Configure each individual submodel.
-  for (int w = 0; w < policies_; ++w) {
-    for (int q = 0; q < scenarios_; ++q) {
-      ConfigureIndividualSubModel(problem.G_, w, q);
-    }
-  }
-}
-
-void BendersCallback::UpdateSubModels(bool rev) {
-  for (int w = 0; w < policies_; ++w) {
-    for (int a = 0; a < arcs_; ++a) {
-      if (getSolution(x_var_[w][a]) > 0.5) {
-        for (int q = 0; q < scenarios_; ++q) {
-          if (rev) {
-            int new_cost = arc_costs_[q][a];
-            y_var_[w][q][a].set(GRB_DoubleAttr_Obj, new_cost);
-          } else {
-            int new_cost = arc_costs_[q][a] + interdiction_delta_;
-            y_var_[w][q][a].set(GRB_DoubleAttr_Obj, new_cost);
-          }
-        }
-      }
-    }
-  }
-}
-
-void BendersCallback::SolveSubModels() {
-  for (int w = 0; w < policies_; ++w) {
-    for (int q = 0; q < scenarios_; ++q) {
-      submodels_[w][q]->optimize();
-    }
-  }
-}
-
 void BendersCallback::AddLazyCuts() {
   for (int w = 0; w < policies_; ++w) {
-    for (int q = 0; q < scenarios_; ++q) {
+    for (int q : clusters_h_var_[w]) {
       GRBLinExpr lhs = z_var_ - big_m_ * (1 - h_var_[w][q]);
-      GRBLinExpr rhs = 0;
-      for (int a = 0; a < arcs_; ++a) {
-        if (y_var_[w][q][a].get(GRB_DoubleAttr_X) > 0.5) {
-          rhs += arc_costs_[q][a] + interdiction_delta_ * x_var_[w][a];
-        }
+      GRBLinExpr rhs = shortest_paths_[q].cost;
+      for (int a : shortest_paths_[q].arcs) {
+        rhs += interdiction_delta_ * x_var_[w][a];
       }
       addLazy(lhs <= rhs);
     }
   }
+  // for (int w = 0; w < policies_; ++w) {
+  //   for (int q = 0; q < scenarios_; ++q) {
+  //     GRBLinExpr lhs = z_var_ - big_m_ * (1 - h_var_[w][q]);
+  //     GRBLinExpr rhs = 0;
+  //     for (int a = 0; a < arcs_; ++a) {
+  //       if (y_var_[w][q][a].get(GRB_DoubleAttr_X) > 0.5) {
+  //         rhs += arc_costs_[q][a] + interdiction_delta_ * x_var_[w][a];
+  //       }
+  //     }
+  //     addLazy(lhs <= rhs);
+  //   }
+  // }
   lazy_cuts_rounds_++;
+}
+
+void BendersCallback::UpdateMasterVariables() {
+  // Set the "sparse" representation of x.
+  for (int w = 0; w < policies_; ++w) {
+    // For safety, overwrite the previous sparse interdiction policies with -1s,
+    // just in case we interdicted less arcs than budget_, and then ran into
+    // trouble using the wrong interdicted arc.
+    std::fill(sparse_x_var_[w].begin(), sparse_x_var_[w].end(), -1);
+    int idx = 0;
+    for (int a = 0; a < arcs_; ++a) {
+      if (getSolution(x_var_[w][a]) > 0.5) {
+        sparse_x_var_[w][idx] = a;
+        idx++;
+      }
+    }
+  }
+  // Set the "cluster" representation of h.
+  for (int w = 0; w < policies_; ++w) {
+    clusters_h_var_[w].clear();
+    for (int q = 0; q < scenarios_; ++q) {
+      if (getSolution(h_var_[w][q]) > 0.5) {
+        clusters_h_var_[w].push_back(q);
+      }
+    }
+  }
+}
+
+void BendersCallback::UpdateArcCostsForQWPair(int w, int q, bool rev) {
+  // This function assumes that if you call it with rev = false, you will use
+  // the arc_costs to solve shortest paths once for each affected scenario, and
+  // call it again with rev = true immediately after.
+  // Recall that sparse_x_var_[w] is a vector of arc indices of size budget_,
+  // however, if the current interdiction policy was less than budget_ arcs,
+  // then sparse_x_var_[w] will have some -1 values, so we must check for them.
+  for (int a : sparse_x_var_[w]) {
+    if (a == -1) continue;
+    if (rev) {
+      arc_costs_[q][a] -= interdiction_delta_;
+    } else {
+      arc_costs_[q][a] += interdiction_delta_;
+    }
+  }
+}
+
+void BendersCallback::SPDijkstra(int q) {
+  // Create a set to store vertices that are being
+  // processed. Vertex pair -> std::pair<int, int>> = {distance, i}.
+  // Set sorts on element->first.
+  std::set<std::pair<int, int>> unvisited;
+  std::vector<int> distances(nodes_, big_m_);
+  // prev stores the previous node of node j in the path construction, however,
+  // instead of storing the node, i, if the arc is (i, j) indexed by a, we store
+  // prev[j] = {i, a} as we will need both to reconstruct the path.
+  std::vector<std::pair<int, int>> prev(nodes_, {-1, -1});
+  unvisited.insert(std::make_pair(/*distance=*/0, /*node_index=*/0));
+  distances[0] = 0;
+
+  while (!unvisited.empty()) {
+    // Pop vertex with minimum distance (set is self sorting).
+    auto it = unvisited.begin();
+    std::pair<int, int> tmp = *it;
+    unvisited.erase(it);
+    int u = tmp.second;
+    for (size_t i = 0; i < adjacency_list_[u].size(); i++) {
+      // Get vertex label and weight of current adjacent
+      // vertex of u, which we denote v. arc indexed by a = (u,v).
+      int v = adjacency_list_[u][i];
+      int a = arc_index_hash_[u][i];
+      int weight = arc_costs_[q][a];
+      if (distances[v] > distances[u] + weight) {
+        if (distances[v] != big_m_) {
+          unvisited.erase(unvisited.find(std::make_pair(distances[v], v)));
+        }
+        prev[v] = {u, a};
+        distances[v] = distances[u] + weight;
+        unvisited.insert(std::make_pair(distances[v], v));
+      }
+    }
+  }
+  // Update shortest path for q in shortest_paths_.
+  // THESE PATHS ARE NOT IN ORDER - THEY ARE JUST THE LIST OF ARCS INCLUDED IN
+  // THE PATH, AS WE JUST NEED THAT TO ADD THEM AS LAZY CUTS.
+  std::vector<int> sp;
+  sp.reserve(nodes_);
+  int v = nodes_ - 1;
+  double path_cost = 0;
+  while (v != 0) {
+    // our arc is a = (u, v), which is in the shortest path by prev.
+    int u = prev[v].first;
+    int a = prev[v].second;
+    sp.push_back(a);
+    path_cost += arc_costs_[q][a];
+    v = u;
+  }
+  shortest_paths_[q] = {sp, path_cost};
+}
+
+void BendersCallback::ComputeInitialPaths() {
+  for (int q = 0; q < scenarios_; ++q) {
+    SPDijkstra(q);
+  }
 }
 
 void BendersCallback::callback() {
@@ -657,34 +695,24 @@ void BendersCallback::callback() {
     // before we update the upper bound.
     upper_bound_ = -getDoubleInfo(GRB_CB_MIPSOL_OBJBST);
     if (upper_bound_ - lower_bound_ >= epsilon_) {
-      UpdateSubModels();
-      SolveSubModels();
-      UpdateSubModels(true);
-      // temp_bound is equal to:
-      // min_q max_w submodel_objective[w][q]
-      double temp_bound = DBL_MAX;
-      for (int q = 0; q < scenarios_; ++q) {
-        double incumbent = DBL_MIN;
-        for (int w = 0; w < policies_; ++w) {
-          double obj = submodels_[w][q]->get(GRB_DoubleAttr_ObjVal);
-          if (obj > incumbent) incumbent = obj;
+      UpdateMasterVariables();
+      for (int w = 0; w < policies_; ++w) {
+        for (int q : clusters_h_var_[w]) {
+          UpdateArcCostsForQWPair(w, q);
+          SPDijkstra(q);
+          UpdateArcCostsForQWPair(w, q, /*rev=*/true);
         }
-        if (incumbent < temp_bound) temp_bound = incumbent;
+      }
+      // NEW BOUND
+      // temp_bound is equal to
+      // min_q shortest_paths[q].second
+      double temp_bound = DBL_MAX;
+      for (const auto& p : shortest_paths_) {
+        if (p.cost < temp_bound) temp_bound = p.cost;
       }
       if (lower_bound_ < temp_bound) {
         // Update lower bound.
         lower_bound_ = temp_bound;
-        // Set current_solution_/x_prime (final interdiction solution) to
-        // solution x_var_ that was used for the subproblems.
-        // for (int w = 0; w < policies_; ++w) {
-        //   std::vector<double> binary_policy(arcs_);
-        //   for (int a = 0; a < arcs_; ++a) {
-        //     if (getSolution(x_var_[w][a]) > 0.5)
-        //       binary_policy[a] = 1;
-        //     else
-        //       binary_policy[a] = 0;
-        //   }
-        // }
       }
       AddLazyCuts();
     }
@@ -788,7 +816,6 @@ void SetPartitioningBenders::ConfigureSolver(const ProblemInput& problem) {
     AddSetPartitioningConstraints();
     ProcessInputSymmetryParameters(problem);
     callback_ = BendersCallback(problem, z_var_, h_var_, x_var_);
-    callback_.ConfigureSubModels(problem);
   } catch (GRBException e) {
     std::cout
         << "Gurobi error number [SetPartitioningBenders::ConfigureSolver]: "
@@ -802,50 +829,21 @@ void SetPartitioningBenders::ConfigureSolver(const ProblemInput& problem) {
 }
 
 AdaptiveSolution SetPartitioningBenders::Solve(const ProblemInput& problem) {
-  // Set callback, optimize and measure solution time.
-  benders_model_->setCallback(&callback_);
-  long begin = GetCurrentTime();
-  benders_model_->optimize();
-  long time = GetCurrentTime() - begin;
-  AdaptiveSolution final_solution(true, false, problem);
-  if (benders_model_->get(GRB_IntAttr_Status) == GRB_OPTIMAL) {
-    // If optimal, set solution time objective and policy.
-    final_solution.set_unbounded(false);
-    final_solution.set_optimal(true);
-    final_solution.set_solution_time(time);
-    final_solution.set_worst_case_objective(
-        -benders_model_->get(GRB_DoubleAttr_ObjVal));
-    final_solution.set_cuts(callback_.lazy_cuts_rounds());
-    for (int w = 0; w < policies_; ++w) {
-      std::vector<double> x_vector;
-      for (int a = 0; a < arcs_; a++) {
-        x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
-      }
-      final_solution.set_solution_policy(w, x_vector);
-      for (int q = 0; q < scenarios_; q++) {
-        if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
-          final_solution.add_to_partition(w, q);
-        }
-      }
-    }
-    // Skip this as it is time consuming and not needed, only uncomment
-    // for debugging.
-    // final_solution.ComputeObjectiveMatrix(problem);
-  } else if (benders_model_->get(GRB_IntAttr_Status) == GRB_UNBOUNDED) {
-    final_solution.set_unbounded(true);
-    final_solution.set_solution_time(time);
-  } else if (benders_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
-    // If we hit time limit, check for incumbent and set policy and objective.
-    // If solution status is hit time limit, set time to TIME_LIMIT_MS.
-    // Use milliseconds, as our adaptive solution class stores these values in
-    // milliseconds, since GetCurrentTime() returns milliseconds.
-    final_solution.set_unbounded(false);
-    final_solution.set_solution_time(TIME_LIMIT_MS);
-    if (benders_model_->get(GRB_IntAttr_SolCount) > 0) {
-      final_solution.set_mip_gap(benders_model_->get(GRB_DoubleAttr_MIPGap));
-      final_solution.set_cuts(callback_.lazy_cuts_rounds());
+  try {
+    // Set callback, optimize and measure solution time.
+    benders_model_->setCallback(&callback_);
+    long begin = GetCurrentTime();
+    benders_model_->optimize();
+    long time = GetCurrentTime() - begin;
+    AdaptiveSolution final_solution(true, false, problem);
+    if (benders_model_->get(GRB_IntAttr_Status) == GRB_OPTIMAL) {
+      // If optimal, set solution time objective and policy.
+      final_solution.set_unbounded(false);
+      final_solution.set_optimal(true);
+      final_solution.set_solution_time(time);
       final_solution.set_worst_case_objective(
           -benders_model_->get(GRB_DoubleAttr_ObjVal));
+      final_solution.set_cuts(callback_.lazy_cuts_rounds());
       for (int w = 0; w < policies_; ++w) {
         std::vector<double> x_vector;
         for (int a = 0; a < arcs_; a++) {
@@ -858,12 +856,52 @@ AdaptiveSolution SetPartitioningBenders::Solve(const ProblemInput& problem) {
           }
         }
       }
+      // Skip this as it is time consuming and not needed, only uncomment
+      // for debugging.
+      // final_solution.ComputeObjectiveMatrix(problem);
+    } else if (benders_model_->get(GRB_IntAttr_Status) == GRB_UNBOUNDED) {
+      final_solution.set_unbounded(true);
+      final_solution.set_solution_time(time);
+    } else if (benders_model_->get(GRB_IntAttr_Status) == GRB_TIME_LIMIT) {
+      // If we hit time limit, check for incumbent and set policy and objective.
+      // If solution status is hit time limit, set time to TIME_LIMIT_MS.
+      // Use milliseconds, as our adaptive solution class stores these values in
+      // milliseconds, since GetCurrentTime() returns milliseconds.
+      final_solution.set_unbounded(false);
+      final_solution.set_solution_time(TIME_LIMIT_MS);
+      if (benders_model_->get(GRB_IntAttr_SolCount) > 0) {
+        final_solution.set_mip_gap(benders_model_->get(GRB_DoubleAttr_MIPGap));
+        final_solution.set_cuts(callback_.lazy_cuts_rounds());
+        final_solution.set_worst_case_objective(
+            -benders_model_->get(GRB_DoubleAttr_ObjVal));
+        for (int w = 0; w < policies_; ++w) {
+          std::vector<double> x_vector;
+          for (int a = 0; a < arcs_; a++) {
+            x_vector.push_back(x_var_[w][a].get(GRB_DoubleAttr_X));
+          }
+          final_solution.set_solution_policy(w, x_vector);
+          for (int q = 0; q < scenarios_; q++) {
+            if (h_var_[w][q].get(GRB_DoubleAttr_X) > 0.5) {
+              final_solution.add_to_partition(w, q);
+            }
+          }
+        }
+      }
+      // Skip this as it is time consuming and not needed, only uncomment
+      // for debugging.
+      // final_solution.ComputeObjectiveMatrix(problem);
     }
-    // Skip this as it is time consuming and not needed, only uncomment
-    // for debugging.
-    // final_solution.ComputeObjectiveMatrix(problem);
+    return final_solution;
+  } catch (GRBException e) {
+    std::cout << "Gurobi error number [SetPartitioningBenders::Solve]: "
+              << e.getErrorCode() << std::endl;
+    std::cout << e.getMessage() << std::endl;
+  } catch (...) {
+    std::cout << "Non-gurobi error during optimization "
+                 "[SetPartitioningBenders::Solve]"
+              << std::endl;
   }
-  return final_solution;
+  return AdaptiveSolution();
 }
 
 std::vector<int> InitKappa(int p, int k) {

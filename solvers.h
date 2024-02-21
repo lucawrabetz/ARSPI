@@ -115,6 +115,7 @@ struct InstanceInput {
 class Graph {
   // Class to read an arc list from a file and represent it as linked lists.
  public:
+  Graph();
   Graph(const std::string& filename, int nodes);
   void PrintArc(int a, int i, int index, bool rev = false) const;
   void PrintGraph(bool rev = false) const;
@@ -138,7 +139,6 @@ class Graph {
 
  private:
   int nodes_, arcs_;
-  const std::string filename_;
   // Arc vectors - adjacency_list_ is a classic linked list representation of
   // the arc list (outgoing arcs). The vector arc_index_hash_ directly maps
   // every arc (i, j), (so adjacency_list[i] includes j) to its index a in
@@ -441,15 +441,14 @@ class SetPartitioningModel {
       lambda_var_;  // Dual decision variable (for every w, q, a) lambda.
 };
 
+struct ShortestPath {
+  std::vector<int> arcs;
+  double cost;
+};
+
 class BendersCallback : public GRBCallback {
  public:
-  ~BendersCallback() {
-    for (std::vector<GRBModel*>& vec : submodels_) {
-      for (GRBModel* model : vec) {
-        delete model;
-      }
-    }
-  }
+  ~BendersCallback() = default;
   BendersCallback() : upper_bound_(DBL_MAX){};
   BendersCallback(const ProblemInput& problem, GRBVar& z_var,
                   std::vector<std::vector<GRBVar>>& h_var,
@@ -461,15 +460,35 @@ class BendersCallback : public GRBCallback {
         arcs_(problem.G_.arcs()),
         scenarios_(problem.instance_.scenarios()),
         policies_(problem.policies_),
+        budget_(problem.budget_),
         arc_costs_(problem.instance_.arc_costs()),
+        sparse_x_var_(policies_, std::vector<int>(budget_, -1)),
+        clusters_h_var_(policies_),
+        adjacency_list_(problem.G_.adjacency_list()),
+        arc_index_hash_(problem.G_.arc_index_hash()),
+        shortest_paths_(scenarios_),
+        total_lazy_cuts_(0),
         lazy_cuts_rounds_(0),
         interdiction_delta_(problem.instance_.interdiction_delta()),
         z_var_(z_var),
         h_var_(h_var),
         x_var_(x_var),
-        env_(problem.env_){};
+        env_(problem.env_) {
+    for (std::vector<int>& cluster : clusters_h_var_) {
+      cluster.reserve(scenarios_);
+    }
+    for (auto& p : shortest_paths_) {
+      p.arcs.reserve(nodes_);
+      p.cost = -1;
+    }
+  };
+  void UpdateMasterVariables();
+  void UpdateArcCostsForQWPair(int w, int q, bool rev = false);
+  void SPDijkstra(int q);
   void ConfigureSubModels(const ProblemInput& problem);
   void SolveSubModels();
+  void ComputeInitialPaths();
+  std::vector<ShortestPath> paths() { return shortest_paths_; }
   int lazy_cuts_rounds() const { return lazy_cuts_rounds_; }
 
  protected:
@@ -478,25 +497,34 @@ class BendersCallback : public GRBCallback {
  private:
   double epsilon_ = EPSILON;
   double upper_bound_, lower_bound_;
-  int big_m_, nodes_, arcs_, scenarios_, policies_;
+  int big_m_, nodes_, arcs_, scenarios_, policies_, budget_;
   int iteration_ = 0;
   std::vector<std::vector<int>> arc_costs_;
-  int lazy_cuts_rounds_, interdiction_delta_;
+  std::vector<std::vector<int>> sparse_x_var_;
+  std::vector<std::vector<int>> clusters_h_var_;
+  std::vector<std::vector<int>> adjacency_list_;
+  std::vector<std::vector<int>> arc_index_hash_;
+  // Shortest paths for each follower (interdiction policy assigned to it by H
+  // will be used). each path (inner vector) - lists the arc indices in the
+  // path.
+  // shortest_paths_[q].first - path represented by arc indices.
+  // shortest_paths_[q].second - cost of path.
+  // THESE PATHS ARE NOT IN ORDER - THEY ARE JUST THE LIST OF ARCS INCLUDED IN
+  // THE PATH, AS WE JUST NEED THAT TO ADD THEM AS LAZY CUTS.
+  std::vector<ShortestPath> shortest_paths_;
+  int total_lazy_cuts_, lazy_cuts_rounds_, interdiction_delta_;
   void ConfigureIndividualSubModel(const Graph& G, int w, int q);
   void UpdateSubModels(bool rev = false);
   void AddLazyCuts();
 
  public:
+  // Decision variables from master problem.
   GRBVar z_var_;  // Decision variable - objective value.
   std::vector<std::vector<GRBVar>>
       h_var_;  // Decision variable for every (w, q), set partitioning variable.
   std::vector<std::vector<GRBVar>>
       x_var_;  // Decision variable for every (w, a), interdiction policies.
   GRBEnv* env_;
-  std::vector<std::vector<GRBModel*>>
-      submodels_;  // Submodel for every (w, q) policy and scenario.
-  std::vector<std::vector<std::vector<GRBVar>>>
-      y_var_;  // Shortest path decision variable for every (w, q, a).
 };
 
 class SetPartitioningBenders {
@@ -532,6 +560,8 @@ class SetPartitioningBenders {
   void AddAssignmentSymmetryConstraints();
   void AddNonDecreasingSymmetryConstraints();
   void ProcessInputSymmetryParameters(const ProblemInput& problem);
+  void AddInitialPathConstraints(const std::vector<ShortestPath>& paths);
+  void InitialConstraints();
   const int big_m_;
   int nodes_, arcs_, budget_, scenarios_, policies_, interdiction_delta_;
   GRBEnv* env_;
