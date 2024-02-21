@@ -626,7 +626,11 @@ void BendersCallback::UpdateSubModels(bool rev) {
 void BendersCallback::SolveSubModels() {
   for (int w = 0; w < policies_; ++w) {
     for (int q = 0; q < scenarios_; ++q) {
+      long begin = GetCurrentTime();
       submodels_[w][q]->optimize();
+      long dur = GetCurrentTime() - begin;
+      stats_.total_sp_separation_time += dur;
+      stats_.number_of_spcalls++;
     }
   }
 }
@@ -642,9 +646,9 @@ void BendersCallback::AddLazyCuts() {
         }
       }
       addLazy(lhs <= rhs);
+      stats_.total_lazy_cuts_added++;
     }
   }
-  lazy_cuts_rounds_++;
 }
 
 void BendersCallback::callback() {
@@ -657,9 +661,13 @@ void BendersCallback::callback() {
     // before we update the upper bound.
     upper_bound_ = -getDoubleInfo(GRB_CB_MIPSOL_OBJBST);
     if (upper_bound_ - lower_bound_ >= epsilon_) {
+      long callback_begin = GetCurrentTime();
+      long begin = GetCurrentTime();
       UpdateSubModels();
       SolveSubModels();
       UpdateSubModels(true);
+      long dur = GetCurrentTime() - begin;
+      stats_.total_sp_separation_time += dur;
       // temp_bound is equal to:
       // min_q max_w submodel_objective[w][q]
       double temp_bound = DBL_MAX;
@@ -687,6 +695,9 @@ void BendersCallback::callback() {
         // }
       }
       AddLazyCuts();
+      long callback_dur = GetCurrentTime() - callback_begin;
+      stats_.total_callback_time += callback_dur;
+      stats_.number_of_callbacks++;
     }
   }
 }
@@ -815,7 +826,7 @@ AdaptiveSolution SetPartitioningBenders::Solve(const ProblemInput& problem) {
     final_solution.set_solution_time(time);
     final_solution.set_worst_case_objective(
         -benders_model_->get(GRB_DoubleAttr_ObjVal));
-    final_solution.set_cuts(callback_.lazy_cuts_rounds());
+    final_solution.set_benders_stats(callback_.meta_stats());
     for (int w = 0; w < policies_; ++w) {
       std::vector<double> x_vector;
       for (int a = 0; a < arcs_; a++) {
@@ -843,9 +854,9 @@ AdaptiveSolution SetPartitioningBenders::Solve(const ProblemInput& problem) {
     final_solution.set_solution_time(TIME_LIMIT_MS);
     if (benders_model_->get(GRB_IntAttr_SolCount) > 0) {
       final_solution.set_mip_gap(benders_model_->get(GRB_DoubleAttr_MIPGap));
-      final_solution.set_cuts(callback_.lazy_cuts_rounds());
       final_solution.set_worst_case_objective(
           -benders_model_->get(GRB_DoubleAttr_ObjVal));
+      final_solution.set_benders_stats(callback_.meta_stats());
       for (int w = 0; w < policies_; ++w) {
         std::vector<double> x_vector;
         for (int a = 0; a < arcs_; a++) {
@@ -1115,8 +1126,14 @@ void AdaptiveSolution::LogSolution(const ProblemInput& problem, bool policy) {
     }
     std::cout << std::endl;
   }
-  if (benders_)
-    std::cout << "Rounds of lazy cuts: " << lazy_cuts_rounds_ << std::endl;
+  if (benders_) {
+    std::cout << "Callbacks: " << number_of_callbacks_ << std::endl;
+    std::cout << "Cuts added: " << total_lazy_cuts_added_ << std::endl;
+    std::cout << "Average time per callback: " << avg_callback_time_
+              << std::endl;
+    std::cout << "Average time per sp call: " << avg_sp_separation_time_
+              << std::endl;
+  }
 }
 
 void AdaptiveSolution::MergeEnumSols(AdaptiveSolution sol2,
@@ -1626,7 +1643,16 @@ std::string SolveAndPrintTest(const std::string& set_name,
       final_csv_string.append(std::to_string(benders_solution.solution_time()));
       final_csv_string.append(",");
       final_csv_string.append(
-          std::to_string(benders_solution.lazy_cuts_rounds()));
+          std::to_string(benders_solution.number_of_callbacks()));
+      final_csv_string.append(",");
+      final_csv_string.append(
+          std::to_string(benders_solution.total_lazy_cuts_added()));
+      final_csv_string.append(",");
+      final_csv_string.append(
+          std::to_string(benders_solution.avg_callback_time()));
+      final_csv_string.append(",");
+      final_csv_string.append(
+          std::to_string(benders_solution.avg_sp_separation_time()));
       final_csv_string.append(",");
       final_csv_string.append(
           SolutionPartitionToString(benders_solution, problem));
