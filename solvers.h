@@ -68,7 +68,8 @@ const std::string MIP_COLUMN_HEADERS =
     "sym";
 const std::string BENDERS_COLUMN_HEADERS =
     "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_"
-    "rounds,BENDERS_partition,BENDERS_m_sym,BENDERS_g_sym";
+    "rounds,BENDERS_cuts_added,BENDERS_avg_cbtime,BENDERS_avg_sptime,BENDERS_"
+    "partition,BENDERS_m_sym,BENDERS_g_sym";
 const std::string ENUMERATION_COLUMN_HEADERS =
     "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,ENUMERATION_"
     "partition";
@@ -242,6 +243,20 @@ class ProblemInput {
   GRBEnv* env_;
 };
 
+struct BendersMetaStats {
+  BendersMetaStats()
+      : number_of_callbacks(0),
+        number_of_spcalls(0),
+        total_lazy_cuts_added(0),
+        total_sp_separation_time(0),
+        total_callback_time(0){};
+  int number_of_callbacks;
+  int number_of_spcalls;
+  int total_lazy_cuts_added;
+  long total_sp_separation_time;  // Time in ms.
+  long total_callback_time;       // Time in ms.
+};
+
 class AdaptiveSolution {
   // Full solution - i.e. a vector of k policy objects with extra info,
   // including the partition.
@@ -300,13 +315,16 @@ class AdaptiveSolution {
   void ComputePartition();
   void ComputeAdaptiveObjective();
   int policies() const { return policies_; }
-  int lazy_cuts_rounds() const { return lazy_cuts_rounds_; }
   bool optimal() const { return optimal_; }
   double worst_case_objective() const { return worst_case_objective_; }
   double mip_gap() const { return mip_gap_; }
   std::vector<std::vector<int>> partition() const { return partition_; }
   std::vector<std::vector<double>> solution() const { return solution_; }
   long solution_time() const { return solution_time_; }
+  int number_of_callbacks() const { return number_of_callbacks_; }
+  int total_lazy_cuts_added() const { return total_lazy_cuts_added_; }
+  long avg_callback_time() const { return avg_callback_time_; }
+  long avg_sp_separation_time() const { return avg_sp_separation_time_; }
   void set_policies(int policies) { policies_ = policies; }
   void set_scenarios(int scenarios) { scenarios_ = scenarios; }
   void set_worst_case_objective(double worst_case_objective) {
@@ -325,7 +343,13 @@ class AdaptiveSolution {
     partition_ = partition;
   }
   void set_unbounded(bool unbounded) { unbounded_ = unbounded; }
-  void set_cuts(int cuts) { lazy_cuts_rounds_ = cuts; }
+  void set_benders_stats(const BendersMetaStats& stats) {
+    number_of_callbacks_ = stats.number_of_callbacks;
+    total_lazy_cuts_added_ = stats.total_lazy_cuts_added;
+    avg_callback_time_ = stats.total_callback_time / number_of_callbacks_;
+    avg_sp_separation_time_ =
+        stats.total_sp_separation_time / stats.number_of_spcalls;
+  }
   void add_to_partition(int index, int scenario) {
     partition_[index].push_back(scenario);
   }
@@ -341,7 +365,10 @@ class AdaptiveSolution {
   double worst_case_objective_;
   double mip_gap_;
   long solution_time_;
-  int lazy_cuts_rounds_;
+  int number_of_callbacks_;
+  int total_lazy_cuts_added_;
+  long avg_callback_time_;
+  long avg_sp_separation_time_;
 };
 
 class RobustAlgoModel {
@@ -461,15 +488,14 @@ class BendersCallback : public GRBCallback {
         scenarios_(problem.instance_.scenarios()),
         policies_(problem.policies_),
         budget_(problem.budget_),
+        interdiction_delta_(problem.instance_.interdiction_delta()),
         arc_costs_(problem.instance_.arc_costs()),
         sparse_x_var_(policies_, std::vector<int>(budget_, -1)),
         clusters_h_var_(policies_),
         adjacency_list_(problem.G_.adjacency_list()),
         arc_index_hash_(problem.G_.arc_index_hash()),
         shortest_paths_(scenarios_),
-        total_lazy_cuts_(0),
-        lazy_cuts_rounds_(0),
-        interdiction_delta_(problem.instance_.interdiction_delta()),
+        stats_(BendersMetaStats()),
         z_var_(z_var),
         h_var_(h_var),
         x_var_(x_var),
@@ -489,7 +515,7 @@ class BendersCallback : public GRBCallback {
   void SolveSubModels();
   void ComputeInitialPaths();
   std::vector<ShortestPath> paths() { return shortest_paths_; }
-  int lazy_cuts_rounds() const { return lazy_cuts_rounds_; }
+  BendersMetaStats meta_stats() const { return stats_; }
 
  protected:
   void callback();
@@ -497,7 +523,8 @@ class BendersCallback : public GRBCallback {
  private:
   double epsilon_ = EPSILON;
   double upper_bound_, lower_bound_;
-  int big_m_, nodes_, arcs_, scenarios_, policies_, budget_;
+  int big_m_, nodes_, arcs_, scenarios_, policies_, budget_,
+      interdiction_delta_;
   int iteration_ = 0;
   std::vector<std::vector<int>> arc_costs_;
   std::vector<std::vector<int>> sparse_x_var_;
@@ -512,7 +539,7 @@ class BendersCallback : public GRBCallback {
   // THESE PATHS ARE NOT IN ORDER - THEY ARE JUST THE LIST OF ARCS INCLUDED IN
   // THE PATH, AS WE JUST NEED THAT TO ADD THEM AS LAZY CUTS.
   std::vector<ShortestPath> shortest_paths_;
-  int total_lazy_cuts_, lazy_cuts_rounds_, interdiction_delta_;
+  BendersMetaStats stats_;
   void ConfigureIndividualSubModel(const Graph& G, int w, int q);
   void UpdateSubModels(bool rev = false);
   void AddLazyCuts();
