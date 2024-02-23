@@ -346,9 +346,17 @@ class AdaptiveSolution {
   void set_benders_stats(const BendersMetaStats& stats) {
     number_of_callbacks_ = stats.number_of_callbacks;
     total_lazy_cuts_added_ = stats.total_lazy_cuts_added;
-    avg_callback_time_ = stats.total_callback_time / number_of_callbacks_;
-    avg_sp_separation_time_ =
-        stats.total_sp_separation_time / stats.number_of_spcalls;
+    if (number_of_callbacks_ <= 0) {
+      avg_callback_time_ = -1;
+    } else {
+      avg_callback_time_ = stats.total_callback_time / number_of_callbacks_;
+    }
+    if (stats.number_of_spcalls <= 0) {
+      avg_sp_separation_time_ = -1;
+    } else {
+      avg_sp_separation_time_ =
+          stats.total_sp_separation_time / stats.number_of_spcalls;
+    }
   }
   void add_to_partition(int index, int scenario) {
     partition_[index].push_back(scenario);
