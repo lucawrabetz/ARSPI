@@ -1583,6 +1583,9 @@ std::string AdaptiveSolution::OutputCSVString(
     const ProblemInput& problem) const {
   std::string final_csv_string = SOLVER_NAMES[solver_];
   std::string optimal = optimal_ ? OPTIMAL : NOT_OPTIMAL;
+  std::string unbounded = unbounded_ ? UNBOUNDED : NOT_UNBOUNDED;
+  final_csv_string.append(",");
+  final_csv_string.append(unbounded);
   final_csv_string.append(",");
   final_csv_string.append(optimal);
   final_csv_string.append(",");

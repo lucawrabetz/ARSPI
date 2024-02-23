@@ -56,6 +56,8 @@ constexpr long TIME_LIMIT_MS = TIME_LIMIT_S * 1000;
 const std::string DATA_DIRECTORY = "dat/";
 const std::string OPTIMAL = "OPTIMAL";
 const std::string NOT_OPTIMAL = "NOT_OPTIMAL";
+const std::string UNBOUNDED = "UNBOUNDED";
+const std::string NOT_UNBOUNDED = "NOT_UNBOUNDED";
 
 const std::string INSTANCE_INFO_COLUMN_HEADERS =
     "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,"
@@ -66,21 +68,9 @@ const std::string INSTANCE_INFO_COLUMN_HEADERS =
 // have p=3 and k=2, with followers 0,1 in partition 0, and follower 2 in
 // partition 1, we have: "0-0-1".
 const std::string OUTPUT_COLUMN_HEADERS =
-    "solver,optimal,objective,gap,time,cuts_"
+    "solver,unbounded,optimal,objective,gap,time,cuts_"
     "rounds,cuts_added,avg_cbtime,avg_sptime,"
     "partition,m_sym,g_sym";
-const std::string IP_COLUMN_HEADERS =
-    "MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,MIP_partition,MIP_m_sym,MIP_g_"
-    "sym";
-const std::string ENDERS_COLUMN_HEADERS =
-    "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_"
-    "rounds,BENDERS_cuts_added,BENDERS_avg_cbtime,BENDERS_avg_sptime,BENDERS_"
-    "partition,BENDERS_m_sym,BENDERS_g_sym";
-const std::string NUMERATION_COLUMN_HEADERS =
-    "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,ENUMERATION_"
-    "partition";
-const std::string REEDY_COLUMN_HEADERS =
-    "GREEDY_objective,GREEDY_time,GREEDY_partition";
 
 struct GraphInput {
   GraphInput(const std::string& setname, int nodes, int k_zero)
@@ -272,7 +262,13 @@ class AdaptiveSolution {
  public:
   AdaptiveSolution() = delete;
   AdaptiveSolution(ASPI_Solver solver, bool unbounded, bool optimal)
-      : solver_(solver), unbounded_(unbounded), optimal_(optimal){};
+      : solver_(solver),
+        unbounded_(unbounded),
+        optimal_(optimal),
+        number_of_callbacks_(0),
+        total_lazy_cuts_added_(0),
+        avg_callback_time_(0),
+        avg_sp_separation_time_(0){};
   AdaptiveSolution(ASPI_Solver solver, bool optimal,
                    const ProblemInput& problem)
       : solver_(solver),
@@ -290,7 +286,11 @@ class AdaptiveSolution {
             problem.policies_,
             std::vector<double>(problem.instance_.scenarios()))),
         worst_case_objective_(-1),
-        mip_gap_(-1){};
+        mip_gap_(-1),
+        number_of_callbacks_(0),
+        total_lazy_cuts_added_(0),
+        avg_callback_time_(0),
+        avg_sp_separation_time_(0){};
   AdaptiveSolution(ASPI_Solver solver, bool optimal,
                    const ProblemInput& problem,
                    const std::vector<std::vector<int>>& partition,
@@ -309,7 +309,11 @@ class AdaptiveSolution {
             problem.policies_,
             std::vector<double>(problem.instance_.scenarios()))),
         worst_case_objective_(-1),
-        mip_gap_(-1){};
+        mip_gap_(-1),
+        number_of_callbacks_(0),
+        total_lazy_cuts_added_(0),
+        avg_callback_time_(0),
+        avg_sp_separation_time_(0){};
   void LogSolution(const ProblemInput& problem, bool policy = false);
   void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2,
                      int split_index);
