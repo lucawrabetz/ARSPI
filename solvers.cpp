@@ -1569,6 +1569,182 @@ std::string SolutionPartitionToString(const AdaptiveSolution& solution,
   return partition_string;
 }
 
+std::string SolveAndPrintSingleRun(const std::string& set_name,
+                                   const ProblemInput& problem,
+                                   ProblemInput& problem_copyable,
+                                   const ASPI_Solver& solver, int debug) {
+  std::vector<double> adaptive_objectives;
+  std::string final_csv_string = set_name;
+  final_csv_string.append(",");
+  final_csv_string.append(problem.instance_.name());
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.G_.nodes()));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.G_.arcs()));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.k_zero_));
+  double nodes = problem.G_.nodes();
+  double arcs = problem.G_.arcs();
+  double density = (arcs) / ((nodes) * (nodes - 1));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(density));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.instance_.scenarios()));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.budget_));
+  final_csv_string.append(",");
+  final_csv_string.append(std::to_string(problem.policies_));
+  std::string log_line = " ---------- ";
+  if (solver == MIP) {
+    SetPartitioningModel sp = SetPartitioningModel(problem);
+    sp.ConfigureSolver(problem);
+    AdaptiveSolution sp_solution = sp.Solve(problem);
+    if (debug == 2)
+      sp_solution.LogSolution(problem, true);
+    else if (debug == 1)
+      sp_solution.LogSolution(problem, false);
+    adaptive_objectives.push_back(sp_solution.worst_case_objective());
+    std::string optimal;
+    if (sp_solution.optimal()) {
+      optimal = "OPTIMAL";
+    } else {
+      optimal = "NOT OPTIMAL";
+    }
+    final_csv_string.append(",");
+    final_csv_string.append(optimal);
+    final_csv_string.append(",");
+    final_csv_string.append(std::to_string(sp_solution.worst_case_objective()));
+    final_csv_string.append(",");
+    final_csv_string.append(std::to_string(sp_solution.mip_gap()));
+    final_csv_string.append(",");
+    final_csv_string.append(std::to_string(sp_solution.solution_time()));
+    final_csv_string.append(",");
+    final_csv_string.append(SolutionPartitionToString(sp_solution, problem));
+    final_csv_string.append(",");
+    final_csv_string.append(
+        std::to_string(problem.manual_symmetry_constraints_));
+    final_csv_string.append(",");
+    final_csv_string.append(std::to_string(problem.gurobi_symmetry_detection_));
+    log_line.append("MIP (-m ");
+    log_line.append(std::to_string(problem.manual_symmetry_constraints_));
+    log_line.append(", -g ");
+    log_line.append(std::to_string(problem.gurobi_symmetry_detection_));
+    log_line.append("): ");
+    log_line.append(optimal);
+    log_line.append(" - ");
+    log_line.append(std::to_string(sp_solution.worst_case_objective()));
+    log_line.append(", ");
+    log_line.append(std::to_string(sp_solution.solution_time()));
+    log_line.append("ms ----- ");
+  } else if (solver == BENDERS) {
+    SetPartitioningBenders benders = SetPartitioningBenders(problem);
+    benders.ConfigureSolver(problem);
+    AdaptiveSolution benders_solution = benders.Solve(problem);
+    if (debug == 2)
+      benders_solution.LogSolution(problem, true);
+    else if (debug == 1)
+      benders_solution.LogSolution(problem, false);
+    adaptive_objectives.push_back(benders_solution.worst_case_objective());
+    std::string optimal;
+    if (benders_solution.optimal()) {
+      optimal = "OPTIMAL";
+    } else {
+      optimal = "NOT OPTIMAL";
+    }
+    final_csv_string.append(",");
+    final_csv_string.append(optimal);
+    final_csv_string.append(",");
+    final_csv_string.append(
+        std::to_string(benders_solution.worst_case_objective()));
+    final_csv_string.append(",");
+    final_csv_string.append(std::to_string(benders_solution.mip_gap()));
+    final_csv_string.append(",");
+    final_csv_string.append(std::to_string(benders_solution.solution_time()));
+    final_csv_string.append(",");
+    final_csv_string.append(
+        std::to_string(benders_solution.number_of_callbacks()));
+    final_csv_string.append(",");
+    final_csv_string.append(
+        std::to_string(benders_solution.total_lazy_cuts_added()));
+    final_csv_string.append(",");
+    final_csv_string.append(
+        std::to_string(benders_solution.avg_callback_time()));
+    final_csv_string.append(",");
+    final_csv_string.append(
+        std::to_string(benders_solution.avg_sp_separation_time()));
+    final_csv_string.append(",");
+    final_csv_string.append(
+        SolutionPartitionToString(benders_solution, problem));
+    final_csv_string.append(",");
+    final_csv_string.append(
+        std::to_string(problem.manual_symmetry_constraints_));
+    final_csv_string.append(",");
+    final_csv_string.append(std::to_string(problem.gurobi_symmetry_detection_));
+    log_line.append("BENDERS: (-m ");
+    log_line.append(std::to_string(problem.manual_symmetry_constraints_));
+    log_line.append(", -g ");
+    log_line.append(std::to_string(problem.gurobi_symmetry_detection_));
+    log_line.append("): ");
+    log_line.append(optimal);
+    log_line.append(" - ");
+    log_line.append(std::to_string(benders_solution.worst_case_objective()));
+    log_line.append(",");
+    log_line.append(std::to_string(benders_solution.solution_time()));
+    log_line.append("ms ----- ");
+  } else if (solver == ENUMERATION) {
+    AdaptiveSolution enum_solution = EnumSolve(problem_copyable);
+    if (debug == 2)
+      enum_solution.LogSolution(problem, true);
+    else if (debug == 1)
+      enum_solution.LogSolution(problem, false);
+    adaptive_objectives.push_back(enum_solution.worst_case_objective());
+    std::string optimal;
+    if (enum_solution.optimal()) {
+      optimal = "OPTIMAL";
+    } else {
+      optimal = "NOT OPTIMAL";
+    }
+    final_csv_string.append(",");
+    final_csv_string.append(optimal);
+    final_csv_string.append(",");
+    final_csv_string.append(
+        std::to_string(enum_solution.worst_case_objective()));
+    final_csv_string.append(",");
+    final_csv_string.append(std::to_string(enum_solution.solution_time()));
+    final_csv_string.append(",");
+    final_csv_string.append(SolutionPartitionToString(enum_solution, problem));
+    log_line.append("ENUMERATION: ");
+    log_line.append(optimal);
+    log_line.append(" - ");
+    log_line.append(std::to_string(enum_solution.worst_case_objective()));
+    log_line.append(", ");
+    log_line.append(std::to_string(enum_solution.solution_time()));
+    log_line.append("ms ----- ");
+  } else if (solver == GREEDY) {
+    AdaptiveSolution greedy_solution = GreedyAlgorithm(problem_copyable);
+    if (debug == 2)
+      greedy_solution.LogSolution(problem, true);
+    else if (debug == 1)
+      greedy_solution.LogSolution(problem, false);
+    final_csv_string.append(",");
+    final_csv_string.append(
+        std::to_string(greedy_solution.worst_case_objective()));
+    final_csv_string.append(",");
+    final_csv_string.append(std::to_string(greedy_solution.solution_time()));
+    final_csv_string.append(",");
+    final_csv_string.append(
+        SolutionPartitionToString(greedy_solution, problem));
+    log_line.append("GREEDY: ");
+    log_line.append(std::to_string(greedy_solution.worst_case_objective()));
+    log_line.append(", ");
+    log_line.append(std::to_string(greedy_solution.solution_time()));
+    log_line.append("ms ---------- ");
+    // adaptive_objectives.push_back(enum_solution.worst_case_objective());
+  }
+  std::cout << log_line << std::endl;
+  return final_csv_string;
+}
+
 std::string SolveAndPrintTest(const std::string& set_name,
                               const ProblemInput& problem,
                               ProblemInput& problem_copyable,
@@ -1862,6 +2038,110 @@ void RunAllInstancesInSetDirectory(
                     << ", K = " << std::to_string(k) << std::endl;
           std::string result = SolveAndPrintTest(
               set_name, problem, problem_copyable, solvers, DEBUG);
+          std::cout << std::endl;
+          result_file << result << std::endl;
+        }
+      }
+    }
+  }
+  result_file.close();
+  closedir(set_directory);
+  delete env;
+  delete[] full_path;
+}
+
+void SingleRunOnAllInstancesInSetDirectory(
+    const int min_policies, const int max_policies, const int min_budget,
+    const int max_budget, const std::string& set_name,
+    const ASPI_Solver& solver, int manual_symmetry_constraints,
+    int gurobi_symmetry_detection, double greedy_mip_gap_threshold) {
+  GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
+  // Use seconds, since gurobi takes the parameter value in seconds.
+  env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
+  std::cout << std::endl;
+  /* Set Name */
+  std::string full_path_s = DATA_DIRECTORY + set_name;
+  char* full_path = new char[full_path_s.length() + 1];
+  std::strcpy(full_path, full_path_s.c_str());
+  DIR* set_directory = opendir(full_path);
+  /* -------- */
+  struct dirent* entity;
+  entity = readdir(set_directory);
+  auto t = std::time(nullptr);
+  auto tt = *std::localtime(&t);
+  std::ostringstream oss;
+  oss << std::put_time(&tt, "%d-%m-%Y--%H-%M-%S");
+  std::string today = oss.str();
+  std::string base_name = DATA_DIRECTORY;
+  base_name.append(set_name);
+  base_name.append("/");
+  base_name.append(set_name);
+  base_name.append("_run_");
+  base_name.append(today);
+  std::string result_file_name = base_name;
+  result_file_name.append(".csv");
+  std::ofstream result_file(result_file_name);
+
+  std::string CSV_HEADER = INSTANCE_INFO_COLUMN_HEADERS;
+  if (solver == MIP) {
+    CSV_HEADER.append(",");
+    CSV_HEADER.append(MIP_COLUMN_HEADERS);
+  } else if (solver == BENDERS) {
+    CSV_HEADER.append(",");
+    CSV_HEADER.append(BENDERS_COLUMN_HEADERS);
+  } else if (solver == ENUMERATION) {
+    CSV_HEADER.append(",");
+    CSV_HEADER.append(ENUMERATION_COLUMN_HEADERS);
+  } else if (solver == GREEDY) {
+    CSV_HEADER.append(",");
+    CSV_HEADER.append(GREEDY_COLUMN_HEADERS);
+  }
+  result_file << CSV_HEADER << std::endl;
+  while (entity != NULL) {
+    std::string name = entity->d_name;
+    entity = readdir(set_directory);
+    if (name.size() < set_name.size())
+      continue;  // This is not a data file, data files start with <set_name>
+                 // so are at least as long as set_name.size().
+    std::string set_name_in_name(name.begin(), name.begin() + set_name.size());
+    if (set_name_in_name != set_name)
+      continue;  // For sanity, check that the data file matches the set_name
+                 // which should always be the case.
+    if (IsRunFile(name))
+      continue;  // Cannot run on a output data file (in case we are running
+                 // again on this directory). Since we include full timestamps
+                 // in the result file names we may do this, e.g. with a
+                 // different max policies, and won't ovewrite result file
+                 // names.
+    // We will loop through all cost files (which are analogous to all
+    // InstanceInputs) parse their names to get params for both GraphInput and
+    // InstanceInput, and then run the our single run function for every k
+    // from 1 to max k (as long as k <= scenarios).
+    if (IsCostFile(name)) {
+      std::pair<int, int> n_kzero = GetNodesKZero(name, set_name.size() + 1);
+      int nodes = n_kzero.first;
+      int kzero = n_kzero.second;
+      std::pair<int, int> scenarios_id = GetScenariosID(name);
+      int scenarios = scenarios_id.first;
+      int id = scenarios_id.second;
+      GraphInput graph_input(set_name, nodes, kzero);
+      InstanceInput instance_input(graph_input, scenarios, id);
+      for (int k = min_policies; k <= max_policies; k++) {
+        for (int budget = min_budget; budget <= max_budget; budget++) {
+          if (k > instance_input.scenarios_) break;
+          // removing budget > k_zero check for now, because I want to run
+          // some instances of that type if (budget > graph_input.k_zero_)
+          // break;
+          const ProblemInput problem(
+              instance_input, k, budget, env, manual_symmetry_constraints,
+              gurobi_symmetry_detection, greedy_mip_gap_threshold);
+          ProblemInput problem_copyable(
+              instance_input, k, budget, env, manual_symmetry_constraints,
+              gurobi_symmetry_detection, greedy_mip_gap_threshold);
+          std::cout << "RUNNING INSTANCE: " << problem.instance_.name()
+                    << ", K = " << std::to_string(k) << std::endl;
+          std::string result = SolveAndPrintSingleRun(
+              set_name, problem, problem_copyable, solver, DEBUG);
           std::cout << std::endl;
           result_file << result << std::endl;
         }

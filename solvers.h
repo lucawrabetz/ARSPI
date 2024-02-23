@@ -630,11 +630,22 @@ std::pair<int, int> GetScenariosID(const std::string& name);
 std::string SolutionPartitionToString(const AdaptiveSolution& solution,
                                       const ProblemInput& problem);
 
+std::string SolveAndPrintSingleRun(const std::string& set_name,
+                                   const ProblemInput& problem,
+                                   ProblemInput& problem_copyable,
+                                   const ASPI_Solver& solver, int debug = 0);
+
 std::string SolveAndPrintTest(const std::string& set_name,
                               const ProblemInput& problem,
                               ProblemInput& problem_copyable,
                               const std::vector<ASPI_Solver>& solvers,
                               int debug = 0);
+
+void SingleRunOnAllInstancesInSetDirectory(
+    const int min_policies, const int max_policies, const int min_budget,
+    const int max_budget, const std::string& set_name,
+    const ASPI_Solver& solver, int manual_symmetry_constraints,
+    int gurobi_symmetry_detection, double greedy_mip_gap_threshold);
 
 void RunAllInstancesInSetDirectory(
     const int min_policies, const int max_policies, const int min_budget,
