@@ -37,23 +37,25 @@ typedef std::numeric_limits<double> dbl;
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
 
 // Manual MIP symmetry constraint parameters.
-const int MANUAL_SYMMETRY_NONE = 0;  // Default.
-const int MANUAL_SYMMETRY_ASSIGNMENT = 1;
-const int MANUAL_SYMMETRY_NONDECREASING = 2;
+constexpr int MANUAL_SYMMETRY_NONE = 0;  // Default.
+constexpr int MANUAL_SYMMETRY_ASSIGNMENT = 1;
+constexpr int MANUAL_SYMMETRY_NONDECREASING = 2;
 
 // Gurobi MIP symmetry parameters.
-const int GUROBI_SYMMETRY_AUTO = -1;  // Default.
-const int GUROBI_SYMMETRY_NONE = 0;
-const int GUROBI_SYMMETRY_CONSERVATIVE = 1;
-const int GUROBI_SYMMETRY_AGGRESSIVE = 2;
+constexpr int GUROBI_SYMMETRY_AUTO = -1;  // Default.
+constexpr int GUROBI_SYMMETRY_NONE = 0;
+constexpr int GUROBI_SYMMETRY_CONSERVATIVE = 1;
+constexpr int GUROBI_SYMMETRY_AGGRESSIVE = 2;
 
-const double EPSILON = 0.000001;
-const int DEBUG = 0;
+constexpr double EPSILON = 0.000001;
+constexpr int DEBUG = 0;
 
-const long TIME_LIMIT_S = 3600;
-const long TIME_LIMIT_MS = TIME_LIMIT_S * 1000;
+constexpr long TIME_LIMIT_S = 3600;
+constexpr long TIME_LIMIT_MS = TIME_LIMIT_S * 1000;
 
 const std::string DATA_DIRECTORY = "dat/";
+const std::string OPTIMAL = "OPTIMAL";
+const std::string NOT_OPTIMAL = "NOT_OPTIMAL";
 
 const std::string INSTANCE_INFO_COLUMN_HEADERS =
     "set_name,instance_name,nodes,arcs,k_zero,density,scenarios,budget,"
@@ -63,17 +65,21 @@ const std::string INSTANCE_INFO_COLUMN_HEADERS =
 // that they are assigned to, in a string delimeted by '-'. For example, if we
 // have p=3 and k=2, with followers 0,1 in partition 0, and follower 2 in
 // partition 1, we have: "0-0-1".
-const std::string MIP_COLUMN_HEADERS =
+const std::string OUTPUT_COLUMN_HEADERS =
+    "solver,optimal,objective,gap,time,cuts_"
+    "rounds,cuts_added,avg_cbtime,avg_sptime,"
+    "partition,m_sym,g_sym";
+const std::string IP_COLUMN_HEADERS =
     "MIP_OPTIMAL,MIP_objective,MIP_gap,MIP_time,MIP_partition,MIP_m_sym,MIP_g_"
     "sym";
-const std::string BENDERS_COLUMN_HEADERS =
+const std::string ENDERS_COLUMN_HEADERS =
     "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_"
     "rounds,BENDERS_cuts_added,BENDERS_avg_cbtime,BENDERS_avg_sptime,BENDERS_"
     "partition,BENDERS_m_sym,BENDERS_g_sym";
-const std::string ENUMERATION_COLUMN_HEADERS =
+const std::string NUMERATION_COLUMN_HEADERS =
     "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,ENUMERATION_"
     "partition";
-const std::string GREEDY_COLUMN_HEADERS =
+const std::string REEDY_COLUMN_HEADERS =
     "GREEDY_objective,GREEDY_time,GREEDY_partition";
 
 struct GraphInput {
@@ -264,12 +270,13 @@ class AdaptiveSolution {
   // TODO: default initializations of stuff for different solvers (approximation
   // and enumeration algorithm).
  public:
-  AdaptiveSolution() : unbounded_(false), benders_(false), optimal_(false){};
-  AdaptiveSolution(bool unbounded, bool benders, bool optimal)
-      : unbounded_(unbounded), benders_(benders), optimal_(optimal){};
-  AdaptiveSolution(bool benders, bool optimal, const ProblemInput& problem)
-      : unbounded_(false),
-        benders_(benders),
+  AdaptiveSolution() = delete;
+  AdaptiveSolution(ASPI_Solver solver, bool unbounded, bool optimal)
+      : solver_(solver), unbounded_(unbounded), optimal_(optimal){};
+  AdaptiveSolution(ASPI_Solver solver, bool optimal,
+                   const ProblemInput& problem)
+      : solver_(solver),
+        unbounded_(false),
         optimal_(optimal),
         policies_(problem.policies_),
         scenarios_(problem.instance_.scenarios()),
@@ -284,11 +291,12 @@ class AdaptiveSolution {
             std::vector<double>(problem.instance_.scenarios()))),
         worst_case_objective_(-1),
         mip_gap_(-1){};
-  AdaptiveSolution(bool benders, bool optimal, const ProblemInput& problem,
+  AdaptiveSolution(ASPI_Solver solver, bool optimal,
+                   const ProblemInput& problem,
                    const std::vector<std::vector<int>>& partition,
                    const std::vector<std::vector<double>>& solution)
-      : unbounded_(false),
-        benders_(benders),
+      : solver_(solver),
+        unbounded_(false),
         optimal_(optimal),
         policies_(problem.policies_),
         scenarios_(problem.instance_.scenarios()),
@@ -358,11 +366,15 @@ class AdaptiveSolution {
           stats.total_sp_separation_time / stats.number_of_spcalls;
     }
   }
+  std::string OutputCSVString(const ProblemInput& problem) const;
+  std::string SingleRunLogLine(const ProblemInput& problem) const;
+  std::string PartitionString(const ProblemInput& problem) const;
   void add_to_partition(int index, int scenario) {
     partition_[index].push_back(scenario);
   }
 
  private:
+  ASPI_Solver solver_;
   bool unbounded_, benders_, time_limit_, optimal_;
   int policies_, scenarios_, nodes_, arcs_, budget_;
   std::vector<std::vector<int>> partition_;
