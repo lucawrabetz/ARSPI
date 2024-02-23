@@ -68,7 +68,8 @@ const std::string MIP_COLUMN_HEADERS =
     "sym";
 const std::string BENDERS_COLUMN_HEADERS =
     "BENDERS_OPTIMAL,BENDERS_objective,BENDERS_gap,BENDERS_time,BENDERS_cuts_"
-    "rounds,BENDERS_partition,BENDERS_m_sym,BENDERS_g_sym";
+    "rounds,BENDERS_cuts_added,BENDERS_avg_cbtime,BENDERS_avg_sptime,BENDERS_"
+    "partition,BENDERS_m_sym,BENDERS_g_sym";
 const std::string ENUMERATION_COLUMN_HEADERS =
     "ENUMERATION_OPTIMAL,ENUMERATION_objective,ENUMERATION_time,ENUMERATION_"
     "partition";
@@ -115,6 +116,7 @@ struct InstanceInput {
 class Graph {
   // Class to read an arc list from a file and represent it as linked lists.
  public:
+  Graph();
   Graph(const std::string& filename, int nodes);
   void PrintArc(int a, int i, int index, bool rev = false) const;
   void PrintGraph(bool rev = false) const;
@@ -138,7 +140,6 @@ class Graph {
 
  private:
   int nodes_, arcs_;
-  const std::string filename_;
   // Arc vectors - adjacency_list_ is a classic linked list representation of
   // the arc list (outgoing arcs). The vector arc_index_hash_ directly maps
   // every arc (i, j), (so adjacency_list[i] includes j) to its index a in
@@ -242,6 +243,20 @@ class ProblemInput {
   GRBEnv* env_;
 };
 
+struct BendersMetaStats {
+  BendersMetaStats()
+      : number_of_callbacks(0),
+        number_of_spcalls(0),
+        total_lazy_cuts_added(0),
+        total_sp_separation_time(0),
+        total_callback_time(0){};
+  int number_of_callbacks;
+  int number_of_spcalls;
+  int total_lazy_cuts_added;
+  long total_sp_separation_time;  // Time in ms.
+  long total_callback_time;       // Time in ms.
+};
+
 class AdaptiveSolution {
   // Full solution - i.e. a vector of k policy objects with extra info,
   // including the partition.
@@ -300,13 +315,16 @@ class AdaptiveSolution {
   void ComputePartition();
   void ComputeAdaptiveObjective();
   int policies() const { return policies_; }
-  int lazy_cuts_rounds() const { return lazy_cuts_rounds_; }
   bool optimal() const { return optimal_; }
   double worst_case_objective() const { return worst_case_objective_; }
   double mip_gap() const { return mip_gap_; }
   std::vector<std::vector<int>> partition() const { return partition_; }
   std::vector<std::vector<double>> solution() const { return solution_; }
   long solution_time() const { return solution_time_; }
+  int number_of_callbacks() const { return number_of_callbacks_; }
+  int total_lazy_cuts_added() const { return total_lazy_cuts_added_; }
+  long avg_callback_time() const { return avg_callback_time_; }
+  long avg_sp_separation_time() const { return avg_sp_separation_time_; }
   void set_policies(int policies) { policies_ = policies; }
   void set_scenarios(int scenarios) { scenarios_ = scenarios; }
   void set_worst_case_objective(double worst_case_objective) {
@@ -325,7 +343,13 @@ class AdaptiveSolution {
     partition_ = partition;
   }
   void set_unbounded(bool unbounded) { unbounded_ = unbounded; }
-  void set_cuts(int cuts) { lazy_cuts_rounds_ = cuts; }
+  void set_benders_stats(const BendersMetaStats& stats) {
+    number_of_callbacks_ = stats.number_of_callbacks;
+    total_lazy_cuts_added_ = stats.total_lazy_cuts_added;
+    avg_callback_time_ = stats.total_callback_time / number_of_callbacks_;
+    avg_sp_separation_time_ =
+        stats.total_sp_separation_time / stats.number_of_spcalls;
+  }
   void add_to_partition(int index, int scenario) {
     partition_[index].push_back(scenario);
   }
@@ -341,7 +365,10 @@ class AdaptiveSolution {
   double worst_case_objective_;
   double mip_gap_;
   long solution_time_;
-  int lazy_cuts_rounds_;
+  int number_of_callbacks_;
+  int total_lazy_cuts_added_;
+  long avg_callback_time_;
+  long avg_sp_separation_time_;
 };
 
 class RobustAlgoModel {
@@ -441,15 +468,14 @@ class SetPartitioningModel {
       lambda_var_;  // Dual decision variable (for every w, q, a) lambda.
 };
 
+struct ShortestPath {
+  std::vector<int> arcs;
+  double cost;
+};
+
 class BendersCallback : public GRBCallback {
  public:
-  ~BendersCallback() {
-    for (std::vector<GRBModel*>& vec : submodels_) {
-      for (GRBModel* model : vec) {
-        delete model;
-      }
-    }
-  }
+  ~BendersCallback() = default;
   BendersCallback() : upper_bound_(DBL_MAX){};
   BendersCallback(const ProblemInput& problem, GRBVar& z_var,
                   std::vector<std::vector<GRBVar>>& h_var,
@@ -461,16 +487,35 @@ class BendersCallback : public GRBCallback {
         arcs_(problem.G_.arcs()),
         scenarios_(problem.instance_.scenarios()),
         policies_(problem.policies_),
-        arc_costs_(problem.instance_.arc_costs()),
-        lazy_cuts_rounds_(0),
+        budget_(problem.budget_),
         interdiction_delta_(problem.instance_.interdiction_delta()),
+        arc_costs_(problem.instance_.arc_costs()),
+        sparse_x_var_(policies_, std::vector<int>(budget_, -1)),
+        clusters_h_var_(policies_),
+        adjacency_list_(problem.G_.adjacency_list()),
+        arc_index_hash_(problem.G_.arc_index_hash()),
+        shortest_paths_(scenarios_),
+        stats_(BendersMetaStats()),
         z_var_(z_var),
         h_var_(h_var),
         x_var_(x_var),
-        env_(problem.env_){};
+        env_(problem.env_) {
+    for (std::vector<int>& cluster : clusters_h_var_) {
+      cluster.reserve(scenarios_);
+    }
+    for (auto& p : shortest_paths_) {
+      p.arcs.reserve(nodes_);
+      p.cost = -1;
+    }
+  };
+  void UpdateMasterVariables();
+  void UpdateArcCostsForQWPair(int w, int q, bool rev = false);
+  void SPDijkstra(int q);
   void ConfigureSubModels(const ProblemInput& problem);
   void SolveSubModels();
-  int lazy_cuts_rounds() const { return lazy_cuts_rounds_; }
+  void ComputeInitialPaths();
+  std::vector<ShortestPath> paths() { return shortest_paths_; }
+  BendersMetaStats meta_stats() const { return stats_; }
 
  protected:
   void callback();
@@ -478,25 +523,35 @@ class BendersCallback : public GRBCallback {
  private:
   double epsilon_ = EPSILON;
   double upper_bound_, lower_bound_;
-  int big_m_, nodes_, arcs_, scenarios_, policies_;
+  int big_m_, nodes_, arcs_, scenarios_, policies_, budget_,
+      interdiction_delta_;
   int iteration_ = 0;
   std::vector<std::vector<int>> arc_costs_;
-  int lazy_cuts_rounds_, interdiction_delta_;
+  std::vector<std::vector<int>> sparse_x_var_;
+  std::vector<std::vector<int>> clusters_h_var_;
+  std::vector<std::vector<int>> adjacency_list_;
+  std::vector<std::vector<int>> arc_index_hash_;
+  // Shortest paths for each follower (interdiction policy assigned to it by H
+  // will be used). each path (inner vector) - lists the arc indices in the
+  // path.
+  // shortest_paths_[q].first - path represented by arc indices.
+  // shortest_paths_[q].second - cost of path.
+  // THESE PATHS ARE NOT IN ORDER - THEY ARE JUST THE LIST OF ARCS INCLUDED IN
+  // THE PATH, AS WE JUST NEED THAT TO ADD THEM AS LAZY CUTS.
+  std::vector<ShortestPath> shortest_paths_;
+  BendersMetaStats stats_;
   void ConfigureIndividualSubModel(const Graph& G, int w, int q);
   void UpdateSubModels(bool rev = false);
   void AddLazyCuts();
 
  public:
+  // Decision variables from master problem.
   GRBVar z_var_;  // Decision variable - objective value.
   std::vector<std::vector<GRBVar>>
       h_var_;  // Decision variable for every (w, q), set partitioning variable.
   std::vector<std::vector<GRBVar>>
       x_var_;  // Decision variable for every (w, a), interdiction policies.
   GRBEnv* env_;
-  std::vector<std::vector<GRBModel*>>
-      submodels_;  // Submodel for every (w, q) policy and scenario.
-  std::vector<std::vector<std::vector<GRBVar>>>
-      y_var_;  // Shortest path decision variable for every (w, q, a).
 };
 
 class SetPartitioningBenders {
@@ -532,6 +587,8 @@ class SetPartitioningBenders {
   void AddAssignmentSymmetryConstraints();
   void AddNonDecreasingSymmetryConstraints();
   void ProcessInputSymmetryParameters(const ProblemInput& problem);
+  void AddInitialPathConstraints(const std::vector<ShortestPath>& paths);
+  void InitialConstraints();
   const int big_m_;
   int nodes_, arcs_, budget_, scenarios_, policies_, interdiction_delta_;
   GRBEnv* env_;
