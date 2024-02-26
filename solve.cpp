@@ -2,7 +2,7 @@
 
 void usage(char* name) {
   std::cout << "usage: ";
-  std::cout << name << " setname [-s] [-m] [-g]" << std::endl;
+  std::cout << name << " setname [-s] [-m] [-g] [-a] [-t] [-u]" << std::endl;
   std::cout << "    [-s]: solver to use pass (m for mip, b for benders, e for "
                "enumeration, g for greedy (case insensitive) - default is mip)"
             << std::endl;
@@ -13,6 +13,19 @@ void usage(char* name) {
   std::cout << "    [-g]: gurobi symmetry detection (pass -1 for automatic, 0 "
                "for off, 1 "
                "for conservative, or 2 for aggressive)"
+            << std::endl;
+  std::cout
+      << "    [-a]: append mode, pass a file name in /dat without the "
+         ".csv extension, which will be added. for example, if the "
+         "script should append to test.csv, put test.csv in dat - "
+         "i.e. ARSPI/dat/test.csv should exist, and pass ./bin/solve -a test"
+      << std::endl;
+  std::cout << "    [-t]: test mode, will run k = 1, ..., k_0 for every graph, "
+               "budget = k_0 and fail if objectives of exact algorithms don't "
+               "match on optimality (no check for run file)"
+            << std::endl;
+  std::cout << "    [-u]: uninterdicted mode, will run k = 0, for every "
+               "instance using mip (no check for run file)"
             << std::endl;
 }
 
@@ -38,6 +51,8 @@ void runfile_instructions(bool param_error = false) {
 
 int main(int argc, char* argv[]) {
   ASPI_Solver solver = MIP;
+  std::string append_file = "";  // Append file defaults to empty string, which
+                                 // signals no append file to the library.
   int manual_symmetry_constraints =
       MANUAL_SYMMETRY_NONE;  // (Constants defined in solvers.h) - 0 = none, 1 =
                              // assignment type constraints, 2 = non-decreasing
@@ -52,13 +67,81 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   const std::string set_name = argv[1];
+  bool test = false;
+  bool uninterdicted = false;
+  if (argc > 2) {
+    if (argc > 11) {
+      // Too many arguments.
+      // Max args:
+      // setname -m M -g G -s S -a A -u -t (11)
+      usage(argv[0]);
+      return 1;
+    }
+    for (int i = 2; i < argc; i++) {
+      if (strcmp(argv[i], "-m") == 0) {
+        i++;
+        int arg = std::stoi(argv[i]);
+        if (arg > 2 || arg < 0) {
+          // Manual symmetry constraint parameter should be 0, 1, or 2.
+          usage(argv[0]);
+          return 1;
+        }
+        manual_symmetry_constraints = arg;
+      }
+      if (strcmp(argv[i], "-g") == 0) {
+        i++;
+        int arg = std::stoi(argv[i]);
+        if (arg > 2 || arg < -1) {
+          // Gurobi symmetry detection parameter should be -1, 0, 1, or 2.
+          usage(argv[0]);
+          return 1;
+        }
+        gurobi_symmetry_detection = arg;
+      }
+      if (strcmp(argv[i], "-s") == 0) {
+        i++;
+        if (strcmp(argv[i], "m") == 0 || strcmp(argv[i], "M") == 0) {
+          solver = MIP;
+        } else if (strcmp(argv[i], "b") == 0 || strcmp(argv[i], "B") == 0) {
+          solver = BENDERS;
+        } else if (strcmp(argv[i], "e") == 0 || strcmp(argv[i], "E") == 0) {
+          solver = ENUMERATION;
+        } else if (strcmp(argv[i], "g") == 0 || strcmp(argv[i], "g") == 0) {
+          solver = GREEDY;
+        } else {
+          usage(argv[0]);
+          return 1;
+        }
+      }
+      if (strcmp(argv[i], "-a") == 0) {
+        i++;
+        append_file = argv[i];
+      }
+      if (strcmp(argv[i], "-u") == 0) {
+        uninterdicted = true;
+      }
+      if (strcmp(argv[i], "-t") == 0) {
+        test = true;
+      }
+    }
+  }
+  if (test) {
+    TestOnAllInstancesInSetDirectory(set_name, manual_symmetry_constraints,
+                                     gurobi_symmetry_detection,
+                                     greedy_mip_gap_threshold);
+    return 0;
+  }
+  if (uninterdicted) {
+    UninterdictedRunOnAllInstancesInsetDirectory(set_name, append_file);
+    return 0;
+  }
+  std::string run_file_path = "dat/" + set_name + "_run.txt";
+  std::ifstream run_file(run_file_path);
+  std::string param;
   int min_policies = -1;
   int max_policies = -1;
   int min_budget = -1;
   int max_budget = -1;
-  std::string run_file_path = "dat/" + set_name + "_run.txt";
-  std::ifstream run_file(run_file_path);
-  std::string param;
   if (run_file.is_open()) {
     int i = 0;
     while (run_file) {
@@ -118,59 +201,8 @@ int main(int argc, char* argv[]) {
     runfile_instructions(true);
     return 1;
   }
-  if (argc > 2) {
-    if (argc == 3 || argc == 5 || argc == 7) {
-      std::cout << "argc: " << argc << std::endl;
-      // If optional args -s or -m or -g passed, they must also have a value.
-      // So argc should be 2 (if neither are passed) or 4 or 6 or 8.
-      usage(argv[0]);
-      return 1;
-    }
-    if (argc > 8) {
-      // Too many arguments.
-      usage(argv[0]);
-      return 1;
-    }
-    for (int i = 2; i < argc; i++) {
-      if (strcmp(argv[i], "-m") == 0) {
-        i++;
-        int arg = std::stoi(argv[i]);
-        if (arg > 2 || arg < 0) {
-          // Manual symmetry constraint parameter should be 0, 1, or 2.
-          usage(argv[0]);
-          return 1;
-        }
-        manual_symmetry_constraints = arg;
-      }
-      if (strcmp(argv[i], "-g") == 0) {
-        i++;
-        int arg = std::stoi(argv[i]);
-        if (arg > 2 || arg < -1) {
-          // Gurobi symmetry detection parameter should be -1, 0, 1, or 2.
-          usage(argv[0]);
-          return 1;
-        }
-        gurobi_symmetry_detection = arg;
-      }
-      if (strcmp(argv[i], "-s") == 0) {
-        i++;
-        if (strcmp(argv[i], "m") == 0 || strcmp(argv[i], "M") == 0) {
-          solver = MIP;
-        } else if (strcmp(argv[i], "b") == 0 || strcmp(argv[i], "B") == 0) {
-          solver = BENDERS;
-        } else if (strcmp(argv[i], "e") == 0 || strcmp(argv[i], "E") == 0) {
-          solver = ENUMERATION;
-        } else if (strcmp(argv[i], "g") == 0 || strcmp(argv[i], "g") == 0) {
-          solver = GREEDY;
-        } else {
-          usage(argv[0]);
-          return 1;
-        }
-      }
-    }
-  }
   SingleRunOnAllInstancesInSetDirectory(
-      min_policies, max_policies, min_budget, max_budget, set_name, solver,
-      manual_symmetry_constraints, gurobi_symmetry_detection,
+      min_policies, max_policies, min_budget, max_budget, set_name, append_file,
+      solver, manual_symmetry_constraints, gurobi_symmetry_detection,
       greedy_mip_gap_threshold);
 }
