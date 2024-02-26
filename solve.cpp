@@ -1,6 +1,14 @@
 #include <fstream>
+#include <unordered_map>
 
 #include "solvers.h"
+
+std::unordered_map<char, ASPI_Solver> flag_to_solver{
+    {'m', MIP},
+    {'b', BENDERS},
+    {'e', ENUMERATION},
+    {'g', GREEDY},
+};
 
 std::ofstream InitializeEmptyResultsFile(const std::string& set_name) {
   auto t = std::time(nullptr);
@@ -41,11 +49,13 @@ std::ofstream InitializeAppendResultsFile(const std::string& append_file) {
 void usage(char* name) {
   std::cout << "usage: ";
   std::cout << name << " setname [-s] [-m] [-g] [-a] [-t] [-u]" << std::endl;
-  std::cout << "    [-s]: solver to use pass (m for mip, b for benders, e for "
-               "enumeration, g for greedy (case insensitive) -- default is mip "
-               "-- accepts multiple solvers / concatenation, i.e. mb or bm for "
-               "mip and benders, ebgm for all solvers, etc.)"
-            << std::endl;
+  std::cout
+      << "    [-s]: solver to use -- pass m for mip, b for benders, e for "
+         "enumeration, g for greedy (case insensitive) -- default is mip "
+      << std::endl
+      << "    -- accepts multiple solvers / concatenation, i.e. mb or bm for "
+         "mip and benders, ebgm for all solvers, etc."
+      << std::endl;
   std::cout
       << "    [-m]: manual symmetric constraints (pass 0 for none, 1 for "
          "assignment constraints, or 2 for non-decreasing cluster constraints)"
@@ -89,8 +99,16 @@ void runfile_instructions(bool param_error = false) {
   std::cout << "    <max_budget>" << std::endl;
 }
 
+char lower_case(char c) {
+  // Returns lower case value a-z if it is passed a lower case char or upper
+  // case char a-z or A-Z, otherwise returns 'A'.
+  if ('a' <= c && c <= 'z') return c;
+  if ('A' <= c && c <= 'Z') return c + ('a' - 'A');
+  return 'A';
+}
+
 int main(int argc, char* argv[]) {
-  ASPI_Solver solver = MIP;
+  std::vector<ASPI_Solver> solvers;
   std::string append_file = "";  // Append file defaults to empty string, which
                                  // signals no append file to the library.
   int manual_symmetry_constraints =
@@ -109,7 +127,6 @@ int main(int argc, char* argv[]) {
   const std::string set_name = argv[1];
   bool test = false;
   bool uninterdicted = false;
-  std::vector<ASPI_Solver> solvers;
   if (argc > 2) {
     if (argc > 11) {
       // Too many arguments.
@@ -142,23 +159,17 @@ int main(int argc, char* argv[]) {
       if (strcmp(argv[i], "-s") == 0) {
         i++;
         std::string solver_string(argv[i]);
-        std::unordered_set<char> solver_charset(solver_string.begin(),
-                                                solver_string.end());
         if (solver_string.empty()) {
           usage(argv[0]);
           return 1;
         }
-        if (strcmp(argv[i], "m") == 0 || strcmp(argv[i], "M") == 0) {
-          solver = MIP;
-        } else if (strcmp(argv[i], "b") == 0 || strcmp(argv[i], "B") == 0) {
-          solver = BENDERS;
-        } else if (strcmp(argv[i], "e") == 0 || strcmp(argv[i], "E") == 0) {
-          solver = ENUMERATION;
-        } else if (strcmp(argv[i], "g") == 0 || strcmp(argv[i], "g") == 0) {
-          solver = GREEDY;
-        } else {
-          usage(argv[0]);
-          return 1;
+        for (char c : solver_string) {
+          auto it = flag_to_solver.find(lower_case(c));
+          if (it == flag_to_solver.end()) {
+            usage(argv[0]);
+            return 1;
+          }
+          solvers.push_back(it->second);
         }
       }
       if (strcmp(argv[i], "-a") == 0) {
@@ -255,8 +266,11 @@ int main(int argc, char* argv[]) {
     runfile_instructions(true);
     return 1;
   }
-  SingleRunOnAllInstancesInSetDirectory(
-      min_policies, max_policies, min_budget, max_budget, set_name, result_file,
-      solver, manual_symmetry_constraints, gurobi_symmetry_detection,
-      greedy_mip_gap_threshold);
+  if (solvers.empty()) solvers.push_back(MIP);  // Default solver is mip.
+  for (ASPI_Solver solver : solvers) {
+    SingleRunOnAllInstancesInSetDirectory(
+        min_policies, max_policies, min_budget, max_budget, set_name,
+        result_file, solver, manual_symmetry_constraints,
+        gurobi_symmetry_detection, greedy_mip_gap_threshold);
+  }
 }
