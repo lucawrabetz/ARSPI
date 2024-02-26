@@ -229,7 +229,7 @@ class ProblemInput {
         gurobi_symmetry_detection_(problem_input.gurobi_symmetry_detection_),
         greedy_mip_gap_threshold_(problem_input.greedy_mip_gap_threshold_),
         env_(problem_input.env_) {}
-  void WriteLineToLogFile();
+  std::string InputCSVString(const std::string& set_name) const;
   const Graph G_;
   AdaptiveInstance instance_;
   int policies_, budget_, k_zero_;
@@ -326,6 +326,7 @@ class AdaptiveSolution {
   }
   void ComputePartition();
   void ComputeAdaptiveObjective();
+  ASPI_Solver solver() const { return solver_; }
   int policies() const { return policies_; }
   bool optimal() const { return optimal_; }
   double worst_case_objective() const { return worst_case_objective_; }

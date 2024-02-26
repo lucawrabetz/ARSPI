@@ -1633,72 +1633,76 @@ std::string AdaptiveSolution::SingleRunLogLine(
   return log_line;
 }
 
-std::string SolveAndPrintSingleRun(const std::string& set_name,
-                                   const ProblemInput& problem,
-                                   ProblemInput& problem_copyable,
-                                   const ASPI_Solver& solver, int debug) {
-  std::vector<double> adaptive_objectives;
+std::string ProblemInput::InputCSVString(const std::string& set_name) const {
   std::string final_csv_string = set_name;
   final_csv_string.append(",");
-  final_csv_string.append(problem.instance_.name());
+  final_csv_string.append(instance_.name());
   final_csv_string.append(",");
-  final_csv_string.append(std::to_string(problem.G_.nodes()));
+  final_csv_string.append(std::to_string(G_.nodes()));
   final_csv_string.append(",");
-  final_csv_string.append(std::to_string(problem.G_.arcs()));
+  final_csv_string.append(std::to_string(G_.arcs()));
   final_csv_string.append(",");
-  final_csv_string.append(std::to_string(problem.k_zero_));
-  double nodes = problem.G_.nodes();
-  double arcs = problem.G_.arcs();
+  final_csv_string.append(std::to_string(k_zero_));
+  double nodes = G_.nodes();
+  double arcs = G_.arcs();
   double density = (arcs) / ((nodes) * (nodes - 1));
   final_csv_string.append(",");
   final_csv_string.append(std::to_string(density));
   final_csv_string.append(",");
-  final_csv_string.append(std::to_string(problem.instance_.scenarios()));
+  final_csv_string.append(std::to_string(instance_.scenarios()));
   final_csv_string.append(",");
-  final_csv_string.append(std::to_string(problem.budget_));
+  final_csv_string.append(std::to_string(budget_));
   final_csv_string.append(",");
-  final_csv_string.append(std::to_string(problem.policies_));
+  final_csv_string.append(std::to_string(policies_));
   final_csv_string.append(",");
-  if (solver == MIP) {
-    SetPartitioningModel sp = SetPartitioningModel(problem);
-    sp.ConfigureSolver(problem);
-    AdaptiveSolution sp_solution = sp.Solve(problem);
-    if (debug == 2)
-      sp_solution.LogSolution(problem, true);
-    else if (debug == 1)
-      sp_solution.LogSolution(problem, false);
-    adaptive_objectives.push_back(sp_solution.worst_case_objective());
-    final_csv_string.append(sp_solution.OutputCSVString(problem));
-    std::cout << sp_solution.SingleRunLogLine(problem) << std::endl;
-  } else if (solver == BENDERS) {
-    SetPartitioningBenders benders = SetPartitioningBenders(problem);
-    benders.ConfigureSolver(problem);
-    AdaptiveSolution benders_solution = benders.Solve(problem);
-    if (debug == 2)
-      benders_solution.LogSolution(problem, true);
-    else if (debug == 1)
-      benders_solution.LogSolution(problem, false);
-    adaptive_objectives.push_back(benders_solution.worst_case_objective());
-    final_csv_string.append(benders_solution.OutputCSVString(problem));
-    std::cout << benders_solution.SingleRunLogLine(problem) << std::endl;
-  } else if (solver == ENUMERATION) {
-    AdaptiveSolution enum_solution = EnumSolve(problem_copyable);
-    if (debug == 2)
-      enum_solution.LogSolution(problem, true);
-    else if (debug == 1)
-      enum_solution.LogSolution(problem, false);
-    adaptive_objectives.push_back(enum_solution.worst_case_objective());
-    final_csv_string.append(enum_solution.OutputCSVString(problem));
-    std::cout << enum_solution.SingleRunLogLine(problem) << std::endl;
-  } else if (solver == GREEDY) {
-    AdaptiveSolution greedy_solution = GreedyAlgorithm(problem_copyable);
-    if (debug == 2)
-      greedy_solution.LogSolution(problem, true);
-    else if (debug == 1)
-      greedy_solution.LogSolution(problem, false);
-    final_csv_string.append(greedy_solution.OutputCSVString(problem));
-    std::cout << greedy_solution.SingleRunLogLine(problem) << std::endl;
+  return final_csv_string;
+}
+
+AdaptiveSolution SolveDecorator(const ProblemInput& problem,
+                                ProblemInput& problem_copyable,
+                                const ASPI_Solver solver, int debug = 0) {
+  AdaptiveSolution sol = AdaptiveSolution(solver, false, false);
+  switch (solver) {
+    case MIP: {
+      SetPartitioningModel sp = SetPartitioningModel(problem);
+      sp.ConfigureSolver(problem);
+      sol = sp.Solve(problem);
+      break;
+    }
+    case BENDERS: {
+      SetPartitioningBenders benders = SetPartitioningBenders(problem);
+      benders.ConfigureSolver(problem);
+      sol = benders.Solve(problem);
+      break;
+    }
+    case ENUMERATION: {
+      sol = EnumSolve(problem_copyable);
+      break;
+    }
+    case GREEDY: {
+      sol = GreedyAlgorithm(problem_copyable);
+      break;
+    }
   }
+  if (debug == 2)
+    sol.LogSolution(problem, true);
+  else if (debug == 1)
+    sol.LogSolution(problem, false);
+  std::cout << "resulting solution solver param: " << sol.solver() << std::endl;
+  std::cout << "hashed solver name: " << SOLVER_NAMES[sol.solver()]
+            << std::endl;
+  return sol;
+}
+
+std::string SolveAndPrintSingleRun(const std::string& set_name,
+                                   const ProblemInput& problem,
+                                   ProblemInput& problem_copyable,
+                                   const ASPI_Solver& solver, int debug) {
+  std::string final_csv_string = problem.InputCSVString(set_name);
+  AdaptiveSolution solution =
+      SolveDecorator(problem, problem_copyable, solver, debug);
+  final_csv_string.append(solution.OutputCSVString(problem));
+  std::cout << solution.SingleRunLogLine(problem) << std::endl;
   return final_csv_string;
 }
 
@@ -1877,7 +1881,8 @@ std::string SolveAndPrintSingleRun(const std::string& set_name,
 //       log_line.append(", ");
 //       log_line.append(std::to_string(greedy_solution.solution_time()));
 //       log_line.append("ms ---------- ");
-//       // adaptive_objectives.push_back(enum_solution.worst_case_objective());
+//       //
+//       adaptive_objectives.push_back(enum_solution.worst_case_objective());
 //     }
 //   }
 //   std::cout << log_line << std::endl;
@@ -1903,8 +1908,9 @@ std::string SolveAndPrintSingleRun(const std::string& set_name,
 // void RunAllInstancesInSetDirectory(
 //     const int min_policies, const int max_policies, const int min_budget,
 //     const int max_budget, const std::string& set_name,
-//     const std::vector<ASPI_Solver>& solvers, int manual_symmetry_constraints,
-//     int gurobi_symmetry_detection, double greedy_mip_gap_threshold) {
+//     const std::vector<ASPI_Solver>& solvers, int
+//     manual_symmetry_constraints, int gurobi_symmetry_detection, double
+//     greedy_mip_gap_threshold) {
 //   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
 //   // Use seconds, since gurobi takes the parameter value in seconds.
 //   env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
@@ -1953,14 +1959,17 @@ std::string SolveAndPrintSingleRun(const std::string& set_name,
 //     std::string name = entity->d_name;
 //     entity = readdir(set_directory);
 //     if (name.size() < set_name.size())
-//       continue;  // This is not a data file, data files start with <set_name>
+//       continue;  // This is not a data file, data files start with
+//       <set_name>
 //                  // so are at least as long as set_name.size().
 //     std::string set_name_in_name(name.begin(), name.begin() +
 //     set_name.size()); if (set_name_in_name != set_name)
-//       continue;  // For sanity, check that the data file matches the set_name
+//       continue;  // For sanity, check that the data file matches the
+//       set_name
 //                  // which should always be the case.
 //     if (IsRunFile(name))
-//       continue;  // Cannot run on a output data file (in case we are running
+//       continue;  // Cannot run on a output data file (in case we are
+//       running
 //                  // again on this directory). Since we include full
 //                  timestamps
 //                  // in the result file names we may do this, e.g. with a
@@ -1972,9 +1981,8 @@ std::string SolveAndPrintSingleRun(const std::string& set_name,
 //     // InstanceInput, and then run the our single run function for every k
 //     // from 1 to max k (as long as k <= scenarios).
 //     if (IsCostFile(name)) {
-//       std::pair<int, int> n_kzero = GetNodesKZero(name, set_name.size() + 1);
-//       int nodes = n_kzero.first;
-//       int kzero = n_kzero.second;
+//       std::pair<int, int> n_kzero = GetNodesKZero(name, set_name.size() +
+//       1); int nodes = n_kzero.first; int kzero = n_kzero.second;
 //       std::pair<int, int> scenarios_id = GetScenariosID(name);
 //       int scenarios = scenarios_id.first;
 //       int id = scenarios_id.second;
