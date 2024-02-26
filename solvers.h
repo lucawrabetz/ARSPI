@@ -624,19 +624,7 @@ AdaptiveSolution EnumSolve(SingleRunInput& problem);
 
 AdaptiveSolution GreedyAlgorithm(SingleRunInput& problem);
 
-long GetCurrentTime();
-
-// Experiment helper functions.
-
-bool IsCostFile(const std::string& name);
-
-bool IsRunFile(const std::string& name);
-
-int DigitsToInt(const std::vector<int> num_digits);
-
-std::pair<int, int> GetNodesKZero(const std::string& name, int start);
-
-std::pair<int, int> GetScenariosID(const std::string& name);
+// Experiment main loops.
 
 void SingleRunOnAllInstancesInSetDirectory(
     const int min_policies, const int max_policies, const int min_budget,

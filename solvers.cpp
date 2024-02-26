@@ -1875,9 +1875,6 @@ void SingleRunOnAllInstancesInSetDirectory(
     for (int k = min_policies; k <= max_policies; k++) {
       for (int budget = min_budget; budget <= max_budget; budget++) {
         if (k > instance_input.scenarios_) break;
-        // removing budget > k_zero check for now, because I want to run
-        // some instances of that type if (budget > graph_input.k_zero_)
-        // break;
         const SingleRunInput problem(
             instance_input, k, budget, env, manual_symmetry_constraints,
             gurobi_symmetry_detection, greedy_mip_gap_threshold);
