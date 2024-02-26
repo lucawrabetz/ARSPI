@@ -629,7 +629,7 @@ AdaptiveSolution GreedyAlgorithm(SingleRunInput& problem);
 void SingleRunOnAllInstancesInSetDirectory(
     const int min_policies, const int max_policies, const int min_budget,
     const int max_budget, const std::string& set_name,
-    const std::string& append_file, const ASPI_Solver& solver,
+    std::ofstream& result_file, const ASPI_Solver& solver,
     int manual_symmetry_constraints, int gurobi_symmetry_detection,
     double greedy_mip_gap_threshold);
 
@@ -638,7 +638,7 @@ void TestOnAllInstancesInSetDirectory(const std::string& set_name,
                                       int gurobi_symmetry_detection,
                                       double greedy_mip_gap_threshold);
 
-void UninterdictedRunOnAllInstancesInsetDirectory(
-    const std::string& set_name, const std::string& append_file);
+void UninterdictedRunOnAllInstancesInsetDirectory(const std::string& set_name,
+                                                  std::ofstream& result_file);
 
 #endif

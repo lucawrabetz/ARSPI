@@ -1,10 +1,50 @@
+#include <fstream>
+
 #include "solvers.h"
+
+std::ofstream InitializeEmptyResultsFile(const std::string& set_name) {
+  auto t = std::time(nullptr);
+  auto tt = *std::localtime(&t);
+  std::ostringstream oss;
+  oss << std::put_time(&tt, "%d-%m-%Y--%H-%M-%S");
+  std::string today = oss.str();
+  std::string base_name = DATA_DIRECTORY;
+  base_name.append(set_name);
+  base_name.append("/");
+  base_name.append(set_name);
+  base_name.append("_run_");
+  base_name.append(today);
+  std::string result_file_path = base_name;
+  result_file_path.append(".csv");
+  std::ofstream result_file(result_file_path);
+  if (!result_file.is_open()) {
+    throw std::runtime_error(
+        std::string("Failed to open file: ").append(result_file_path));
+  }
+  std::string csv_header = INSTANCE_INFO_COLUMN_HEADERS;
+  csv_header.append(",").append(OUTPUT_COLUMN_HEADERS);
+  result_file << csv_header << std::endl;
+  return result_file;
+}
+
+std::ofstream InitializeAppendResultsFile(const std::string& append_file) {
+  std::string result_file_path =
+      std::string(DATA_DIRECTORY).append(append_file).append(".csv");
+  std::ofstream result_file(result_file_path, std::ios::app);
+  if (!result_file.is_open()) {
+    throw std::runtime_error(
+        std::string("Failed to open file: ").append(result_file_path));
+  }
+  return result_file;
+}
 
 void usage(char* name) {
   std::cout << "usage: ";
   std::cout << name << " setname [-s] [-m] [-g] [-a] [-t] [-u]" << std::endl;
   std::cout << "    [-s]: solver to use pass (m for mip, b for benders, e for "
-               "enumeration, g for greedy (case insensitive) - default is mip)"
+               "enumeration, g for greedy (case insensitive) -- default is mip "
+               "-- accepts multiple solvers / concatenation, i.e. mb or bm for "
+               "mip and benders, ebgm for all solvers, etc.)"
             << std::endl;
   std::cout
       << "    [-m]: manual symmetric constraints (pass 0 for none, 1 for "
@@ -69,6 +109,7 @@ int main(int argc, char* argv[]) {
   const std::string set_name = argv[1];
   bool test = false;
   bool uninterdicted = false;
+  std::vector<ASPI_Solver> solvers;
   if (argc > 2) {
     if (argc > 11) {
       // Too many arguments.
@@ -100,6 +141,13 @@ int main(int argc, char* argv[]) {
       }
       if (strcmp(argv[i], "-s") == 0) {
         i++;
+        std::string solver_string(argv[i]);
+        std::unordered_set<char> solver_charset(solver_string.begin(),
+                                                solver_string.end());
+        if (solver_string.empty()) {
+          usage(argv[0]);
+          return 1;
+        }
         if (strcmp(argv[i], "m") == 0 || strcmp(argv[i], "M") == 0) {
           solver = MIP;
         } else if (strcmp(argv[i], "b") == 0 || strcmp(argv[i], "B") == 0) {
@@ -131,8 +179,14 @@ int main(int argc, char* argv[]) {
                                      greedy_mip_gap_threshold);
     return 0;
   }
+  std::ofstream result_file;
+  if (append_file.empty()) {
+    result_file = InitializeEmptyResultsFile(set_name);
+  } else {
+    result_file = InitializeAppendResultsFile(append_file);
+  }
   if (uninterdicted) {
-    UninterdictedRunOnAllInstancesInsetDirectory(set_name, append_file);
+    UninterdictedRunOnAllInstancesInsetDirectory(set_name, result_file);
     return 0;
   }
   std::string run_file_path = "dat/" + set_name + "_run.txt";
@@ -202,7 +256,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   SingleRunOnAllInstancesInSetDirectory(
-      min_policies, max_policies, min_budget, max_budget, set_name, append_file,
+      min_policies, max_policies, min_budget, max_budget, set_name, result_file,
       solver, manual_symmetry_constraints, gurobi_symmetry_detection,
       greedy_mip_gap_threshold);
 }

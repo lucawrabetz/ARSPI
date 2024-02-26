@@ -1,7 +1,6 @@
 #include "solvers.h"
 
 #include <cstddef>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -1709,42 +1708,6 @@ std::string SolveAndPrintSingleRunUninterdicted(const std::string& set_name,
   return final_csv_string;
 }
 
-std::ofstream InitializeEmptyResultsFile(const std::string& set_name) {
-  auto t = std::time(nullptr);
-  auto tt = *std::localtime(&t);
-  std::ostringstream oss;
-  oss << std::put_time(&tt, "%d-%m-%Y--%H-%M-%S");
-  std::string today = oss.str();
-  std::string base_name = DATA_DIRECTORY;
-  base_name.append(set_name);
-  base_name.append("/");
-  base_name.append(set_name);
-  base_name.append("_run_");
-  base_name.append(today);
-  std::string result_file_path = base_name;
-  result_file_path.append(".csv");
-  std::ofstream result_file(result_file_path);
-  if (!result_file.is_open()) {
-    throw std::runtime_error(
-        std::string("Failed to open file: ").append(result_file_path));
-  }
-  std::string csv_header = INSTANCE_INFO_COLUMN_HEADERS;
-  csv_header.append(",").append(OUTPUT_COLUMN_HEADERS);
-  result_file << csv_header << std::endl;
-  return result_file;
-}
-
-std::ofstream InitializeAppendResultsFile(const std::string& append_file) {
-  std::string result_file_path =
-      std::string(DATA_DIRECTORY).append(append_file).append(".csv");
-  std::ofstream result_file(result_file_path, std::ios::app);
-  if (!result_file.is_open()) {
-    throw std::runtime_error(
-        std::string("Failed to open file: ").append(result_file_path));
-  }
-  return result_file;
-}
-
 inline std::string ConstructSetDirectoryPath(const std::string set_name) {
   return std::string(DATA_DIRECTORY).append(set_name);
 }
@@ -1854,17 +1817,12 @@ void TestOnAllInstancesInSetDirectory(const std::string& set_name,
 void SingleRunOnAllInstancesInSetDirectory(
     const int min_policies, const int max_policies, const int min_budget,
     const int max_budget, const std::string& set_name,
-    const std::string& append_file, const ASPI_Solver& solver,
+    std::ofstream& result_file, const ASPI_Solver& solver,
     int manual_symmetry_constraints, int gurobi_symmetry_detection,
     double greedy_mip_gap_threshold) {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
   env->set(GRB_DoubleParam_TimeLimit, TIME_LIMIT_S);  // Set time limit.
   std::cout << std::endl;
-  std::ofstream result_file;
-  if (append_file == "")
-    result_file = InitializeEmptyResultsFile(set_name);
-  else
-    result_file = InitializeAppendResultsFile(append_file);
   DIR* set_directory = opendir(ConstructSetDirectoryPath(set_name).c_str());
   struct dirent* entity = readdir(set_directory);
   while (entity != NULL) {
@@ -1892,15 +1850,10 @@ void SingleRunOnAllInstancesInSetDirectory(
   delete env;
 }
 
-void UninterdictedRunOnAllInstancesInsetDirectory(
-    const std::string& set_name, const std::string& append_file) {
+void UninterdictedRunOnAllInstancesInsetDirectory(const std::string& set_name,
+                                                  std::ofstream& result_file) {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
   std::cout << std::endl;
-  std::ofstream result_file;
-  if (append_file == "")
-    result_file = InitializeEmptyResultsFile(set_name);
-  else
-    result_file = InitializeAppendResultsFile(append_file);
   DIR* set_directory = opendir(ConstructSetDirectoryPath(set_name).c_str());
   struct dirent* entity = readdir(set_directory);
   while (entity != NULL) {
