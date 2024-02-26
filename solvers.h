@@ -72,35 +72,29 @@ const std::string OUTPUT_COLUMN_HEADERS =
     "rounds,cuts_added,avg_cbtime,avg_sptime,"
     "partition,m_sym,g_sym";
 
-struct GraphInput {
-  GraphInput(const std::string& setname, int nodes, int k_zero)
-      : setname_(setname),
-        nodes_(nodes),
-        k_zero_(k_zero),
-        graph_name_(setname + "-" + std::to_string(nodes) + "_" +
-                    std::to_string(k_zero)) {}
-  std::string FileName() const {
-    return DATA_DIRECTORY + setname_ + "/" + graph_name_ + ".txt";
-  }
-  const std::string setname_;
-  const int nodes_, k_zero_;
-  const std::string graph_name_;
-};
+class AdaptiveSolution;
 
 struct InstanceInput {
-  InstanceInput(const GraphInput& graph_input, int scenarios, int id)
-      : graph_input_(graph_input),
+  InstanceInput(const std::string& set_name, int nodes, int k_zero,
+                int scenarios, int id)
+      : nodes_(nodes),
+        k_zero_(k_zero),
         scenarios_(scenarios),
         id_(id),
-        setname_(graph_input.setname_),
-        costs_name_(graph_input_.graph_name_ + "-costs_" +
-                    std::to_string(scenarios) + "_" + std::to_string(id)) {}
+        setname_(set_name),
+        graph_name_(setname_ + "-" + std::to_string(nodes) + "_" +
+                    std::to_string(k_zero)),
+        costs_name_(graph_name_ + "-costs_" + std::to_string(scenarios) + "_" +
+                    std::to_string(id)) {}
+  std::string GraphFileName() const {
+    return DATA_DIRECTORY + setname_ + "/" + graph_name_ + ".txt";
+  }
   std::string CostFileName() const {
     return DATA_DIRECTORY + setname_ + "/" + costs_name_ + ".csv";
   }
-  const GraphInput graph_input_;
-  const int scenarios_, id_;
+  const int nodes_, k_zero_, scenarios_, id_;
   const std::string setname_;
+  const std::string graph_name_;
   const std::string
       costs_name_;  // InstanceInput.costs_name_ and AdaptiveInstance.name_ are
                     // the same, except for that InstanceInput.costs_name_ has
@@ -157,14 +151,14 @@ class AdaptiveInstance {
   // reference separately).
  public:
   AdaptiveInstance(const InstanceInput& instance_input)
-      : nodes_(instance_input.graph_input_.nodes_),
+      : nodes_(instance_input.nodes_),
         scenarios_(instance_input.scenarios_),
-        name_(instance_input.graph_input_.graph_name_ + "-" +
+        name_(instance_input.graph_name_ + "-" +
               std::to_string(instance_input.scenarios_) + "_" +
               std::to_string(instance_input.id_)),
         costs_filename_(instance_input.CostFileName()){};
   // Copy constructor with a different U (only a subset of scenarios to keep).
-  AdaptiveInstance(AdaptiveInstance& adaptive_instance,
+  AdaptiveInstance(const AdaptiveInstance& adaptive_instance,
                    std::vector<int>& keep_scenarios);
   void ReadCosts();
   void PrintInstance(const Graph& G) const;
@@ -200,25 +194,24 @@ class AdaptiveInstance {
   std::vector<int> scenario_index_map_;
 };
 
-class ProblemInput {
+class SingleRunInput {
  public:
-  ProblemInput(const InstanceInput& instance_input, int policies, int budget,
-               GRBEnv* env, int manual_symmetry_constraints,
-               int gurobi_symmetry_detection, double greedy_mip_gap_threshold)
-      : G_(Graph(instance_input.graph_input_.FileName(),
-                 instance_input.graph_input_.nodes_)),
+  SingleRunInput(const InstanceInput& instance_input, int policies, int budget,
+                 GRBEnv* env, int manual_symmetry_constraints,
+                 int gurobi_symmetry_detection, double greedy_mip_gap_threshold)
+      : G_(Graph(instance_input.GraphFileName(), instance_input.nodes_)),
         instance_(AdaptiveInstance(instance_input)),
         policies_(policies),
         budget_(budget),
-        k_zero_(instance_input.graph_input_.k_zero_),
+        k_zero_(instance_input.k_zero_),
         manual_symmetry_constraints_(manual_symmetry_constraints),
         gurobi_symmetry_detection_(gurobi_symmetry_detection),
         greedy_mip_gap_threshold_(greedy_mip_gap_threshold),
         env_(env) {
     instance_.ReadCosts();
   }
-  ProblemInput(ProblemInput& problem_input, std::vector<int>& keep_scenarios,
-               int policies)
+  SingleRunInput(const SingleRunInput& problem_input,
+                 std::vector<int>& keep_scenarios, int policies)
       : G_(problem_input.G_),
         instance_(AdaptiveInstance(problem_input.instance_, keep_scenarios)),
         policies_(policies),
@@ -230,6 +223,7 @@ class ProblemInput {
         greedy_mip_gap_threshold_(problem_input.greedy_mip_gap_threshold_),
         env_(problem_input.env_) {}
   std::string InputCSVString(const std::string& set_name) const;
+  AdaptiveSolution SolveASPIZeroPolicies() const;
   const Graph G_;
   AdaptiveInstance instance_;
   int policies_, budget_, k_zero_;
@@ -270,7 +264,7 @@ class AdaptiveSolution {
         avg_callback_time_(0),
         avg_sp_separation_time_(0){};
   AdaptiveSolution(ASPI_Solver solver, bool optimal,
-                   const ProblemInput& problem)
+                   const SingleRunInput& problem)
       : solver_(solver),
         unbounded_(false),
         optimal_(optimal),
@@ -292,7 +286,7 @@ class AdaptiveSolution {
         avg_callback_time_(0),
         avg_sp_separation_time_(0){};
   AdaptiveSolution(ASPI_Solver solver, bool optimal,
-                   const ProblemInput& problem,
+                   const SingleRunInput& problem,
                    const std::vector<std::vector<int>>& partition,
                    const std::vector<std::vector<double>>& solution)
       : solver_(solver),
@@ -314,12 +308,12 @@ class AdaptiveSolution {
         total_lazy_cuts_added_(0),
         avg_callback_time_(0),
         avg_sp_separation_time_(0){};
-  void LogSolution(const ProblemInput& problem, bool policy = false);
+  void LogSolution(const SingleRunInput& problem, bool policy = false);
   void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2,
                      int split_index);
   void ExtendByOne(AdaptiveInstance& instance, const Graph& G, GRBEnv* env,
                    bool mip_subroutine = true);
-  void ComputeObjectiveMatrix(const ProblemInput& problem);
+  void ComputeObjectiveMatrix(const SingleRunInput& problem);
   void SetObjectiveMatrix(
       const std::vector<std::vector<double>>& objective_matrix) {
     objectives_ = objective_matrix;
@@ -371,9 +365,9 @@ class AdaptiveSolution {
           stats.total_sp_separation_time / stats.number_of_spcalls;
     }
   }
-  std::string OutputCSVString(const ProblemInput& problem) const;
-  std::string SingleRunLogLine(const ProblemInput& problem) const;
-  std::string PartitionString(const ProblemInput& problem) const;
+  std::string OutputCSVString(const SingleRunInput& problem) const;
+  std::string SingleRunLogLine(const SingleRunInput& problem) const;
+  std::string PartitionString(const SingleRunInput& problem) const;
   void add_to_partition(int index, int scenario) {
     partition_[index].push_back(scenario);
   }
@@ -403,13 +397,13 @@ class RobustAlgoModel {
  public:
   ~RobustAlgoModel() { delete algo_model_; }
   RobustAlgoModel() : scenarios_(0), budget_(0), nodes_(0), arcs_(0){};
-  RobustAlgoModel(const ProblemInput& problem)
+  RobustAlgoModel(const SingleRunInput& problem)
       : scenarios_(problem.instance_.scenarios()),
         budget_(problem.budget_),
         nodes_(problem.instance_.nodes()),
         arcs_(problem.G_.arcs()),
         env_(problem.env_){};
-  void ConfigureModel(const ProblemInput& problem);
+  void ConfigureModel(const SingleRunInput& problem);
   void Update(std::vector<int>& subset);
   void ReverseUpdate(std::vector<int>& subset);
   std::pair<double, std::vector<double>> Solve();
@@ -442,7 +436,7 @@ class SetPartitioningModel {
         budget_(0),
         nodes_(0),
         arcs_(0){};
-  SetPartitioningModel(const ProblemInput& problem)
+  SetPartitioningModel(const SingleRunInput& problem)
       : big_m_(problem.instance_.big_m()),
         scenarios_(problem.instance_.scenarios()),
         policies_(problem.policies_),
@@ -462,8 +456,8 @@ class SetPartitioningModel {
         lambda_var_(std::vector<std::vector<std::vector<GRBVar>>>(
             policies_, std::vector<std::vector<GRBVar>>(
                            scenarios_, std::vector<GRBVar>(arcs_)))){};
-  void ConfigureSolver(const ProblemInput& problem);
-  AdaptiveSolution Solve(const ProblemInput& problem);
+  void ConfigureSolver(const SingleRunInput& problem);
+  AdaptiveSolution Solve(const SingleRunInput& problem);
 
  private:
   void AddSetPartitioningVariables();
@@ -472,12 +466,12 @@ class SetPartitioningModel {
   void AddDualLambdaArcVariable();
   void AddBudgetConstraints();
   void AddObjectiveBoundingConstraint();
-  void AddArcCostBoundingConstraint(const ProblemInput& problem);
+  void AddArcCostBoundingConstraint(const SingleRunInput& problem);
   void AddSetPartitioningConstraints();
   void AddRootNodeZeroConstraint();
   void AddAssignmentSymmetryConstraints();
   void AddNonDecreasingSymmetryConstraints();
-  void ProcessInputSymmetryParameters(const ProblemInput& problem);
+  void ProcessInputSymmetryParameters(const SingleRunInput& problem);
   const int big_m_;
   int scenarios_, policies_, budget_, nodes_, arcs_;
   GRBEnv* env_;
@@ -502,7 +496,7 @@ class BendersCallback : public GRBCallback {
  public:
   ~BendersCallback() = default;
   BendersCallback() : upper_bound_(DBL_MAX){};
-  BendersCallback(const ProblemInput& problem, GRBVar& z_var,
+  BendersCallback(const SingleRunInput& problem, GRBVar& z_var,
                   std::vector<std::vector<GRBVar>>& h_var,
                   std::vector<std::vector<GRBVar>>& x_var)
       : upper_bound_(DBL_MAX),
@@ -536,7 +530,7 @@ class BendersCallback : public GRBCallback {
   void UpdateMasterVariables();
   void UpdateArcCostsForQWPair(int w, int q, bool rev = false);
   void SPDijkstra(int q);
-  void ConfigureSubModels(const ProblemInput& problem);
+  void ConfigureSubModels(const SingleRunInput& problem);
   void SolveSubModels();
   void ComputeInitialPaths();
   std::vector<ShortestPath> paths() { return shortest_paths_; }
@@ -583,7 +577,7 @@ class SetPartitioningBenders {
  public:
   ~SetPartitioningBenders() { delete benders_model_; }
   SetPartitioningBenders() : big_m_(0){};
-  SetPartitioningBenders(const ProblemInput& problem)
+  SetPartitioningBenders(const SingleRunInput& problem)
       : big_m_(problem.instance_.big_m()),
         nodes_(problem.instance_.nodes()),
         arcs_(problem.G_.arcs()),
@@ -598,8 +592,8 @@ class SetPartitioningBenders {
             policies_, std::vector<GRBVar>(scenarios_))),
         x_var_(std::vector<std::vector<GRBVar>>(policies_,
                                                 std::vector<GRBVar>(arcs_))){};
-  void ConfigureSolver(const ProblemInput& problem);
-  AdaptiveSolution Solve(const ProblemInput& problem);
+  void ConfigureSolver(const SingleRunInput& problem);
+  AdaptiveSolution Solve(const SingleRunInput& problem);
   void SetMIPGap(double mip_gap) {
     benders_model_->set(GRB_DoubleParam_MIPGap, mip_gap);
   }
@@ -611,7 +605,7 @@ class SetPartitioningBenders {
   void AddSetPartitioningConstraints();
   void AddAssignmentSymmetryConstraints();
   void AddNonDecreasingSymmetryConstraints();
-  void ProcessInputSymmetryParameters(const ProblemInput& problem);
+  void ProcessInputSymmetryParameters(const SingleRunInput& problem);
   void AddInitialPathConstraints(const std::vector<ShortestPath>& paths);
   void InitialConstraints();
   const int big_m_;
@@ -626,9 +620,9 @@ class SetPartitioningBenders {
   BendersCallback callback_;
 };
 
-AdaptiveSolution EnumSolve(ProblemInput& problem);
+AdaptiveSolution EnumSolve(SingleRunInput& problem);
 
-AdaptiveSolution GreedyAlgorithm(ProblemInput& problem);
+AdaptiveSolution GreedyAlgorithm(SingleRunInput& problem);
 
 long GetCurrentTime();
 
@@ -644,32 +638,19 @@ std::pair<int, int> GetNodesKZero(const std::string& name, int start);
 
 std::pair<int, int> GetScenariosID(const std::string& name);
 
-std::string SolutionPartitionToString(const AdaptiveSolution& solution,
-                                      const ProblemInput& problem);
-
-std::string SolveAndPrintSingleRun(const std::string& set_name,
-                                   const ProblemInput& problem,
-                                   ProblemInput& problem_copyable,
-                                   const ASPI_Solver& solver, int debug = 0);
-
-std::string SolveAndPrintTest(const std::string& set_name,
-                              const ProblemInput& problem,
-                              ProblemInput& problem_copyable,
-                              const std::vector<ASPI_Solver>& solvers,
-                              int debug = 0);
-
 void SingleRunOnAllInstancesInSetDirectory(
     const int min_policies, const int max_policies, const int min_budget,
     const int max_budget, const std::string& set_name,
-    const ASPI_Solver& solver, int manual_symmetry_constraints,
-    int gurobi_symmetry_detection, double greedy_mip_gap_threshold);
+    const std::string& append_file, const ASPI_Solver& solver,
+    int manual_symmetry_constraints, int gurobi_symmetry_detection,
+    double greedy_mip_gap_threshold);
 
-void RunAllInstancesInSetDirectory(
-    const int min_policies, const int max_policies, const int min_budget,
-    const int max_budget, const std::string& set_name,
-    const std::vector<ASPI_Solver>& solvers, int manual_symmetry_constraints,
-    int gurobi_symmetry_detection, double greedy_mip_gap_threshold);
+void TestOnAllInstancesInSetDirectory(const std::string& set_name,
+                                      int manual_symmetry_constraints,
+                                      int gurobi_symmetry_detection,
+                                      double greedy_mip_gap_threshold);
 
-void UninterdictedObjectiveForAllInstances(const std::string& set_name);
+void UninterdictedRunOnAllInstancesInsetDirectory(
+    const std::string& set_name, const std::string& append_file);
 
 #endif
