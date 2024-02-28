@@ -1845,7 +1845,6 @@ void SingleRunOnAllInstancesInSetDirectory(
       }
     }
   }
-  result_file.close();
   closedir(set_directory);
   delete env;
 }
