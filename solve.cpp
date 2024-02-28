@@ -24,7 +24,7 @@ std::ofstream InitializeEmptyResultsFile(const std::string& set_name) {
   base_name.append(today);
   std::string result_file_path = base_name;
   result_file_path.append(".csv");
-  std::ofstream result_file(result_file_path);
+  std::ofstream result_file(result_file_path, std::ios::app);
   if (!result_file.is_open()) {
     throw std::runtime_error(
         std::string("Failed to open file: ").append(result_file_path));
@@ -273,4 +273,5 @@ int main(int argc, char* argv[]) {
         result_file, solver, manual_symmetry_constraints,
         gurobi_symmetry_detection, greedy_mip_gap_threshold);
   }
+  result_file.close();
 }
