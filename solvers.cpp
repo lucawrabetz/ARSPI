@@ -696,6 +696,8 @@ void BendersCallback::callback() {
       }
       AddLazyCuts();
       long callback_dur = GetCurrentTime() - callback_begin;
+      std::cout << "Callback time: " << std::to_string(callback_dur) << " ms."
+                << std::endl;
       stats_.total_callback_time += callback_dur;
       stats_.number_of_callbacks++;
     }
