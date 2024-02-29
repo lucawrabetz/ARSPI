@@ -3,9 +3,6 @@ import shutil
 import argparse
 
 def copy_directory(A, B):
-    # Get the parent directory of A
-    parent_directory = os.path.dirname(A)
-    
     # Form the absolute paths for directories A and B
     path_A = os.path.abspath(A)
     path_B = os.path.abspath(B)
@@ -25,11 +22,11 @@ def copy_directory(A, B):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Rename an instance set and copy to new or existing directory.')
+        description='Copy an instance set and a new or existing directory.')
     parser.add_argument('existing', metavar='X', type=str, nargs=1,
-                        help='existing dataframe to add to')
+                        help='existing instance set path')
     parser.add_argument('new', metavar='N', type=str, nargs=1,
-                        help='existing dataframe to add to')
+                        help='new instance set path')
     args = parser.parse_args()
     old_path = args.existing[0]
     new_path = args.new[0]
