@@ -13,7 +13,6 @@ from lib.util import *
 
 def get_max(df, col):
     if not df.empty:
-        # Take max value over all cells
         return df[col].max()
     else:
         return -1
@@ -24,11 +23,6 @@ def add_empirical_ratio(df):
     best_objective_values = []
     best_optimal_values = []
     for index, row in df.iterrows():
-        # if row["instance_name"] == "layer-52_5-5_0":
-        #     if row["policies"] == 3:
-        #         import pdb
-
-        #         pdb.set_trace()
         objective_mask = df[COLS["same_run"]].eq(row[COLS["same_run"]]).all(axis=1)
         optimal_mask = df[COLS["same_run"]].eq(row[COLS["same_run"]]).all(axis=1) & (
             df["optimal"] == "OPTIMAL"
