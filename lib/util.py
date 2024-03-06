@@ -18,13 +18,15 @@ COLS = {
     "cost_instance_inputs_int": [
         "scenarios",
     ],
-    "run_inputs_int": [
+    "run_input_params_int": [
         "budget",
         "policies",
+    ],
+    "run_input_hyperparams": [
         "m_sym",
         "g_sym",
     ],
-    "run_inputs_cat": [
+    "run_input_params_cat": [
         "solver",
     ],
     "solution_outputs": [
@@ -33,10 +35,12 @@ COLS = {
         "objective",
         "partition",
     ],
-    "model_outputs": [
-        "gap",
+    "model_outputs_int": [
         "cuts_rounds",
         "cuts_added",
+    ],
+    "model_outputs_rat": [
+        "gap",
     ],
     "time_outputs": [
         "avg_cbtime",
@@ -51,30 +55,41 @@ COLS = {
     ],
 }
 
+COLS["name_inputs"] = COLS["name_inputs_str"]
+COLS["graph_inputs"] = COLS["graph_inputs_int"] + COLS["graph_inputs_rat"]
+COLS["cost_instance_inputs"] = COLS["cost_instance_inputs_int"]
+COLS["run_input_params"] = COLS["run_input_params_int"] + COLS["run_input_params_cat"]  
+COLS["run_inputs"] = COLS["run_input_params"] + COLS["run_input_hyperparams"]
+
 COLS["inputs"] = (
-    COLS["name_inputs_str"]
-    + COLS["graph_inputs_int"]
-    + COLS["graph_inputs_rat"]
-    + COLS["cost_instance_inputs_int"]
-    + COLS["run_inputs_int"]
-    + COLS["run_inputs_cat"]
+    COLS["name_inputs"]
+    + COLS["graph_inputs"]
+    + COLS["cost_instance_inputs"]
+    + COLS["run_inputs"]
 )
+
+COLS["model_outputs"] = COLS["model_outputs_int"] + COLS["model_outputs_rat"]
+
 COLS["outputs"] = (
     COLS["solution_outputs"] + COLS["model_outputs"] + COLS["time_outputs"]
 )
+
 COLS["raw"] = COLS["inputs"] + COLS["outputs"]
-# "processed" by slow computations in add_ratios.py. (persistent)
+# "processed" by slow computations in add_ratios.py. (persistent / db)
 COLS["processed"] = COLS["raw"] + COLS["slow_constants"]
-# "finished" by fast clean up in common_cleanup() (local)
+# "finished" by fast clean up in common_cleanup() (local to callstack)
 COLS["time_outputs_s"] = [i + "_s" for i in COLS["time_outputs"]]
 COLS["finished"] = COLS["processed"] + COLS["time_outputs_s"]
 
 # Additional categorizations (no new columns past this point).
-COLS["same_run"] = [c for c in COLS["inputs"] if c not in ["m_sym", "g_sym"]]
-COLS["same_parametrized_run"] = COLS["inputs"]
-COLS["same_instance"] = [col for col in COLS["same_run"] if col != "solver"]
+# Grouping - column subsets useful for common groupby operations, such as finding dups.
+COLS["same_instance"] = COLS["name_inputs"] + COLS["graph_inputs"] + COLS["cost_instance_inputs"]
+COLS["same_run_params"] = COLS["same_instance"] + COLS["run_input_params"]
+COLS["same_run_hyperparams"] = COLS["inputs"]
+COLS["same_run_and_outputs"] = COLS["inputs"] + COLS["model_outputs"] + COLS["time_outputs"]
 
-COLS["integer"] = COLS["graph_inputs_int"] + COLS["cost_instance_inputs_int"] + COLS["run_inputs_int"]
+# Types - column subsets partitioned by type, useful for cleaning functions.
+COLS["integer"] = COLS["graph_inputs_int"] + COLS["cost_instance_inputs_int"] + COLS["run_input_params_int"] + COLS["run_input_hyperparams"]
 COLS["rational"] = (
     COLS["graph_inputs_rat"]
     + COLS["outputs"]
@@ -195,7 +210,7 @@ def round_int_columns(df):
     """
     Round all integer columns.
     """
-    for col in INT_COLUMNS:
+    for col in COLS["integer"]:
         if col in df.columns:
             df[col] = df[col].astype(int)
 
