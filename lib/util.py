@@ -3,25 +3,29 @@
 # BASE COLUMN SETS (SMALL BUILDING BLOCKS)
 # BASE / BUILDING BLOCKS, LISTS HARD-INITIALIZED
 COLS = {
-    "name_inputs": [
+    "name_inputs_str": [
         "set_name",
         "instance_name",
     ],
-    "graph_inputs": [
+    "graph_inputs_int": [
         "nodes",
         "arcs",
         "k_zero",
+    ],
+    "graph_inputs_rat": [
         "density",
     ],
-    "cost_instance_inputs": [
+    "cost_instance_inputs_int": [
         "scenarios",
     ],
-    "run_inputs": [
+    "run_inputs_int": [
         "budget",
         "policies",
-        "solver",
         "m_sym",
         "g_sym",
+    ],
+    "run_inputs_cat": [
+        "solver",
     ],
     "solution_outputs": [
         "unbounded",
@@ -48,10 +52,12 @@ COLS = {
 }
 
 COLS["inputs"] = (
-    COLS["name_inputs"]
-    + COLS["graph_inputs"]
-    + COLS["cost_instance_inputs"]
-    + COLS["run_inputs"]
+    COLS["name_inputs_str"]
+    + COLS["graph_inputs_int"]
+    + COLS["graph_inputs_rat"]
+    + COLS["cost_instance_inputs_int"]
+    + COLS["run_inputs_int"]
+    + COLS["run_inputs_cat"]
 )
 COLS["outputs"] = (
     COLS["solution_outputs"] + COLS["model_outputs"] + COLS["time_outputs"]
@@ -64,19 +70,17 @@ COLS["time_outputs_s"] = [i + "_s" for i in COLS["time_outputs"]]
 COLS["finished"] = COLS["processed"] + COLS["time_outputs_s"]
 
 # Additional categorizations (no new columns past this point).
-additional_rational_cols = ["density"]
-COLS["rational"] = (
-    additional_rational_cols
-    + COLS["outputs"]
-    + COLS["time_outputs_s"]
-    + COLS["slow_constants"]
-)
 COLS["same_run"] = [c for c in COLS["inputs"] if c not in ["m_sym", "g_sym"]]
 COLS["same_parametrized_run"] = COLS["inputs"]
 COLS["same_instance"] = [col for col in COLS["same_run"] if col != "solver"]
 
-additional_int_columns = ["nodes", "arcs", "k_zero"]
-INT_COLUMNS = additional_int_columns + COLS["cost_instance_inputs"] + COLS["run_inputs"]
+COLS["integer"] = COLS["graph_inputs_int"] + COLS["cost_instance_inputs_int"] + COLS["run_inputs_int"]
+COLS["rational"] = (
+    COLS["graph_inputs_rat"]
+    + COLS["outputs"]
+    + COLS["time_outputs_s"]
+    + COLS["slow_constants"]
+)
 
 DP = {key: 2 for key in COLS["rational"]}
 
