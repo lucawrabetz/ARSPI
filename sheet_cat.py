@@ -12,32 +12,46 @@ def check_columns(A, B):
             "Columns of DataFrame A do not match columns of DataFrame B. Cannot concatenate."
         )
 
+def print_duplicate_group(group):
+    print("Duplicate rows found to inspect:")
+    first_row = True
+    for _, row in group.iterrows():
+        if first_row:
+            print(
+                f"Instance: {row['instance_name']}, Policies: {row['policies']}, Budget: {row['budget']}, Solver: {row['solver']}"
+            )
+            first_row = False
+        print(
+            "    --> "
+            + ", ".join(
+                [
+                    f"{col}: {row[col]}"
+                    for col in COLS["solution_outputs"] + ["time"]
+                ]
+            )
+        )
+
+def duplicate_check(df, cols, drop=False):
+    # Will only modify df if drop=True, otherwise the user will
+    # get an option to exit the program.
+    duplicates = df[df.duplicated(subset=cols, keep=False)]
+    if not duplicates.empty:
+        if drop:
+            print("Found " + str(len(duplicates)) + " strongly matching rows, dropping.\n")
+            df.drop_duplicates(subset=cols, keep="first", inplace=True)
+        else:
+            for _, group in duplicates.groupby(cols):
+                print_duplicate_group(group)
+                user_input = input("Press 'c' to continue or 'e' to exit: ")
+                if user_input.lower() == 'e':
+                    raise KeyboardInterrupt("Exiting due to duplicates.")
+    
 
 def concatenate_dataframes(A, B):
     check_columns(A, B)
     combined_df = pd.concat([A, B], ignore_index=True, sort=False)
-    match = [col for col in COLS["same_parametrized_run"]]
-    duplicates = combined_df[combined_df.duplicated(subset=match, keep=False)]
-    if not duplicates.empty:
-        for _, group in duplicates.groupby(COLS["same_run"]):
-            print("Duplicate rows found:")
-            first_row = True
-            for index, row in group.iterrows():
-                if first_row:
-                    print(
-                        f"Instance: {row['instance_name']}, Policies: {row['policies']}, Budget: {row['budget']}, Solver: {row['solver']}"
-                    )
-                    first_row = False
-                print(
-                    "    --> "
-                    + ", ".join(
-                        [
-                            f"{col}: {row[col]}"
-                            for col in COLS["solution_outputs"] + ["time"]
-                        ]
-                    )
-                )
-            combined_df = combined_df.drop_duplicates(subset=match, keep="first")
+    duplicate_check(combined_df, COLS["same_run_and_outputs"], drop=True)
+    duplicate_check(combined_df, COLS["same_run_hyperparams"])
     return combined_df
 
 
