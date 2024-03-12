@@ -42,6 +42,7 @@ def duplicate_check(df, cols, drop=False):
         else:
             for _, group in duplicates.groupby(cols):
                 print_duplicate_group(group)
+                # TODO: consider expanding continue into keep or drop.
                 user_input = input("Press 'c' to continue or 'e' to exit: ")
                 if user_input.lower() == 'e':
                     raise KeyboardInterrupt("Exiting due to duplicates.")
@@ -51,7 +52,7 @@ def concatenate_dataframes(A, B):
     check_columns(A, B)
     combined_df = pd.concat([A, B], ignore_index=True, sort=False)
     duplicate_check(combined_df, COLS["same_run_and_outputs"], drop=True)
-    duplicate_check(combined_df, COLS["same_run_hyperparams"])
+    duplicate_check(combined_df, COLS["same_run_params"])
     return combined_df
 
 

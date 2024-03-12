@@ -29,7 +29,7 @@ COLS = {
     "run_input_params_cat": [
         "solver",
     ],
-    "solution_outputs": [
+    "solution_outputs_cat": [
         "unbounded",
         "optimal",
         "objective",
@@ -42,7 +42,7 @@ COLS = {
     "model_outputs_rat": [
         "gap",
     ],
-    "time_outputs": [
+    "time_outputs_rat": [
         "avg_cbtime",
         "avg_sptime",
         "time",
@@ -58,7 +58,7 @@ COLS = {
 COLS["name_inputs"] = COLS["name_inputs_str"]
 COLS["graph_inputs"] = COLS["graph_inputs_int"] + COLS["graph_inputs_rat"]
 COLS["cost_instance_inputs"] = COLS["cost_instance_inputs_int"]
-COLS["run_input_params"] = COLS["run_input_params_int"] + COLS["run_input_params_cat"]  
+COLS["run_input_params"] = COLS["run_input_params_int"] + COLS["run_input_params_cat"]
 COLS["run_inputs"] = COLS["run_input_params"] + COLS["run_input_hyperparams"]
 
 COLS["inputs"] = (
@@ -70,30 +70,44 @@ COLS["inputs"] = (
 
 COLS["model_outputs"] = COLS["model_outputs_int"] + COLS["model_outputs_rat"]
 
+COLS["outputs_int"] = COLS["model_outputs_int"]
+COLS["outputs_rat"] = COLS["model_outputs_rat"] + COLS["time_outputs_rat"]
+COLS["outputs_cat"] = COLS["solution_outputs_cat"]
+
 COLS["outputs"] = (
-    COLS["solution_outputs"] + COLS["model_outputs"] + COLS["time_outputs"]
+    COLS["solution_outputs_cat"] + COLS["model_outputs"] + COLS["time_outputs_rat"]
 )
+
 
 COLS["raw"] = COLS["inputs"] + COLS["outputs"]
 # "processed" by slow computations in add_ratios.py. (persistent / db)
 COLS["processed"] = COLS["raw"] + COLS["slow_constants"]
 # "finished" by fast clean up in common_cleanup() (local to callstack)
-COLS["time_outputs_s"] = [i + "_s" for i in COLS["time_outputs"]]
-COLS["finished"] = COLS["processed"] + COLS["time_outputs_s"]
+COLS["time_outputs_s_rat"] = [i + "_s" for i in COLS["time_outputs_rat"]]
+COLS["finished"] = COLS["processed"] + COLS["time_outputs_s_rat"]
 
 # Additional categorizations (no new columns past this point).
 # Grouping - column subsets useful for common groupby operations, such as finding dups.
-COLS["same_instance"] = COLS["name_inputs"] + COLS["graph_inputs"] + COLS["cost_instance_inputs"]
+COLS["same_instance"] = (
+    COLS["name_inputs"] + COLS["graph_inputs"] + COLS["cost_instance_inputs"]
+)
 COLS["same_run_params"] = COLS["same_instance"] + COLS["run_input_params"]
 COLS["same_run_hyperparams"] = COLS["inputs"]
-COLS["same_run_and_outputs"] = COLS["inputs"] + COLS["model_outputs"] + COLS["time_outputs"]
+COLS["same_run_and_outputs"] = (
+    COLS["inputs"] + COLS["model_outputs"] + COLS["time_outputs_rat"]
+)
 
-# Types - column subsets partitioned by type, useful for cleaning functions.
-COLS["integer"] = COLS["graph_inputs_int"] + COLS["cost_instance_inputs_int"] + COLS["run_input_params_int"] + COLS["run_input_hyperparams"]
+# Types - column subsets partitioned by type, useful for cleaning functions - including all columns in "finished" - these subsets should be used in common_cleanup() once we are at "finished" columns.
+COLS["integer"] = (
+    COLS["graph_inputs_int"]
+    + COLS["cost_instance_inputs_int"]
+    + COLS["run_input_params_int"]
+    + COLS["run_input_hyperparams"]
+)
 COLS["rational"] = (
     COLS["graph_inputs_rat"]
-    + COLS["outputs"]
-    + COLS["time_outputs_s"]
+    + COLS["outputs_rat"]
+    + COLS["time_outputs_s_rat"]
     + COLS["slow_constants"]
 )
 
@@ -202,7 +216,7 @@ def add_seconds_columns(df):
     """
     Convert all time columns to s.
     """
-    for col in COLS["time_outputs"]:
+    for col in COLS["time_outputs_rat"]:
         ms_to_s(df, col)
 
 
