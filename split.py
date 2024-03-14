@@ -104,6 +104,7 @@ MIP_COLUMNS_TO_ADD = {
     "avg_sptime": 0,
     "m_sym": 0,
     "g_sym": -1,
+    "subsolver": "",
 }
 
 BENDERS_COLUMN_MAPPING = {
@@ -123,6 +124,7 @@ BENDERS_COLUMNS_TO_ADD = {
     "avg_sptime": 0,
     "m_sym": 0,
     "g_sym": -1,
+    "subsolver": "",
 }
 
 ENUMERATION_COLUMN_MAPPING = {
@@ -142,6 +144,7 @@ ENUMERATION_COLUMNS_TO_ADD = {
     "m_sym": 0,
     "g_sym": -1,
     "gap": -1,
+    "subsolver": "BENDERS",
 }
 
 GREEDY_COLUMN_MAPPING = {
@@ -161,6 +164,7 @@ GREEDY_COLUMNS_TO_ADD = {
     "m_sym": 0,
     "g_sym": -1,
     "gap": -1,
+    "subsolver": "BENDERS",
 }
 
 SKIP_VAL = {

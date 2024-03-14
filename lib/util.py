@@ -22,9 +22,12 @@ COLS = {
         "budget",
         "policies",
     ],
-    "run_input_hyperparams": [
+    "run_input_hyperparams_int": [
         "m_sym",
         "g_sym",
+    ],
+    "run_input_hyperparams_cat": [
+        "subsolver",
     ],
     "run_input_params_cat": [
         "solver",
@@ -59,6 +62,9 @@ COLS["name_inputs"] = COLS["name_inputs_str"]
 COLS["graph_inputs"] = COLS["graph_inputs_int"] + COLS["graph_inputs_rat"]
 COLS["cost_instance_inputs"] = COLS["cost_instance_inputs_int"]
 COLS["run_input_params"] = COLS["run_input_params_int"] + COLS["run_input_params_cat"]
+COLS["run_input_hyperparams"] = (
+    COLS["run_input_hyperparams_int"] + COLS["run_input_hyperparams_cat"]
+)
 COLS["run_inputs"] = COLS["run_input_params"] + COLS["run_input_hyperparams"]
 
 COLS["inputs"] = (
@@ -102,7 +108,7 @@ COLS["integer"] = (
     COLS["graph_inputs_int"]
     + COLS["cost_instance_inputs_int"]
     + COLS["run_input_params_int"]
-    + COLS["run_input_hyperparams"]
+    + COLS["run_input_hyperparams_int"]
 )
 COLS["rational"] = (
     COLS["graph_inputs_rat"]
