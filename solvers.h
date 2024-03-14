@@ -27,14 +27,22 @@
 #include <utility>
 #include <vector>
 
-#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+// #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
 // #include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
-// #include "/Library/gurobi1001/macos_universal2/include/gurobi_c++.h"
+#include "/Library/gurobi1001/macos_universal2/include/gurobi_c++.h"
 
 typedef std::numeric_limits<double> dbl;
 
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
+enum SPI_Solver { MIP_f, BENDERS_f };  // _f for fixed, k = 1, p = 1.
+
+struct SolverHash {
+  template <typename T>
+  std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
+};
 
 // Manual MIP symmetry constraint parameters.
 constexpr int MANUAL_SYMMETRY_NONE = 0;  // Default.
@@ -226,9 +234,7 @@ class SingleRunInput {
   AdaptiveSolution SolveASPIZeroPolicies() const;
   const Graph G_;
   AdaptiveInstance instance_;
-  int policies_, budget_, k_zero_;
-  int manual_symmetry_constraints_;
-  int gurobi_symmetry_detection_;
+  int policies_, budget_, k_zero_, manual_symmetry_constraints_, gurobi_symmetry_detection_;
   double greedy_mip_gap_threshold_;
   GRBEnv* env_;
 };
@@ -458,6 +464,9 @@ class SetPartitioningModel {
                            scenarios_, std::vector<GRBVar>(arcs_)))){};
   void ConfigureSolver(const SingleRunInput& problem);
   AdaptiveSolution Solve(const SingleRunInput& problem);
+  void SetMIPGap(double mip_gap) {
+    sp_model_->set(GRB_DoubleParam_MIPGap, mip_gap);
+  }
 
  private:
   void AddSetPartitioningVariables();

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 long GetCurrentTime() {
@@ -1362,21 +1363,35 @@ AdaptiveSolution EnumSolve(const SingleRunInput& problem) {
   return AdaptiveSolution(ENUMERATION, /*unbounded=*/false, /*optimal=*/true);
 }
 
-std::pair<double, std::vector<double>> SolveBendersInGreedyAlgorithm(
-    const SingleRunInput& problem, int q) {
+std::pair<double, std::vector<double>> SolveNominalProblemInGreedyAlgorithm(
+    const SingleRunInput& problem, int q, const SPI_Solver& solver) {
   // Solve the nominal problem for follower q.
   std::vector<int> Update_vector{q};  // Vector with follower q.
   SingleRunInput sub_problem(problem, Update_vector, 1);
-  SetPartitioningBenders sub_benders(sub_problem);
-  sub_benders.ConfigureSolver(sub_problem);
-  if (problem.greedy_mip_gap_threshold_ != -1) {
-    sub_benders.SetMIPGap(problem.greedy_mip_gap_threshold_);
+  if (solver == BENDERS_f) {
+    SetPartitioningBenders sub_benders(sub_problem);
+    sub_benders.ConfigureSolver(sub_problem);
+    if (problem.greedy_mip_gap_threshold_ != -1) {
+      sub_benders.SetMIPGap(problem.greedy_mip_gap_threshold_);
+    }
+    AdaptiveSolution sol = sub_benders.Solve(sub_problem);
+    if (sol.optimal())
+      return {sol.worst_case_objective(), sol.solution()[0]};
+    else
+      return {-1, {-1}};
+  } else if (solver == MIP_f) {
+    SetPartitioningModel sub_mip(sub_problem);
+    sub_mip.ConfigureSolver(sub_problem);
+    if (problem.greedy_mip_gap_threshold_ != -1) {
+      sub_mip.SetMIPGap(problem.greedy_mip_gap_threshold_);
+    }
+    AdaptiveSolution sol = sub_mip.Solve(sub_problem);
+    if (sol.optimal())
+      return {sol.worst_case_objective(), sol.solution()[0]};
+    else
+      return {-1, {-1}};
   }
-  AdaptiveSolution sol = sub_benders.Solve(sub_problem);
-  if (sol.optimal())
-    return {sol.worst_case_objective(), sol.solution()[0]};
-  else
-    return {-1, {-1}};
+  return {-1, {-1}};
 }
 
 int FirstFollowerInGreedyAlgorithm(const SingleRunInput& problem) {
@@ -1401,7 +1416,21 @@ void log_matrix(const std::vector<std::vector<double>>& m) {
   }
 }
 
+SPI_Solver SetSubSolverInGreedyAlgorithm(const SingleRunInput& problem) {
+  std::string trees = "trees";
+  if (problem.instance_.name().size() < trees.size()) return BENDERS_f;
+  std::string pref = problem.instance_.name().substr(0, trees.size());
+  return  pref == trees ? MIP_f : BENDERS_f;
+}
+
 AdaptiveSolution GreedyAlgorithm(const SingleRunInput& problem) {
+  // Set subproblem solver to MIP if instance is tree type.
+  std::unordered_map<SPI_Solver, const std::string, SolverHash> SUBSOLVER_NAMES{
+    {MIP_f, "MIP"},
+    {BENDERS_f, "BENDERS"}
+  };
+  SPI_Solver sub_solver = SetSubSolverInGreedyAlgorithm(problem);
+  std::cout << "Solving instance " << problem.instance_.name() << " with Greedy algorithm with " << SUBSOLVER_NAMES[sub_solver] << "." << std::endl;
   // Solution in case we hit time limit.
   AdaptiveSolution time_limit_solution =
       AdaptiveSolution(GREEDY, /*unbounded=*/false, /*optimal=*/false);
@@ -1423,7 +1452,7 @@ AdaptiveSolution GreedyAlgorithm(const SingleRunInput& problem) {
   // matrix, i.e. the objective value of the new policy interdicting each
   // follower.
   std::pair<double, std::vector<double>> temp_single_solution =
-      SolveBendersInGreedyAlgorithm(problem, next_follower);
+      SolveNominalProblemInGreedyAlgorithm(problem, next_follower, sub_solver);
   // PART 3 Update objective matrix. (SLOW ~250ms).
   if (temp_single_solution.first == -1) return time_limit_solution;
 
@@ -1460,7 +1489,7 @@ AdaptiveSolution GreedyAlgorithm(const SingleRunInput& problem) {
     // spi_model.Solve();
     //
     temp_single_solution =
-        SolveBendersInGreedyAlgorithm(problem, next_follower);
+        SolveNominalProblemInGreedyAlgorithm(problem, next_follower, sub_solver);
     if (temp_single_solution.first == -1) return time_limit_solution;
     std::vector<double> new_objectives(problem.instance_.scenarios());
     for (int q = 0; q < problem.instance_.scenarios(); q++) {
@@ -1563,13 +1592,6 @@ std::string AdaptiveSolution::PartitionString(
   }
   return partition_string;
 }
-
-struct SolverHash {
-  template <typename T>
-  std::size_t operator()(T t) const {
-    return static_cast<std::size_t>(t);
-  }
-};
 
 std::unordered_map<ASPI_Solver, const std::string, SolverHash> SOLVER_NAMES{
     {MIP, "MIP"},
