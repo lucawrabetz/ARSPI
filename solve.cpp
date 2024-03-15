@@ -9,6 +9,10 @@ std::unordered_map<char, ASPI_Solver> flag_to_solver{
     {'e', ENUMERATION},
     {'g', GREEDY},
 };
+std::unordered_map<char, SPI_Solver> flag_to_subsolver{
+  {'m', MIP_f},
+    {'b', BENDERS_f},
+};
 
 std::ofstream InitializeEmptyResultsFile(const std::string& set_name) {
   auto t = std::time(nullptr);
@@ -48,13 +52,14 @@ std::ofstream InitializeAppendResultsFile(const std::string& append_file) {
 
 void usage(char* name) {
   std::cout << "usage: ";
-  std::cout << name << " setname [-s] [-m] [-g] [-a] [-t] [-u]" << std::endl;
+  std::cout << name << " setname [-s] [-ss] [-m] [-g] [-a] [-t] [-u]" << std::endl;
   std::cout
       << "    [-s]: solver to use -- pass m for mip, b for benders, e for "
          "enumeration, g for greedy (case insensitive) -- default is mip "
-      << std::endl
-      << "    -- accepts multiple solvers / concatenation, i.e. mb or bm for "
-         "mip and benders, ebgm for all solvers, etc."
+      << std::endl;
+  std::cout
+      << "    [-ss]: subsolver to use for greedy algorithm or enumeration algorithm "
+         " -- pass m for mip, b for benders, default is none "
       << std::endl;
   std::cout
       << "    [-m]: manual symmetric constraints (pass 0 for none, 1 for "
@@ -109,6 +114,7 @@ char lower_case(char c) {
 
 int main(int argc, char* argv[]) {
   std::vector<ASPI_Solver> solvers;
+  SPI_Solver sub_solver = NONE;
   std::string append_file = "";  // Append file defaults to empty string, which
                                  // signals no append file to the library.
   int manual_symmetry_constraints =
@@ -128,10 +134,10 @@ int main(int argc, char* argv[]) {
   bool test = false;
   bool uninterdicted = false;
   if (argc > 2) {
-    if (argc > 11) {
+    if (argc > 13) {
       // Too many arguments.
       // Max args:
-      // setname -m M -g G -s S -a A -u -t (11)
+      // setname -m M -g G -s S -ss SS -a A -u -t (13)
       usage(argv[0]);
       return 1;
     }
@@ -145,6 +151,16 @@ int main(int argc, char* argv[]) {
           return 1;
         }
         manual_symmetry_constraints = arg;
+      }
+      if (strcmp(argv[i], "-ss") == 0) {
+        i++;
+        char c = argv[i][0];
+        auto it = flag_to_subsolver.find(lower_case(c));
+        if (it == flag_to_subsolver.end()) {
+          usage(argv[0]);
+          return 1;
+        }
+        sub_solver = it->second;
       }
       if (strcmp(argv[i], "-g") == 0) {
         i++;
@@ -270,7 +286,7 @@ int main(int argc, char* argv[]) {
   for (ASPI_Solver solver : solvers) {
     SingleRunOnAllInstancesInSetDirectory(
         min_policies, max_policies, min_budget, max_budget, set_name,
-        result_file, solver, manual_symmetry_constraints,
+        result_file, solver, sub_solver, manual_symmetry_constraints,
         gurobi_symmetry_detection, greedy_mip_gap_threshold);
   }
   result_file.close();

@@ -27,15 +27,15 @@
 #include <utility>
 #include <vector>
 
-// #include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
+#include "/home/luw28/gurobi950/linux64/include/gurobi_c++.h"
 // #include "/home/luchino/gurobi1001/linux64/include/gurobi_c++.h"
 // #include "/Library/gurobi902/mac64/include/gurobi_c++.h"
-#include "/Library/gurobi1001/macos_universal2/include/gurobi_c++.h"
+// #include "/Library/gurobi1001/macos_universal2/include/gurobi_c++.h"
 
 typedef std::numeric_limits<double> dbl;
 
 enum ASPI_Solver { MIP, BENDERS, ENUMERATION, GREEDY };
-enum SPI_Solver { MIP_f, BENDERS_f };  // _f for fixed, k = 1, p = 1.
+enum SPI_Solver { MIP_f, BENDERS_f, NONE };  // _f for fixed, k = 1, p = 1.
 
 struct SolverHash {
   template <typename T>
@@ -76,7 +76,7 @@ const std::string INSTANCE_INFO_COLUMN_HEADERS =
 // have p=3 and k=2, with followers 0,1 in partition 0, and follower 2 in
 // partition 1, we have: "0-0-1".
 const std::string OUTPUT_COLUMN_HEADERS =
-    "solver,unbounded,optimal,objective,gap,time,cuts_"
+    "solver,subsolver,unbounded,optimal,objective,gap,time,cuts_"
     "rounds,cuts_added,avg_cbtime,avg_sptime,"
     "partition,m_sym,g_sym";
 
@@ -206,8 +206,9 @@ class SingleRunInput {
  public:
   SingleRunInput(const InstanceInput& instance_input, int policies, int budget,
                  GRBEnv* env, int manual_symmetry_constraints,
-                 int gurobi_symmetry_detection, double greedy_mip_gap_threshold)
+                 int gurobi_symmetry_detection, double greedy_mip_gap_threshold, SPI_Solver sub_solver)
       : G_(Graph(instance_input.GraphFileName(), instance_input.nodes_)),
+        sub_solver_(sub_solver),
         instance_(AdaptiveInstance(instance_input)),
         policies_(policies),
         budget_(budget),
@@ -221,6 +222,7 @@ class SingleRunInput {
   SingleRunInput(const SingleRunInput& problem_input,
                  std::vector<int>& keep_scenarios, int policies)
       : G_(problem_input.G_),
+        sub_solver_(problem_input.sub_solver_),
         instance_(AdaptiveInstance(problem_input.instance_, keep_scenarios)),
         policies_(policies),
         budget_(problem_input.budget_),
@@ -233,6 +235,7 @@ class SingleRunInput {
   std::string InputCSVString(const std::string& set_name) const;
   AdaptiveSolution SolveASPIZeroPolicies() const;
   const Graph G_;
+  SPI_Solver sub_solver_;
   AdaptiveInstance instance_;
   int policies_, budget_, k_zero_, manual_symmetry_constraints_, gurobi_symmetry_detection_;
   double greedy_mip_gap_threshold_;
@@ -268,7 +271,7 @@ class AdaptiveSolution {
         number_of_callbacks_(0),
         total_lazy_cuts_added_(0),
         avg_callback_time_(0),
-        avg_sp_separation_time_(0){};
+        avg_sp_separation_time_(0), subsolver_(NONE){};
   AdaptiveSolution(ASPI_Solver solver, bool optimal,
                    const SingleRunInput& problem)
       : solver_(solver),
@@ -290,7 +293,7 @@ class AdaptiveSolution {
         number_of_callbacks_(0),
         total_lazy_cuts_added_(0),
         avg_callback_time_(0),
-        avg_sp_separation_time_(0){};
+        avg_sp_separation_time_(0), subsolver_(NONE){};
   AdaptiveSolution(ASPI_Solver solver, bool optimal,
                    const SingleRunInput& problem,
                    const std::vector<std::vector<int>>& partition,
@@ -313,7 +316,7 @@ class AdaptiveSolution {
         number_of_callbacks_(0),
         total_lazy_cuts_added_(0),
         avg_callback_time_(0),
-        avg_sp_separation_time_(0){};
+        avg_sp_separation_time_(0), subsolver_(NONE){};
   void LogSolution(const SingleRunInput& problem, bool policy = false);
   void MergeEnumSols(AdaptiveSolution sol2, AdaptiveInstance* instance2,
                      int split_index);
@@ -371,6 +374,7 @@ class AdaptiveSolution {
           stats.total_sp_separation_time / stats.number_of_spcalls;
     }
   }
+	void set_subsolver(const SPI_Solver& subsolver) {subsolver_ = subsolver;}
   std::string OutputCSVString(const SingleRunInput& problem) const;
   std::string SingleRunLogLine(const SingleRunInput& problem) const;
   std::string PartitionString(const SingleRunInput& problem) const;
@@ -394,6 +398,7 @@ class AdaptiveSolution {
   int total_lazy_cuts_added_;
   long avg_callback_time_;
   long avg_sp_separation_time_;
+	SPI_Solver subsolver_;
 };
 
 class RobustAlgoModel {
@@ -638,7 +643,7 @@ AdaptiveSolution GreedyAlgorithm(SingleRunInput& problem);
 void SingleRunOnAllInstancesInSetDirectory(
     const int min_policies, const int max_policies, const int min_budget,
     const int max_budget, const std::string& set_name,
-    std::ofstream& result_file, const ASPI_Solver& solver,
+    std::ofstream& result_file, const ASPI_Solver& solver, const SPI_Solver& sub_solver,
     int manual_symmetry_constraints, int gurobi_symmetry_detection,
     double greedy_mip_gap_threshold);
 

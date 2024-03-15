@@ -1417,6 +1417,7 @@ void log_matrix(const std::vector<std::vector<double>>& m) {
 }
 
 SPI_Solver SetSubSolverInGreedyAlgorithm(const SingleRunInput& problem) {
+  if (problem.sub_solver_ != NONE) return problem.sub_solver_;
   std::string trees = "trees";
   if (problem.instance_.name().size() < trees.size()) return BENDERS_f;
   std::string pref = problem.instance_.name().substr(0, trees.size());
@@ -1427,13 +1428,15 @@ AdaptiveSolution GreedyAlgorithm(const SingleRunInput& problem) {
   // Set subproblem solver to MIP if instance is tree type.
   std::unordered_map<SPI_Solver, const std::string, SolverHash> SUBSOLVER_NAMES{
     {MIP_f, "MIP"},
-    {BENDERS_f, "BENDERS"}
+    {BENDERS_f, "BENDERS"},
+    {NONE, "NONE"},
   };
   SPI_Solver sub_solver = SetSubSolverInGreedyAlgorithm(problem);
   std::cout << "Solving instance " << problem.instance_.name() << " with Greedy algorithm with " << SUBSOLVER_NAMES[sub_solver] << "." << std::endl;
   // Solution in case we hit time limit.
   AdaptiveSolution time_limit_solution =
       AdaptiveSolution(GREEDY, /*unbounded=*/false, /*optimal=*/false);
+  time_limit_solution.set_subsolver(sub_solver);
   time_limit_solution.set_solution_time(TIME_LIMIT_MS);
   time_limit_solution.set_worst_case_objective(-1);
   // PART 1 Choose first follower and initialize. (SLOW ~250ms).
@@ -1505,6 +1508,7 @@ AdaptiveSolution GreedyAlgorithm(const SingleRunInput& problem) {
                                                std::vector<int>(0));
   AdaptiveSolution final_solution(GREEDY, /*optimal=*/false, problem,
                                   temp_partition, final_policies);
+  final_solution.set_subsolver(sub_solver);
   long solution_time = GetCurrentTime() - begin;
   if (solution_time >= TIME_LIMIT_MS) return time_limit_solution;
   final_solution.SetObjectiveMatrix(objective_matrix);
@@ -1605,6 +1609,13 @@ std::string AdaptiveSolution::OutputCSVString(
   std::string final_csv_string = SOLVER_NAMES[solver_];
   std::string optimal = optimal_ ? OPTIMAL : NOT_OPTIMAL;
   std::string unbounded = unbounded_ ? UNBOUNDED : NOT_UNBOUNDED;
+  std::unordered_map<SPI_Solver, const std::string, SolverHash> SUBSOLVER_NAMES{
+    {MIP_f, "MIP"},
+    {BENDERS_f, "BENDERS"},
+    {NONE, "NONE"},
+  };
+  final_csv_string.append(",");
+  final_csv_string.append(SUBSOLVER_NAMES[subsolver_]);
   final_csv_string.append(",");
   final_csv_string.append(unbounded);
   final_csv_string.append(",");
@@ -1828,7 +1839,7 @@ void TestOnAllInstancesInSetDirectory(const std::string& set_name,
       const SingleRunInput problem(instance_input, k, instance_input.k_zero_,
                                    env, manual_symmetry_constraints,
                                    gurobi_symmetry_detection,
-                                   greedy_mip_gap_threshold);
+                                   greedy_mip_gap_threshold, /*sub_solver=*/NONE);
       std::cout << "RUNNING INSTANCE: " << problem.instance_.name()
                 << ", K = " << std::to_string(k) << std::endl;
       ExactSolversTestRun(problem, DEBUG);
@@ -1840,6 +1851,7 @@ void SingleRunOnAllInstancesInSetDirectory(
     const int min_policies, const int max_policies, const int min_budget,
     const int max_budget, const std::string& set_name,
     std::ofstream& result_file, const ASPI_Solver& solver,
+    const SPI_Solver& sub_solver,
     int manual_symmetry_constraints, int gurobi_symmetry_detection,
     double greedy_mip_gap_threshold) {
   GRBEnv* env = new GRBEnv();  // Initialize global gurobi environment.
@@ -1857,7 +1869,7 @@ void SingleRunOnAllInstancesInSetDirectory(
         if (k > instance_input.scenarios_) break;
         const SingleRunInput problem(
             instance_input, k, budget, env, manual_symmetry_constraints,
-            gurobi_symmetry_detection, greedy_mip_gap_threshold);
+            gurobi_symmetry_detection, greedy_mip_gap_threshold, sub_solver);
         std::cout << "RUNNING INSTANCE: " << problem.instance_.name()
                   << ", K = " << std::to_string(k) << std::endl;
         std::string result =
@@ -1887,7 +1899,7 @@ void UninterdictedRunOnAllInstancesInsetDirectory(const std::string& set_name,
         /*manual_symmetry_constraints=*/
         MANUAL_SYMMETRY_NONE,
         /*gurobi_symmetry_detection=*/GUROBI_SYMMETRY_AUTO,
-        /*greedy_mip_gap_threshold=*/0);
+        /*greedy_mip_gap_threshold=*/0, /*sub_solver*/NONE);
     std::string result = SolveAndPrintSingleRunUninterdicted(set_name, problem);
     result_file << result << std::endl;
   }
