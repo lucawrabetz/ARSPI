@@ -109,6 +109,8 @@ COLS["finished"] = COLS["processed"] + COLS["time_outputs_s_rat"]
 COLS["same_instance"] = (
     COLS["name_inputs"] + COLS["graph_inputs"] + COLS["cost_instance_inputs"]
 )
+# TODO REORGANIZE THESE CONCEPTS
+COLS["same_run"] = COLS["same_instance"] + COLS["run_input_params_int"]
 COLS["same_run_params"] = COLS["same_instance"] + COLS["run_input_params"]
 COLS["same_run_hyperparams"] = COLS["inputs"]
 COLS["same_run_and_outputs"] = (
@@ -228,16 +230,18 @@ def get_solver_from_flag(flag):
             return solver
     return None
 
+
 def get_subsolver_from_flag(flag):
-    '''
+    """
     If the subsolver is "NONE", it will return the string
     "NONE", not a None value, which would indicate that
     an invalid argument was passed.
-    '''
+    """
     for solver, flag_set in SUBSOLVER_FLAGS.items():
         if flag.lower() in flag_set:
             return solver
     return None
+
 
 def ms_to_s(df, col):
     """
@@ -312,6 +316,11 @@ def print_finished_row(row):
 
 
 def common_cleanup(df):
+    """
+    1. Add any missing columns using defaults to meet COLS["processed"].
+    2. Add quick processing columns to meet COLS["finished"].
+    """
+    # to processed.
     add_cols = {
         key.name: key.default
         for key in COLS["processed"]
@@ -319,11 +328,15 @@ def common_cleanup(df):
     }
     for col, val in add_cols.items():
         df[col] = val
+    # to finished.
     add_seconds_columns(df)
-    round(df)
 
 
 def final_write(df, path):
+    """
+    Always starts with a df with "finished" columns, because common_clenup was called.
+    """
+    round(df)
     df.to_csv(
         path, columns=[c.name for c in COLS["processed"]], header=True, index=False
     )
