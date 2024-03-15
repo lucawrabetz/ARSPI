@@ -37,7 +37,11 @@ def duplicate_check(df, cols, drop=False):
             for _, group in duplicates.groupby(cols):
                 print_duplicate_group(group)
                 # TODO: consider expanding continue into keep or drop.
-                user_input = input("Press 'c' to continue or 'e' to exit: ")
+                user_input = input(
+                    "Press 'c' to continue, 'a' to skip all and finish, 'e' to exit: "
+                )
+                if user_input.lower() == "a":
+                    break
                 if user_input.lower() == "e":
                     raise KeyboardInterrupt("Exiting due to duplicates.")
 
