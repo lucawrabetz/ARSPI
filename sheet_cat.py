@@ -12,24 +12,16 @@ def check_columns(A, B):
             "Columns of DataFrame A do not match columns of DataFrame B. Cannot concatenate."
         )
 
+
 def print_duplicate_group(group):
     print("Duplicate rows found to inspect:")
     first_row = True
     for _, row in group.iterrows():
         if first_row:
-            print(
-                f"Instance: {row['instance_name']}, Policies: {row['policies']}, Budget: {row['budget']}, Solver: {row['solver']}"
-            )
+            print_header(row)
             first_row = False
-        print(
-            "    --> "
-            + ", ".join(
-                [
-                    f"{col}: {row[col]}"
-                    for col in COLS["solution_outputs"] + ["time"]
-                ]
-            )
-        )
+        print_finished_row(row)
+
 
 def duplicate_check(df, cols, drop=False):
     # Will only modify df if drop=True, otherwise the user will
@@ -37,22 +29,26 @@ def duplicate_check(df, cols, drop=False):
     duplicates = df[df.duplicated(subset=cols, keep=False)]
     if not duplicates.empty:
         if drop:
-            print("Found " + str(len(duplicates)) + " strongly matching rows, dropping.\n")
+            print(
+                "Found " + str(len(duplicates)) + " strongly matching rows, dropping.\n"
+            )
             df.drop_duplicates(subset=cols, keep="first", inplace=True)
         else:
             for _, group in duplicates.groupby(cols):
                 print_duplicate_group(group)
                 # TODO: consider expanding continue into keep or drop.
                 user_input = input("Press 'c' to continue or 'e' to exit: ")
-                if user_input.lower() == 'e':
+                if user_input.lower() == "e":
                     raise KeyboardInterrupt("Exiting due to duplicates.")
-    
+
 
 def concatenate_dataframes(A, B):
     check_columns(A, B)
     combined_df = pd.concat([A, B], ignore_index=True, sort=False)
-    duplicate_check(combined_df, COLS["same_run_and_outputs"], drop=True)
-    duplicate_check(combined_df, COLS["same_run_params"])
+    cols_names_outputs = [c.name for c in COLS["same_run_and_outputs"]]
+    cols_names_params = [c.name for c in COLS["same_run_params"]]
+    duplicate_check(combined_df, cols_names_outputs, drop=True)
+    duplicate_check(combined_df, cols_names_params)
     return combined_df
 
 
@@ -71,20 +67,13 @@ def main():
     results_path = args.existing[0]
     results_df = pd.read_csv(results_path)
 
-    add_cols = {
-        key: -1 for key in COLS["processed"] if key not in set(results_df.columns)
-    }
-    for col, val in add_cols.items():
-        results_df[col] = val
-
+    common_cleanup(results_df)
     for new_path in args.new:
         new_df = pd.read_csv(new_path)
-        add_cols = {key: -1 for key in COLS["processed"] if key not in new_df.columns}
-        for col, val in add_cols.items():
-            new_df[col] = val
+        common_cleanup(new_df)
         results_df = concatenate_dataframes(results_df, new_df)
 
-    results_df.to_csv(results_path, columns=COLS["processed"], header=True, index=False)
+    final_write(results_df, results_path)
 
 
 if __name__ == "__main__":

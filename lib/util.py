@@ -1,60 +1,67 @@
 # GLOBAL COLUMN SET UP
-
 # BASE COLUMN SETS (SMALL BUILDING BLOCKS)
 # BASE / BUILDING BLOCKS, LISTS HARD-INITIALIZED
+class feature:
+    def __init__(self, name, default):
+        self.name = name
+        self.default = default
+
+
 COLS = {
     "name_inputs_str": [
-        "set_name",
-        "instance_name",
+        feature("set_name", "layer"),
+        feature("instance_name", "layer_123"),
     ],
     "graph_inputs_int": [
-        "nodes",
-        "arcs",
-        "k_zero",
+        feature("nodes", 123),
+        feature("arcs", 1231),
+        feature("k_zero", 5),
     ],
     "graph_inputs_rat": [
-        "density",
+        feature("density", 1231 / (123 * 122)),
     ],
     "cost_instance_inputs_int": [
-        "scenarios",
+        feature("scenarios", 5),
     ],
     "run_input_params_int": [
-        "budget",
-        "policies",
+        feature("budget", 5),
+        feature("policies", 2),
     ],
     "run_input_hyperparams_int": [
-        "m_sym",
-        "g_sym",
+        feature("m_sym", -1),
+        feature("g_sym", -1),
     ],
     "run_input_hyperparams_cat": [
-        "subsolver",
+        feature("subsolver", "NONE"),
     ],
     "run_input_params_cat": [
-        "solver",
+        feature("solver", "MIP"),
+    ],
+    "solution_outputs_rat": [
+        feature("objective", 0.0),
     ],
     "solution_outputs_cat": [
-        "unbounded",
-        "optimal",
-        "objective",
-        "partition",
+        feature("unbounded", "NOT_UNBOUNDED"),
+        feature("optimal", "OPTIMAL"),
+        feature("partition", "0-1-1-0-0"),
     ],
     "model_outputs_int": [
-        "cuts_rounds",
-        "cuts_added",
+        feature("cuts_rounds", 0),
+        feature("cuts_added", 0),
     ],
     "model_outputs_rat": [
-        "gap",
+        feature("gap", 0.0),
     ],
     "time_outputs_rat": [
-        "avg_cbtime",
-        "avg_sptime",
-        "time",
+        feature("avg_cbtime", 0.0),
+        feature("avg_sptime", 0.0),
+        feature("time", 0.0),
     ],
     "slow_constants": [
-        "empirical_optimal_ratio",
-        "empirical_suboptimal_ratio",
-        "best_optimal",
-        "best_objective",
+        feature("empirical_optimal_ratio", -1),
+        feature("empirical_suboptimal_ratio", -1),
+        feature("best_optimal", -1),
+        feature("best_objective", -1),
     ],
 }
 
@@ -80,8 +87,9 @@ COLS["outputs_int"] = COLS["model_outputs_int"]
 COLS["outputs_rat"] = COLS["model_outputs_rat"] + COLS["time_outputs_rat"]
 COLS["outputs_cat"] = COLS["solution_outputs_cat"]
 
+COLS["solution_outputs"] = COLS["solution_outputs_rat"] + COLS["solution_outputs_cat"]
 COLS["outputs"] = (
-    COLS["solution_outputs_cat"] + COLS["model_outputs"] + COLS["time_outputs_rat"]
+    COLS["solution_outputs"] + COLS["model_outputs"] + COLS["time_outputs_rat"]
 )
 
 
@@ -89,7 +97,11 @@ COLS["raw"] = COLS["inputs"] + COLS["outputs"]
 # "processed" by slow computations in add_ratios.py. (persistent / db)
 COLS["processed"] = COLS["raw"] + COLS["slow_constants"]
 # "finished" by fast clean up in common_cleanup() (local to callstack)
-COLS["time_outputs_s_rat"] = [i + "_s" for i in COLS["time_outputs_rat"]]
+COLS["time_outputs_s_rat"] = [
+    feature(i.name + "_s", 0.0) for i in COLS["time_outputs_rat"]
+]
+COLS["logging_run_header"] = COLS["name_inputs_str"] + COLS["run_inputs"]
+COLS["logging_outputs"] = COLS["solution_outputs"] + COLS["time_outputs_s_rat"]
 COLS["finished"] = COLS["processed"] + COLS["time_outputs_s_rat"]
 
 # Additional categorizations (no new columns past this point).
@@ -117,7 +129,7 @@ COLS["rational"] = (
     + COLS["slow_constants"]
 )
 
-DP = {key: 2 for key in COLS["rational"]}
+DP = {key.name: 2 for key in COLS["rational"]}
 
 SOLVER_FLAGS = {
     "MIP": set({"m", "mip", "sp"}),
@@ -143,6 +155,7 @@ COLLOG = {
         "scenarios": "Followers",
         "budget": "Budget",
         "policies": "Policies",
+        "subsolver": "Sub Solver",
         "solver": "Solver",
         "unbounded": "Unbounded",
         "optimal": "Optimal",
@@ -175,6 +188,7 @@ COLLOG = {
         "budget": "r0",
         "policies": "K",
         "solver": "Sol",
+        "subsolver": "Sub",
         "unbounded": "Unb",
         "optimal": "Opt",
         "objective": "Obj",
@@ -223,7 +237,7 @@ def add_seconds_columns(df):
     Convert all time columns to s.
     """
     for col in COLS["time_outputs_rat"]:
-        ms_to_s(df, col)
+        ms_to_s(df, col.name)
 
 
 def round_int_columns(df):
@@ -239,7 +253,8 @@ def round_dp_columns(df):
     """
     Round all decimal columns to DP decimal points.
     """
-    for col in COLS["rational"]:
+    for column in COLS["rational"]:
+        col = column.name
         if col in df.columns:
             df[col] = df[col].astype(float)
             df[col] = df[col].round(DP[col])
@@ -255,6 +270,48 @@ def print_dict(d):
     for k, v in d.items():
         print(k + ": " + v + ",")
     print("}")
+
+
+def print_header(row):
+    print(
+        ", ".join(
+            [
+                COLLOG["pretty"][c.name] + ": " + str(row[c.name])
+                for c in COLS["logging_run_header"]
+            ]
+        )
+        + "."
+    )
+
+
+def print_finished_row(row):
+    print(
+        "    --> "
+        + ", ".join(
+            [
+                f"{feature.name}: {row[feature.name]}"
+                for feature in COLS["logging_outputs"]
+            ]
+        )
+    )
+
+
+def common_cleanup(df):
+    add_cols = {
+        key.name: key.default
+        for key in COLS["processed"]
+        if key.name not in set(df.columns)
+    }
+    for col, val in add_cols.items():
+        df[col] = val
+    add_seconds_columns(df)
+    round(df)
+
+
+def final_write(df, path):
+    df.to_csv(
+        path, columns=[c.name for c in COLS["processed"]], header=True, index=False
+    )
 
 
 def main():
