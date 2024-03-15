@@ -22,9 +22,10 @@ def add_empirical_ratio(df):
     max_column = "objective"
     best_objective_values = []
     best_optimal_values = []
+    same_run_cols = [c.name for c in COLS["same_run"]]
     for index, row in df.iterrows():
-        objective_mask = df[COLS["same_run"]].eq(row[COLS["same_run"]]).all(axis=1)
-        optimal_mask = df[COLS["same_run"]].eq(row[COLS["same_run"]]).all(axis=1) & (
+        objective_mask = df[same_run_cols].eq(row[same_run_cols]).all(axis=1)
+        optimal_mask = df[same_run_cols].eq(row[same_run_cols]).all(axis=1) & (
             df["optimal"] == "OPTIMAL"
         )
         objective_df = df[objective_mask]
@@ -47,8 +48,9 @@ def main():
     parser.add_argument("file_path", help="Path to the CSV file")
     args = parser.parse_args()
     df = pd.read_csv(args.file_path)
+    common_cleanup(df)
     add_empirical_ratio(df)
-    df.to_csv(args.file_path, columns=COLS["processed"], index=False)
+    final_write(df, args.file_path)
 
 
 if __name__ == "__main__":
