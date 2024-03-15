@@ -126,8 +126,7 @@ def main():
         return
 
     # COMMON CLEANUP
-    add_seconds_columns(df)
-    round(df)
+    common_cleanup(df)
 
     print("\n")
     if solver:
