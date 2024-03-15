@@ -138,6 +138,11 @@ SOLVER_FLAGS = {
     "GREEDY": set({"g", "greedy"}),
 }
 
+SUBSOLVER_FLAGS = {
+    "MIP": set({"m", "mip", "sp"}),
+    "BENDERS": set({"b", "benders"}),
+    "NONE": set({"n", "none", "na"}),
+}
 
 all_columns = set([])
 for d in COLS.values():
@@ -223,6 +228,16 @@ def get_solver_from_flag(flag):
             return solver
     return None
 
+def get_subsolver_from_flag(flag):
+    '''
+    If the subsolver is "NONE", it will return the string
+    "NONE", not a None value, which would indicate that
+    an invalid argument was passed.
+    '''
+    for solver, flag_set in SUBSOLVER_FLAGS.items():
+        if flag.lower() in flag_set:
+            return solver
+    return None
 
 def ms_to_s(df, col):
     """
