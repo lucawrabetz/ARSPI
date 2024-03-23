@@ -1,151 +1,70 @@
-import numbers
-import pandas as pd
-import numpy as np
-import re
-from typing import Any
-from abc import ABC, abstractmethod
-
-pandas_numeric_types = [
-    pd.Int8Dtype(),
-    pd.Int16Dtype(),
-    pd.Int32Dtype(),
-    pd.Int64Dtype(),
-    pd.UInt8Dtype(),
-    pd.UInt16Dtype(),
-    pd.UInt32Dtype(),
-    pd.UInt64Dtype(),
-    pd.Float32Dtype(),
-    pd.Float64Dtype(),
-]
-numpy_numeric_types = [
-    np.int8,
-    np.int16,
-    np.int32,
-    np.int64,
-    np.uint8,
-    np.uint16,
-    np.uint32,
-    np.uint64,
-    np.float16,
-    np.float32,
-    np.float64,
-]
-ADDITIONAL_NUMERIC_TYPES = pandas_numeric_types + numpy_numeric_types
-
-
-def is_numeric(dtype: type) -> bool:
-    return isinstance(dtype, numbers.Number) or dtype in ADDITIONAL_NUMERIC_TYPES
-
-
-def to_snakecase(s: str) -> str:
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", s).lower()
-
-
 # GLOBAL COLUMN SET UP
-# BASE FEATURE SETS (SMALL BUILDING BLOCKS)
+# BASE COLUMN SETS (SMALL BUILDING BLOCKS)
 # BASE / BUILDING BLOCKS, LISTS HARD-INITIALIZED
+class feature:
+    def __init__(self, name, default):
+        self.name = name
+        self.default = default
 
-RAW_COLS = {
+
+COLS = {
     "name_inputs_str": [
-        RawFeature("set_name", str, "layer"),
-        RawFeature("instance_name", str, "layer_123"),
+        feature("set_name", "layer"),
+        feature("instance_name", "layer_123"),
     ],
     "graph_inputs_int": [
-        RawFeature("nodes", int, 123),
-        RawFeature("arcs", int, 1231),
-        RawFeature("k_zero", int, 5),
+        feature("nodes", 123),
+        feature("arcs", 1231),
+        feature("k_zero", 5),
     ],
     "graph_inputs_rat": [
-        RawFeature("density", float, 1231 / (123 * 122)),
+        feature("density", 1231 / (123 * 122)),
     ],
     "cost_instance_inputs_int": [
-        RawFeature("scenarios", int, 5),
+        feature("scenarios", 5),
     ],
     "run_input_params_int": [
-        RawFeature("budget", int, 5),
-        RawFeature("policies", int, 2),
+        feature("budget", 5),
+        feature("policies", 2),
     ],
     "run_input_hyperparams_int": [
-        RawFeature("m_sym", int, -1),
-        RawFeature("g_sym", int, -1),
+        feature("m_sym", -1),
+        feature("g_sym", -1),
     ],
     "run_input_hyperparams_cat": [
-        RawFeature("subsolver", str, "NONE"),
+        feature("subsolver", "NONE"),
     ],
     "run_input_params_cat": [
-        RawFeature("solver", str, "MIP"),
+        feature("solver", "MIP"),
     ],
     "solution_outputs_rat": [
-        RawFeature("objective", float, 0.0),
+        feature("objective", 0.0),
     ],
     "solution_outputs_cat": [
-        RawFeature("unbounded", str, "NOT_UNBOUNDED"),
-        RawFeature("optimal", str, "OPTIMAL"),
-        RawFeature("partition", str, "0-1-1-0-0"),
+        feature("unbounded", "NOT_UNBOUNDED"),
+        feature("optimal", "OPTIMAL"),
+        feature("partition", "0-1-1-0-0"),
     ],
     "model_outputs_int": [
-        RawFeature("cuts_rounds", int, 0),
-        RawFeature("cuts_added", int, 0),
+        feature("cuts_rounds", 0),
+        feature("cuts_added", 0),
     ],
     "model_outputs_rat": [
-        RawFeature("gap", int, 0.0),
+        feature("gap", 0.0),
     ],
     "time_outputs_rat": [
-        RawFeature("avg_cbtime", int, 0.0),
-        RawFeature("avg_sptime", int, 0.0),
-        RawFeature("time", int, 0.0),
+        feature("avg_cbtime", 0.0),
+        feature("avg_sptime", 0.0),
+        feature("time", 0.0),
+    ],
+    "slow_constants": [
+        feature("empirical_optimal_ratio", -1),
+        feature("empirical_suboptimal_ratio", -1),
+        feature("best_optimal", -1),
+        feature("best_objective", -1),
     ],
 }
 
-
-class MatchConditionValue(Feature, ABC):
-    MATCH: list[Feature]
-    CONDITIONS: list[tuple[str, Any]]
-    TIE_COL: str = "objective"
-    TIE_MAX: bool = True
-
-    @abstractmethod
-    def add_column(self, df: pd.DataFrame) -> None:
-        pass
-
-
-class SameInstanceUninterdicted(MatchConditionValue):
-    MATCH = []
-    CONDITIONS = [("budget", 0), ("policies", 0), ("optimal", 0)]
-
-    def add_column(
-        self,
-        df: pd.DataFrame,
-    ) -> None:
-        """
-        Add new column df[name],
-        where name = self.name,
-        where df[name] = max_{r in sub} {r[TIE_COL]},
-        where sub = {r in df : r[f] == df[f] for f in MATCH && r[k] == v for (k, v) in CONDITIONS}.
-        If TIE_MAX = False, use min instead of max.
-        """
-        new_col = []
-        mask_colnames = [c.name for c in self.MATCH]
-        for _, row in df.iterrows():
-            mask = df[mask_colnames].eq(row[mask_colnames]).all(axis=1)
-            for key, val in self.CONDITIONS:
-                mask = mask & (df[key] == val)
-            mask_df = df[mask]
-            new_col.append(get_minmax(mask_df, tie_col, tie_max))
-        df[self.name] = new_col
-
-
-# groups not found outside this file
-COLS = RAW_COLS
-COLS["slow_constants"] = list(
-    [
-        Feature("empirical_optimal_ratio", int, -1),
-        Feature("empirical_suboptimal_ratio", int, -1),
-        Feature("best_optimal", int, -1),
-        Feature("best_objective", int, -1),
-        Feature("same_instance_uninterdicted", int, -1),
-    ]
-)
 COLS["name_inputs"] = COLS["name_inputs_str"]
 COLS["graph_inputs"] = COLS["graph_inputs_int"] + COLS["graph_inputs_rat"]
 COLS["cost_instance_inputs"] = COLS["cost_instance_inputs_int"]
@@ -154,6 +73,7 @@ COLS["run_input_hyperparams"] = (
     COLS["run_input_hyperparams_int"] + COLS["run_input_hyperparams_cat"]
 )
 COLS["run_inputs"] = COLS["run_input_params"] + COLS["run_input_hyperparams"]
+
 COLS["inputs"] = (
     COLS["name_inputs"]
     + COLS["graph_inputs"]
@@ -178,7 +98,7 @@ COLS["raw"] = COLS["inputs"] + COLS["outputs"]
 COLS["processed"] = COLS["raw"] + COLS["slow_constants"]
 # "finished" by fast clean up in common_cleanup() (local to callstack)
 COLS["time_outputs_s_rat"] = [
-    Feature(i.name + "_s", float, 0.0) for i in COLS["time_outputs_rat"]
+    feature(i.name + "_s", 0.0) for i in COLS["time_outputs_rat"]
 ]
 COLS["logging_run_header"] = COLS["name_inputs_str"] + COLS["run_inputs"]
 COLS["logging_outputs"] = COLS["solution_outputs"] + COLS["time_outputs_s_rat"]
@@ -388,49 +308,11 @@ def print_finished_row(row):
         "    --> "
         + ", ".join(
             [
-                f"{Feature.name}: {row[Feature.name]}"
-                for Feature in COLS["logging_outputs"]
+                f"{feature.name}: {row[feature.name]}"
+                for feature in COLS["logging_outputs"]
             ]
         )
     )
-
-
-def get_minmax(
-    df: pd.DataFrame | pd.Series, col: str, maximum: bool = True
-) -> float | Any | pd.Series:
-    datatype = df[col].dtype.type
-    if not df.empty and is_numeric(datatype):
-        if maximum:
-            return df[col].max()
-        else:
-            return df[col].min()
-    else:
-        return -1
-
-
-def add_new_matchcondition_column(
-    name: str,
-    df: pd.DataFrame,
-    match: list[Feature],
-    conditions: list[tuple[str, Any]],
-    tie_col: str = "objective",
-    tie_max: bool = True,
-) -> None:
-    """
-    Add new column df[name],
-    where df[name] = max_{r in sub} {r[tie_col]},
-    where sub = {r in df : r[f] == df[f] for f in match && r[k] == v for (k, v) in conditions}.
-    If tie_max = False, use min instead of max.
-    """
-    new_col = []
-    mask_colnames = [c.name for c in match]
-    for _, row in df.iterrows():
-        mask = df[mask_colnames].eq(row[mask_colnames]).all(axis=1)
-        for key, val in conditions:
-            mask = mask & (df[key] == val)
-        mask_df = df[mask]
-        new_col.append(get_minmax(mask_df, tie_col, tie_max))
-    df[name] = new_col
 
 
 def common_cleanup(df):

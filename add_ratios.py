@@ -11,6 +11,13 @@ import argparse
 from lib.util import *
 
 
+def get_max(df, col):
+    if not df.empty:
+        return df[col].max()
+    else:
+        return -1
+
+
 def add_empirical_ratio(df):
     max_column = "objective"
     best_objective_values = []
@@ -32,10 +39,6 @@ def add_empirical_ratio(df):
     df.loc[df["best_objective"] == -1, "empirical_suboptimal_ratio"] = -1
     df.loc[df["best_optimal"] == -1, "empirical_optimal_ratio"] = -1
     return df
-
-
-def add_adaptive_increment(df):
-    pass
 
 
 def main():

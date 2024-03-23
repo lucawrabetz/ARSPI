@@ -4,7 +4,7 @@ import pandas as pd
 
 # Names of experiment instance sets.
 ALL_INSTANCES = 'experiment_allalgorithms'
-MIPSYM_INSTANCES = 'experiment_allalgorithms_symmetryassignmentgurobiaggressive'
+MIPSYM_INSTANCES = 'experiment_allalgorithms_symmetrynondecreasinggurobiaggressive'
 BE_INSTANCES = 'experiment_bendersenum'
 LAYERRATIO_INSTANCES = 'experiment_layerratio'
 
@@ -202,7 +202,7 @@ def read_results_data(args):
 def write_latex_table(args, df, out):
     latex_csv = args.set_name[0] + '-latex.csv'
     latex_csv_path = os.path.join('results', latex_csv)
-    df.to_csv(path_or_buf=latex_csv_path, sep=',',
+    df.to_csv(path_or_buf=latex_csv_path, sep='&',
               columns=out.output_columns, index=False)
     return latex_csv_path
 
@@ -238,7 +238,7 @@ def main():
     avg_df = take_averages(run_df)
     post_cleanup(avg_df, out_structure)
     latex_table_path = write_latex_table(args, avg_df, out_structure)
-    # final_table_cleanup(latex_table_path)
+    final_table_cleanup(latex_table_path)
 
 
 if __name__ == "__main__":
