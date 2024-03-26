@@ -11,6 +11,8 @@ OUTPUT_COLUMNS = [
     "time_s",
     "solver",
     "subsolver",
+    "m_sym",
+    "g_sym",
     "gap",
 ]
 COMPRESSED_OUTPUT_COLUMNS = [
@@ -24,6 +26,8 @@ COMPRESSED_OUTPUT_COLUMNS = [
     "time_s",
     "solver",
     "subsolver",
+    "m_sym",
+    "g_sym",
     "gap",
 ]
 AVG_NOT_MATCH = [
