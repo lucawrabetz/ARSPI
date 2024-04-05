@@ -46,6 +46,8 @@ instances/
 raw/
 results/
 images/
+exp/figures/
+exp/instances/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
