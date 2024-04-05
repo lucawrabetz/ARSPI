@@ -74,7 +74,7 @@ COLS = {
         feature("alpha_hat_one", -1),
         feature("alpha_hat_one_time_s", -1),
         feature("alpha_hat_two", -1),
-        feature("alpha_hat_two_time_s", -1)
+        feature("alpha_hat_two_time_s", -1),
     ],
 }
 
@@ -196,6 +196,12 @@ COLLOG = {
         "best_optimal": "Best Optimal Objective",
         "empirical_suboptimal_ratio": "Empirical Suboptimal Ratio",
         "empirical_optimal_ratio": "Empirical Optimal Ratio",
+        "exact_alpha": "Exact Alpha",
+        "exact_alpha_time_s": "Exact Alpha Time (s)",
+        "alpha_hat_one": "Alpha Hat One",
+        "alpha_hat_one_time_s": "Alpha Hat One Time (s)",
+        "alpha_hat_two": "Alpha Hat Two",
+        "alpha_hat_two_time_s": "Alpha Hat Two Time (s)",
     },
     "compressed": {
         "set_name": "Set",
@@ -228,6 +234,12 @@ COLLOG = {
         "best_optimal": "MaxOpt",
         "empirical_suboptimal_ratio": "rObj",
         "empirical_optimal_ratio": "rOpt",
+        "exact_alpha": "a_exact",
+        "exact_alpha_time_s": "a_e_T (s)",
+        "alpha_hat_one": "a_hat1",
+        "alpha_hat_one_time_s": "a_hat1_T (s)",
+        "alpha_hat_two": "a_hat2",
+        "alpha_hat_two_time_s": "a_hat2_T (s)",
     },
 }
 
@@ -295,7 +307,9 @@ def ms_to_s(df: pd.DataFrame, col: str):
     """
     new_col = col + "_s"
     if df[col] is None:
-        warnings.warn("Input time ms col {} is None, conversion to seconds aborted.".format(col)) 
+        warnings.warn(
+            "Input time ms col {} is None, conversion to seconds aborted.".format(col)
+        )
         return
     df[new_col] = df[col].div(1000)
 

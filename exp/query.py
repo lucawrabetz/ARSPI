@@ -13,6 +13,7 @@ OUTPUT_COLUMNS = [
     "m_sym",
     "g_sym",
     "gap",
+    "exact_alpha",
 ]
 COMPRESSED_OUTPUT_COLUMNS = [
     "set_name",
@@ -27,6 +28,7 @@ COMPRESSED_OUTPUT_COLUMNS = [
     "m_sym",
     "g_sym",
     "gap",
+    "exact_alpha",
 ]
 AVG_NOT_MATCH = [
     "time",
