@@ -1,8 +1,14 @@
+import os
+from typing import Dict, Any
+import pandas as pd
+from datetime import date
+
+
 # GLOBAL COLUMN SET UP
 # BASE COLUMN SETS (SMALL BUILDING BLOCKS)
 # BASE / BUILDING BLOCKS, LISTS HARD-INITIALIZED
 class feature:
-    def __init__(self, name, default):
+    def __init__(self, name: str, default: Any):
         self.name = name
         self.default = default
 
@@ -224,14 +230,14 @@ for x in all_columns:
             d[x] = x
 
 
-def get_solver_from_flag(flag):
+def get_solver_from_flag(flag: str):
     for solver, flag_set in SOLVER_FLAGS.items():
         if flag.lower() in flag_set:
             return solver
     return None
 
 
-def get_subsolver_from_flag(flag):
+def get_subsolver_from_flag(flag: str):
     """
     If the subsolver is "NONE", it will return the string
     "NONE", not a None value, which would indicate that
@@ -243,7 +249,40 @@ def get_subsolver_from_flag(flag):
     return None
 
 
-def ms_to_s(df, col):
+def append_date(exp_name: str):
+    """
+    Append today's date to experiment name
+    """
+    today = date.today()
+    date_str = today.strftime("%m_%d_%y")
+
+    name = exp_name + "-" + date_str
+    return name
+
+
+def check_make_dir(path: str, i: int):
+    """
+    Recursively check if an experiment directory exists, or create one with the highest number
+        - example - if "path" string is "/dat/experiments/test-01_29_22", and there already exist:
+            - "/dat/experiments/test-01_29_22-0"
+            - "/dat/experiments/test-01_29_22-1"
+            - "/dat/experiments/test-01_29_22-2"
+        we have to create the dir "/dat/experiments/test-01_29_22-3"
+    """
+
+    isdir = os.path.isdir(path + "-" + str(i))
+
+    # if the directory exists, call on the next i
+    if isdir:
+        return check_make_dir(path, i + 1)
+
+    # base case - create directory for given i (and return final path)
+    else:
+        os.mkdir(path + "-" + str(i))
+        return path + "-" + str(i)
+
+
+def ms_to_s(df: pd.DataFrame, col: str):
     """
     Convert column col in df from ms to s.
     """
@@ -251,7 +290,7 @@ def ms_to_s(df, col):
     df[new_col] = df[col].div(1000)
 
 
-def add_seconds_columns(df):
+def add_seconds_columns(df: pd.DataFrame):
     """
     Convert all time columns to s.
     """
@@ -259,7 +298,7 @@ def add_seconds_columns(df):
         ms_to_s(df, col.name)
 
 
-def round_int_columns(df):
+def round_int_columns(df: pd.DataFrame):
     """
     Round all integer columns.
     """
@@ -268,7 +307,7 @@ def round_int_columns(df):
             df[col] = df[col].astype(int)
 
 
-def round_dp_columns(df):
+def round_dp_columns(df: pd.DataFrame):
     """
     Round all decimal columns to DP decimal points.
     """
@@ -279,12 +318,12 @@ def round_dp_columns(df):
             df[col] = df[col].round(DP[col])
 
 
-def round(df):
+def round(df: pd.DataFrame):
     round_int_columns(df)
     round_dp_columns(df)
 
 
-def print_dict(d):
+def print_dict(d: Dict[Any, Any]):
     print("{")
     for k, v in d.items():
         print(k + ": " + v + ",")
