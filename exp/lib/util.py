@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import Dict, Any
 import pandas as pd
 from datetime import date
@@ -68,6 +69,12 @@ COLS = {
         feature("empirical_suboptimal_ratio", -1),
         feature("best_optimal", -1),
         feature("best_objective", -1),
+        feature("exact_alpha", -1),
+        feature("exact_alpha_time_s", -1),
+        feature("alpha_hat_one", -1),
+        feature("alpha_hat_one_time_s", -1),
+        feature("alpha_hat_two", -1),
+        feature("alpha_hat_two_time_s", -1)
     ],
 }
 
@@ -287,6 +294,9 @@ def ms_to_s(df: pd.DataFrame, col: str):
     Convert column col in df from ms to s.
     """
     new_col = col + "_s"
+    if df[col] is None:
+        warnings.warn("Input time ms col {} is None, conversion to seconds aborted.".format(col)) 
+        return
     df[new_col] = df[col].div(1000)
 
 

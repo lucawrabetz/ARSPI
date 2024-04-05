@@ -9,11 +9,8 @@ from itertools import combinations
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
-INSTANCES = 'instances'
-BATCH_NAME = 'experiment_layerratio'
+INSTANCES = '/home/luw28/Dropbox/ARSPI/exp/instances/'
 RESULTS_DIR = 'results'
-INSTANCE_DIR = os.path.join(INSTANCES, BATCH_NAME)
-
 
 # def alphahat_for_two_followers(costs_df, f1, f2):
 #     ratios = costs_df.apply(lambda col: min(
@@ -101,15 +98,16 @@ class InstanceOutputRow:
     Attributes:
         nodes, arcs, source, sink, policies, followers (int) - basic attributes
         row (series)
-        name (string) - base instance name
+        set_name (string) - base set name
+        instance_name (string) - base instance name
         graph (string) - path to graph edge list file
         cost (string) - path to arc costs file
         linked_list_arc_indices (dict) - only populated if self.construct_linkedlists_edges is called
         rev_linked_list_arc_indices (dict) - only populated if self.construct_linkedlists_edges is called
         clusters (list) - only populated if self.construct_clusters is called
     """
-
     def __init__(self, row):
+        self.instance_set_path = os.path.join(INSTANCES, row["set_name"])
         self.nodes = row['nodes']
         self.arcs = row['arcs']
         self.source = 0
@@ -117,19 +115,22 @@ class InstanceOutputRow:
         self.row = row
         self.policies = row['policies']
         self.followers = row['scenarios']
-        self.name = row['instance_name']
-        self.graph = os.path.join(INSTANCE_DIR, self.name.split(
-            '-')[0] + '-' + self.name.split('-')[1] + ".txt")
-        self.costs = os.path.join(INSTANCE_DIR, self.name.split('-')[0] + '-' + self.name.split(
-            '-')[1] + '-costs_' + self.name.split('-')[2] + '.csv')
+        self.set_name = row['set_name']
+        self.instance_name = row['instance_name']
+        self.graph = os.path.join(self.instance_set_path, self.instance_name.split(
+            '-')[0] + '-' + self.instance_name.split('-')[1] + ".txt")
+        self.costs = os.path.join(self.instance_set_path, self.instance_name.split('-')[0] + '-' + self.instance_name.split(
+            '-')[1] + '-costs_' + self.instance_name.split('-')[2] + '.csv')
         self.linked_list_arc_indices = defaultdict(dict)
         self.rev_linked_list_arc_indices = defaultdict(dict)
         self.contracted_linked_list_arc_indices = defaultdict(dict)
         self.contracted_rev_linked_list_arc_indices = defaultdict(dict)
         self.clusters = [[] for i in range(self.policies)]
+        self.all_paths_total_costs = []
+
 
     def construct_clusters(self):
-        assignments = self.row['GREEDY_partition'].split('-')
+        assignments = self.row['partition'].split('-')
         follower = 0
         for a in assignments:
             self.clusters[int(a)].append(follower)
@@ -165,6 +166,55 @@ class InstanceOutputRow:
                 self.linked_list_arc_indices[u][v] = a
                 self.rev_linked_list_arc_indices[v][u] = a
                 a += 1
+
+    def compute_all_paths_total_costs(self):
+        df = pd.read_csv(self.costs, header=None)
+        followers = df.shape[0]
+        G = nx.DiGraph()
+        linked_list_arc_indices = defaultdict(dict)
+        with open(self.graph, "r") as file:
+            # Loop over each line in the file
+            a = 0
+            for line in file:
+                # Strip the trailing newline character
+                line = line.strip()
+                # Split the line by space to get the values of u and v
+                u, v = map(int, line.split())
+                G.add_edge(u, v)
+                linked_list_arc_indices[u][v] = a
+                a += 1
+        source = 0
+        sink = max(G.nodes())
+        all_paths_total_costs = []
+        print('starting paths for graph: ', self.graph)
+        for path in nx.all_simple_paths(G, source, sink):
+            path_total_costs = []
+            path_arc_indices = []
+            for i in range(len(path)-1):
+                u = path[i]
+                v = path[i+1]
+                path_arc_indices.append(linked_list_arc_indices[u][v])
+            for q in range(followers):
+                cost = 0
+                for a in path_arc_indices:
+                    cost += df.iloc[q, a]
+                path_total_costs.append(cost)
+            all_paths_total_costs.append(path_total_costs)
+        print('done with paths for graph: ', self.graph)
+        self.all_paths_total_costs = all_paths_total_costs
+
+    def compute_exact_alpha(self):
+        self.construct_clusters()
+        self.compute_all_paths_total_costs()
+        alpha = sys.maxsize
+        for c in self.clusters:
+            for i in range(len(c)):
+                for j in range(i+1, len(c)):
+                    for path in self.all_paths_total_costs:
+                        val = min(path[i], path[j]) / max(path[i], path[j])
+                        if val < alpha:
+                            alpha = val
+        return alpha
 
     def all_Gstpaths_oflength_kappa(self, kappa):
         pass
@@ -419,16 +469,17 @@ def compute_approximation_ratio(df, exact="MIP_objective"):
 
 
 def main():
-    results_file = BATCH_NAME + '.csv'
-    results_filepath = os.path.join(RESULTS_DIR, results_file)
-    results_df = pd.read_csv(results_filepath)
-    results_df = compute_approximation_ratio(
-        results_df, exact="ENUMERATION_objective")
-    results_df = add_alphahat1(results_df)
-    results_df = add_alphahat2(results_df)
-    # results_df = add_alphahat_kappa(batch_exp_df, 2)
-    write_path = BATCH_NAME + '-alpha.csv'
-    results_df.to_csv(write_path)
+    pass
+    # results_file = BATCH_NAME + '.csv'
+    # results_filepath = os.path.join(RESULTS_DIR, results_file)
+    # results_df = pd.read_csv(results_filepath)
+    # results_df = compute_approximation_ratio(
+    #     results_df, exact="ENUMERATION_objective")
+    # results_df = add_alphahat1(results_df)
+    # results_df = add_alphahat2(results_df)
+    # # results_df = add_alphahat_kappa(batch_exp_df, 2)
+    # write_path = BATCH_NAME + '-alpha.csv'
+    # results_df.to_csv(write_path)
 
 
 if __name__ == '__main__':

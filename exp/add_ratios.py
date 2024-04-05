@@ -1,14 +1,20 @@
+import time
 import os
 import pdb
 import time
 import sys
+import argparse
 import pandas as pd
 import networkx as nx
 from collections import defaultdict
 from itertools import combinations
-import argparse
 
-from lib.util import *
+from lib.util import final_write, common_cleanup, COLS
+from compute_alpha import (
+    InstanceOutputRow,
+    compute_exact_alpha,
+    compute_all_paths_total_costs,
+)
 
 
 def get_max(df, col):
@@ -41,6 +47,87 @@ def add_empirical_ratio(df):
     return df
 
 
+def add_exact_alpha(df):
+    print("adding exact alpha...")
+    new_column = []
+    time_column = []
+    all_paths_total_costs_dict = {}
+    for _, row in df.iterrows():
+        if row["set_name"] == "layer":
+            continue
+        instance = InstanceOutputRow(row)
+        if instance.
+        start = time.time()
+        new_value = instance.compute_exact_alpha()
+        duration = time.time() - start
+        new_column.append(new_value)
+        print("computed exact alpha value ", new_value, " in ", duration, " seconds.")
+        time_column.append(duration)
+
+    # Add the new column to the DataFrame
+    df["exact_alpha"] = new_column
+    df["exact_alpha_time_s"]
+    return df
+
+
+def add_alpha_one(df):
+    print("adding alphahat 1...")
+    # Iterate through each row and compute the value for the new column
+    new_column = []
+    times_column = []
+    for _, row in df.iterrows():
+        if row["set_name"] == "trees":
+            continue
+        instance = InstanceOutputRow(row)
+        begin_seconds = time.time()
+        new_value = instance.compute_alphahat1()
+        duration_seconds = time.time() - begin_seconds
+        new_column.append(new_value)
+        times_column.append(duration_seconds)
+        print(
+            "computed alphahat1 value ",
+            new_value,
+            " in ",
+            duration_seconds,
+            " seconds.",
+        )
+    # Add the new column to the DataFrame
+    df["alpha_hat_one"] = new_column
+    df["alpha_hat_one_time_s"] = times_column
+    return df
+
+
+def add_alpha_two(df):
+    print("adding alphahat 2...")
+    alphahatn_column = []
+    times_column = []
+    for _, row in df.iterrows():
+        if row["set_name"] == "trees":
+            continue
+        instance = InstanceOutputRow(row)
+        begin_seconds = time.time()
+        new_value = instance.compute_alphahat2()
+        duration_seconds = time.time() - begin_seconds
+        alphahatn_column.append(new_value)
+        times_column.append(duration_seconds)
+        print(
+            "computed alphahat2 value ",
+            new_value,
+            " in ",
+            duration_seconds,
+            " seconds.",
+        )
+    df["alpha_hat_two"] = alphahatn_column
+    df["alpha_hat_two_time_s"] = times_column
+    return df
+
+
+def add_alphas(df):
+    add_exact_alpha(df)
+    add_alpha_one(df)
+    add_alpha_two(df)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Compute empirical ratio and alpha for aspi results csv file - original file location will be overwritten with new file."
@@ -49,7 +136,8 @@ def main():
     args = parser.parse_args()
     df = pd.read_csv(args.file_path)
     common_cleanup(df)
-    add_empirical_ratio(df)
+    # add_empirical_ratio(df)
+    add_alphas(df)
     final_write(df, args.file_path)
 
 
