@@ -16,6 +16,15 @@ from compute_alpha import (
     compute_all_paths_total_costs,
 )
 
+EXCLUDE_EXACT = {
+    "set_name": "layer",
+    "policies": 0,
+}
+EXCLUDE_BOUNDS = {
+    "set_name": "trees",
+    "policies": 0,
+}
+
 
 def get_max(df, col):
     if not df.empty:
@@ -47,16 +56,23 @@ def add_empirical_ratio(df):
     return df
 
 
+def skip_row(row, exclude):
+    for key, value in exclude.items():
+        if row[key] == value:
+            return True
+
+
 def add_exact_alpha(df):
     print("adding exact alpha...")
     new_column = []
     time_column = []
     all_paths_total_costs_dict = {}
     for _, row in df.iterrows():
-        if row["set_name"] == "layer":
+        if skip_row(row, EXCLUDE_EXACT):
+            new_column.append(-1)
+            time_column.append(-1)
             continue
         instance = InstanceOutputRow(row)
-        if instance.
         start = time.time()
         new_value = instance.compute_exact_alpha()
         duration = time.time() - start
@@ -76,7 +92,9 @@ def add_alpha_one(df):
     new_column = []
     times_column = []
     for _, row in df.iterrows():
-        if row["set_name"] == "trees":
+        if skip_row(row, EXCLUDE_BOUNDS):
+            new_column.append(-1)
+            times_column.append(-1)
             continue
         instance = InstanceOutputRow(row)
         begin_seconds = time.time()
@@ -102,7 +120,9 @@ def add_alpha_two(df):
     alphahatn_column = []
     times_column = []
     for _, row in df.iterrows():
-        if row["set_name"] == "trees":
+        if skip_row(row, EXCLUDE_BOUNDS):
+            alphahatn_column.append(-1)
+            times_column.append(-1)
             continue
         instance = InstanceOutputRow(row)
         begin_seconds = time.time()
@@ -136,7 +156,7 @@ def main():
     args = parser.parse_args()
     df = pd.read_csv(args.file_path)
     common_cleanup(df)
-    # add_empirical_ratio(df)
+    add_empirical_ratio(df)
     add_alphas(df)
     final_write(df, args.file_path)
 

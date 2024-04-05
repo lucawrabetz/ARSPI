@@ -125,11 +125,12 @@ class InstanceOutputRow:
         self.rev_linked_list_arc_indices = defaultdict(dict)
         self.contracted_linked_list_arc_indices = defaultdict(dict)
         self.contracted_rev_linked_list_arc_indices = defaultdict(dict)
-        self.clusters = [[] for i in range(self.policies)]
+        self.clusters = [[] for _ in range(self.policies)]
         self.all_paths_total_costs = []
 
 
     def construct_clusters(self):
+        # TODO (lucawrabetz): need to find a place to check or handle case where policies = 0 (currently checked at call site)
         assignments = self.row['partition'].split('-')
         follower = 0
         for a in assignments:
