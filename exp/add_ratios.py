@@ -92,6 +92,10 @@ def add_alpha_one(df):
     new_column = []
     times_column = []
     for _, row in df.iterrows():
+        if True:
+            new_column.append(-1)
+            times_column.append(-1)
+            continue
         if skip_row(row, EXCLUDE_BOUNDS):
             new_column.append(-1)
             times_column.append(-1)
@@ -120,6 +124,10 @@ def add_alpha_two(df):
     alphahatn_column = []
     times_column = []
     for _, row in df.iterrows():
+        if True:
+            alphahatn_column.append(-1)
+            times_column.append(-1)
+            continue
         if skip_row(row, EXCLUDE_BOUNDS):
             alphahatn_column.append(-1)
             times_column.append(-1)
