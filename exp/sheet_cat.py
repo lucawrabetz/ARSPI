@@ -1,8 +1,13 @@
+from numpy import append
 import pandas as pd
+import shutil
 import argparse
 
 from lib.util import *
 
+def backup_finalcsv():
+    filename = check_make_dir(append_date(FINALCSVFILE.split(".")[0]), 0, False)
+    shutil.copyfile(FINALCSVPATH, os.path.join(BACKUPS, filename))
 
 def check_columns(A, B):
     if set(A.columns) != set(B.columns):
@@ -61,23 +66,19 @@ def main():
         description="Concatenate new raw run dataframe to main experiment dataframe."
     )
     parser.add_argument(
-        "existing", metavar="X", type=str, nargs=1, help="existing dataframe to add to"
-    )
-    parser.add_argument(
         "new", metavar="N", type=str, nargs="+", help="new dataframe to add"
     )
 
+    backup_finalcsv()
     args = parser.parse_args()
-    results_path = args.existing[0]
-    results_df = pd.read_csv(results_path)
-
+    results_df = pd.read_csv(FINALCSVPATH)
     common_cleanup(results_df)
     for new_path in args.new:
         new_df = pd.read_csv(new_path)
         common_cleanup(new_df)
         results_df = concatenate_dataframes(results_df, new_df)
 
-    final_write(results_df, results_path)
+    final_write(results_df, FINALCSVPATH)
 
 
 if __name__ == "__main__":

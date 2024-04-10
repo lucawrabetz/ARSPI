@@ -4,7 +4,9 @@ from typing import Dict, Any
 import pandas as pd
 from datetime import date
 
-
+FINALCSVFILE = "final.csv"
+FINALCSVPATH = os.path.join("final.csv")
+BACKUPS = "backups"
 # GLOBAL COLUMN SET UP
 # BASE COLUMN SETS (SMALL BUILDING BLOCKS)
 # BASE / BUILDING BLOCKS, LISTS HARD-INITIALIZED
@@ -279,7 +281,7 @@ def append_date(exp_name: str):
     return name
 
 
-def check_make_dir(path: str, i: int):
+def check_make_dir(path: str, i: int, makedir: bool = True):
     """
     Recursively check if an experiment directory exists, or create one with the highest number
         - example - if "path" string is "/dat/experiments/test-01_29_22", and there already exist:
@@ -297,7 +299,8 @@ def check_make_dir(path: str, i: int):
 
     # base case - create directory for given i (and return final path)
     else:
-        os.mkdir(path + "-" + str(i))
+        if makedir:
+            os.mkdir(path + "-" + str(i))
         return path + "-" + str(i)
 
 
