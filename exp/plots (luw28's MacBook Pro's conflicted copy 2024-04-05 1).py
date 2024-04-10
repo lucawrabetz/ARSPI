@@ -27,7 +27,6 @@ class CustomPlotSession:
         styles: List[str],
         filters: List[Dict[str, Any]],
         anti_filters: List[Dict[str, Any]],
-        additional_lines_columns: List[str],
     ) -> None:
         self.data = data
         self.setname = setname
@@ -37,7 +36,6 @@ class CustomPlotSession:
         self.styles = styles
         self.filters = filters
         self.anti_filters = anti_filters
-        self.additional_lines_columns = additional_lines_columns
         self.filters.append({"set_name": setname})
         self.basename = append_date(setname)
         self.dirpath = check_make_dir(os.path.join(self.FIGURE_PATH, self.basename), 0)
@@ -77,14 +75,7 @@ class CustomPlotSession:
             style=style,
             data=group_data,
         )
-        for col in self.additional_lines_columns:
-            sns.lineplot(
-                x=self.x_axis,
-                y=col,  # specify the additional column here
-                color="red",  # set the color of the line to red
-                ci=None,  # remove the standard deviation error shadow
-                data=group_data,
-            )
+
         title = COLLOG["pretty"][self.y_axis] + " vs " + COLLOG["pretty"][self.x_axis]
         plt.title(title)
         plt.xlabel(COLLOG["pretty"][self.x_axis])
@@ -112,8 +103,6 @@ class CustomPlotSession:
         self.apply_filters()
         self.set_seaborn_settings()
         self.set_limits()
-        print(self.data)
-        # TODO: awkward when styles is a singleton
         for style in self.styles:
             grouped = self.data.groupby(self.subfigures)
             index = 0
@@ -143,13 +132,10 @@ def main():
         "budget",
         "empirical_suboptimal_ratio",
         ["policies"],
-        ["solver"],
+        [],
         [
-            {"solver": "GREEDY"},
-            {"subsolver": "MIP"},
             {"k_zero": 3},
             {"scenarios": 5},
-            {"nodes": 79},
         ],
         [
             {"policies": 0},

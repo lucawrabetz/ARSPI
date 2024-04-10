@@ -27,7 +27,6 @@ class CustomPlotSession:
         styles: List[str],
         filters: List[Dict[str, Any]],
         anti_filters: List[Dict[str, Any]],
-        additional_lines_columns: List[str],
     ) -> None:
         self.data = data
         self.setname = setname
@@ -37,18 +36,17 @@ class CustomPlotSession:
         self.styles = styles
         self.filters = filters
         self.anti_filters = anti_filters
-        self.additional_lines_columns = additional_lines_columns
         self.filters.append({"set_name": setname})
         self.basename = append_date(setname)
         self.dirpath = check_make_dir(os.path.join(self.FIGURE_PATH, self.basename), 0)
-        self.limits = []
 
     def set_limits(self) -> None:
         max_x = self.data[self.x_axis].max()
         min_x = int(self.data[self.x_axis].min())
 
         max_y = self.data[self.y_axis].max()
-        self.limits = (0, 10, 0.8, 1)
+        # self.limits = (min_x, max_x, 0, max_y)
+        self.limits = (0, 10, 0, 50)
 
     def apply_filters(self) -> None:
         mask = pd.Series([True] * len(self.data))
@@ -68,7 +66,7 @@ class CustomPlotSession:
     def save_single_figure(
         self, group_data: Any, style: str, index: int, subfigure: List[Any]
     ) -> None:
-        plt.ylim(self.limits[2], self.limits[3])
+        x_list = list(range(self.limits[0], self.limits[1] + 1))
         plt.figure(figsize=(5, 5))
         relplot = sns.relplot(
             x=self.x_axis,
@@ -77,19 +75,11 @@ class CustomPlotSession:
             style=style,
             data=group_data,
         )
-        for col in self.additional_lines_columns:
-            sns.lineplot(
-                x=self.x_axis,
-                y=col,  # specify the additional column here
-                color="red",  # set the color of the line to red
-                ci=None,  # remove the standard deviation error shadow
-                data=group_data,
-            )
+
         title = COLLOG["pretty"][self.y_axis] + " vs " + COLLOG["pretty"][self.x_axis]
         plt.title(title)
         plt.xlabel(COLLOG["pretty"][self.x_axis])
         plt.ylabel(COLLOG["pretty"][self.y_axis])
-        x_list = list(range(self.limits[0], self.limits[1] + 1))
         plt.xticks(x_list)
         figure_name = (
             self.y_axis
@@ -111,9 +101,6 @@ class CustomPlotSession:
     def save_plots(self) -> None:
         self.apply_filters()
         self.set_seaborn_settings()
-        self.set_limits()
-        print(self.data)
-        # TODO: awkward when styles is a singleton
         for style in self.styles:
             grouped = self.data.groupby(self.subfigures)
             index = 0
@@ -137,19 +124,17 @@ def main():
 
     # COMMON CLEANUP
     common_cleanup(df)
+    # Running time vs budget - GREEDY, a curve per n, a plot per k
     session1 = CustomPlotSession(
         df,
         args.set_name,
         "budget",
-        "empirical_suboptimal_ratio",
+        "time_s",
         ["policies"],
-        ["solver"],
+        ["nodes"],
         [
             {"solver": "GREEDY"},
-            {"subsolver": "MIP"},
-            {"k_zero": 3},
-            {"scenarios": 5},
-            {"nodes": 79},
+            {"k_zero": 5},
         ],
         [
             {"policies": 0},
@@ -157,53 +142,28 @@ def main():
             {"policies": 4},
             {"policies": 5},
         ],
-        ["exact_alpha"],
+    )
+    # Running time vs budget - GREEDY, a curve per k, a plot per n
+    session2 = CustomPlotSession(
+        df,
+        args.set_name,
+        "budget",
+        "time_s",
+        ["nodes"],
+        ["policies"],
+        [
+            {"solver": "GREEDY"},
+            {"k_zero": 5},
+        ],
+        [
+            {"policies": 0},
+            {"policies": 1},
+            {"policies": 4},
+            {"policies": 5},
+        ],
     )
     session1.save_plots()
-    # Running time vs budget - GREEDY, a curve per n, a plot per k
-    # session1 = CustomPlotSession(
-    #     df,
-    #     args.set_name,
-    #     "budget",
-    #     "time_s",
-    #     ["policies"],
-    #     ["nodes"],
-    #     [
-    #         {"solver": "GREEDY"},
-    #         {"k_zero": 5},
-    #     ],
-    #     [
-    #         {"policies": 0},
-    #         {"policies": 1},
-    #         {"policies": 4},
-    #         {"policies": 5},
-    #         {"nodes": 202},
-    #         {"nodes": 502},
-    #     ],
-    # )
-    # # Running time vs budget - GREEDY, a curve per k, a plot per n
-    # session2 = CustomPlotSession(
-    #     df,
-    #     args.set_name,
-    #     "budget",
-    #     "time_s",
-    #     ["nodes"],
-    #     ["policies"],
-    #     [
-    #         {"solver": "GREEDY"},
-    #         {"k_zero": 5},
-    #     ],
-    #     [
-    #         {"policies": 0},
-    #         {"policies": 1},
-    #         {"policies": 4},
-    #         {"policies": 5},
-    #         {"nodes": 202},
-    #         {"nodes": 502},
-    #     ],
-    # )
-    # session1.save_plots()
-    # session2.save_plots()
+    session2.save_plots()
     # Approximation ratio vs budget - GREEDY algorithm, a curve per subsolver, a plot per k
     # session2 = CustomPlotSession()
 

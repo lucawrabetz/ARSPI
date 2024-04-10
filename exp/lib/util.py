@@ -378,6 +378,7 @@ def print_finished_row(row):
     )
 
 
+# TODO: in common_cleanup, we should replace 0 objective (NOT_OPTIMAL) rows for the enumeration algorithm, to the uninterdicted shortest path value.
 def common_cleanup(df):
     """
     1. Add any missing columns using defaults to meet COLS["processed"].
