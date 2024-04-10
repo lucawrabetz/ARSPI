@@ -90,9 +90,9 @@ RESULTS_DIR = 'results'
 #     return instance_name, instance_file, graph_file
 # 
 
-class InstanceOutputRow:
+class Row:
     """
-    InstanceOutputRow object to hold instance name, cost file, graph file, and row
+    Row object to hold instance name, cost file, graph file, and row
     Args:
         row (pd series, row of the experiment df)
     Attributes:
@@ -250,6 +250,8 @@ class InstanceOutputRow:
         return alpha
 
     def compute_alphahat1(self):
+        if self.policies == self.followers:
+            return 1
         costs_df = pd.read_csv(self.costs, header=None)
         self.construct_clusters()
         follower = 0
@@ -267,6 +269,8 @@ class InstanceOutputRow:
         return alpha
 
     def compute_alphahat2(self):
+        if self.policies == self.followers:
+            return 1
         costs_df = pd.read_csv(self.costs, header=None)
         self.construct_clusters()
         self.construct_linkedlists_edges()
@@ -336,7 +340,7 @@ def add_alphahat1(df):
     new_column = []
     times_column = []
     for index, row in df.iterrows():
-        instance = InstanceOutputRow(row)
+        instance = Row(row)
         begin_seconds = time.time()
         new_value = instance.compute_alphahat1()
         duration_seconds = time.time() - begin_seconds
@@ -354,7 +358,7 @@ def add_alphahat2(df):
     alphahatn_column = []
     times_column = []
     for index, row in df.iterrows():
-        instance = InstanceOutputRow(row)
+        instance = Row(row)
         begin_seconds = time.time()
         new_value = instance.compute_alphahat2()
         duration_seconds = time.time() - begin_seconds
@@ -372,7 +376,7 @@ def add_alphahat_kappa(batch_exp_df, kappa=3):
     alphahat_column = []
     times_column = []
     for index, row in batch_exp_df.iterrows():
-        instance = InstanceOutputRow(row)
+        instance = Row(row)
         begin_seconds = time.time()
         new_value = instance.compute_alphahat_kappa(kappa)
         duration_seconds = time.time() - begin_seconds
