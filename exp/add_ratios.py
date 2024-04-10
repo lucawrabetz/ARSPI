@@ -10,7 +10,7 @@ from collections import defaultdict
 from itertools import combinations
 
 from lib.util import final_write, common_cleanup, COLS
-from compute_alpha import (
+from lib.compute import (
     Row,
 )
 
