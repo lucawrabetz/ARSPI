@@ -11,17 +11,21 @@ from itertools import combinations
 
 from lib.util import final_write, common_cleanup, COLS
 from compute_alpha import (
-    InstanceOutputRow,
-    compute_exact_alpha,
-    compute_all_paths_total_costs,
+    Row,
 )
 
 EXCLUDE_EXACT = {
     "set_name": "layer",
+    "solver": "MIP",
+    "solver": "BENDERS",
+    "solver": "ENUMERATION",
     "policies": 0,
 }
 EXCLUDE_BOUNDS = {
     "set_name": "trees",
+    "solver": "MIP",
+    "solver": "BENDERS",
+    "solver": "ENUMERATION",
     "policies": 0,
 }
 
@@ -72,7 +76,7 @@ def add_exact_alpha(df):
             new_column.append(-1)
             time_column.append(-1)
             continue
-        instance = InstanceOutputRow(row)
+        instance = Row(row)
         start = time.time()
         new_value = instance.compute_exact_alpha()
         duration = time.time() - start
@@ -92,15 +96,11 @@ def add_alpha_one(df):
     new_column = []
     times_column = []
     for _, row in df.iterrows():
-        if True:
-            new_column.append(-1)
-            times_column.append(-1)
-            continue
         if skip_row(row, EXCLUDE_BOUNDS):
             new_column.append(-1)
             times_column.append(-1)
             continue
-        instance = InstanceOutputRow(row)
+        instance = Row(row)
         begin_seconds = time.time()
         new_value = instance.compute_alphahat1()
         duration_seconds = time.time() - begin_seconds
@@ -124,15 +124,11 @@ def add_alpha_two(df):
     alphahatn_column = []
     times_column = []
     for _, row in df.iterrows():
-        if True:
-            alphahatn_column.append(-1)
-            times_column.append(-1)
-            continue
         if skip_row(row, EXCLUDE_BOUNDS):
             alphahatn_column.append(-1)
             times_column.append(-1)
             continue
-        instance = InstanceOutputRow(row)
+        instance = Row(row)
         begin_seconds = time.time()
         new_value = instance.compute_alphahat2()
         duration_seconds = time.time() - begin_seconds

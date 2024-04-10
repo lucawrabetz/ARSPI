@@ -249,32 +249,31 @@ class Row:
                         alpha = val
         return alpha
 
+    def populate_datastructures(self):
+        self.construct_clusters()
+        self.construct_linkedlists_edges()
+
     def compute_alphahat1(self):
-        if self.policies == self.followers:
-            return 1
+        alpha = 1
         costs_df = pd.read_csv(self.costs, header=None)
         self.construct_clusters()
         follower = 0
-        alpha = sys.maxsize
         for c in self.clusters:
             if len(c) == 1:
                 continue
-            for i in range(len(c)):
-                for j in range(i+1, len(c)):
-                    ratios = costs_df.apply(lambda col: min(
-                        col[i], col[j]) / max(col[i], col[j]))
-                    val = ratios.min()
-                    if val < alpha:
-                        alpha = val
+            for i, j in combinations(c, 2):
+                ratios = costs_df.apply(lambda col: min(
+                    col[i], col[j]) / max(col[i], col[j]))
+                val = ratios.min()
+                if val < alpha:
+                    alpha = val
         return alpha
 
     def compute_alphahat2(self):
-        if self.policies == self.followers:
-            return 1
+        alpha = 1
         costs_df = pd.read_csv(self.costs, header=None)
         self.construct_clusters()
         self.construct_linkedlists_edges()
-        alpha = sys.maxsize
         for c in self.clusters:
             if len(c) == 1:
                 continue
@@ -302,94 +301,20 @@ class Row:
                             alpha = val
         return alpha
 
-    def compute_alphahat_kappaAAA(self, kappa):
-        # OPTION FOR COMPUTING FOR A GENERAL KAPPA
+    def compute_alphahat(self, kappa: int = 1):
+        alpha = 1
         costs_df = pd.read_csv(self.costs, header=None)
-        self.construct_clusters()
-        self.construct_linkedlists_edges()
-        alpha = sys.maxsize
-        pdb.set_trace()
+        self.populate_datastructures()
         for c in self.clusters:
             if len(c) == 1:
                 continue
             for i, j in combinations(c, 2):
-                # for path in paths_kappa(G_stcontracted)
-                # Step 2: Find all simple paths of size N in the contracted graph
-                all_paths = list(nx.all_simple_paths(
-                    self.G_st, self.contracted_node, self.contracted_node))
-                paths_of_size_kappa = [
-                    path for path in all_paths if len(path) == kappa]
-                for path in paths_of_size_kappa:
-                    path_cost_i = 0
-                    path_cost_j = 0
-                    for index in range(len(path) - 1):
-                        u = path[index]
-                        v = path[index+1]
-                        a = self.linked_list_arc_indices[u][v]
-                        path_cost_i += costs_df.iloc[i, a]
-                        path_cost_j += costs_df.iloc[j, a]
-                        val = min(path_cost_i, path_cost_j) / \
-                            max(path_cost_i, path_cost_j)
-                        if val < alpha:
-                            alpha = val
+                ratios = costs_df.apply(lambda col: min(
+                    col[i], col[j]) / max(col[i], col[j]))
+                val = ratios.min()
+                if val < alpha:
+                    alpha = val
         return alpha
-
-def add_alphahat1(df):
-    print("adding alphahat 1...")
-    # Iterate through each row and compute the value for the new column
-    new_column = []
-    times_column = []
-    for index, row in df.iterrows():
-        instance = Row(row)
-        begin_seconds = time.time()
-        new_value = instance.compute_alphahat1()
-        duration_seconds = time.time() - begin_seconds
-        new_column.append(new_value)
-        times_column.append(duration_seconds)
-        print("computed alphahat1 value ", new_value,
-              " in ", duration_seconds, " seconds.")
-    # Add the new column to the DataFrame
-    df['alpha_hat_1'] = new_column
-    df['alpha_hat_1_time'] = times_column
-    return df
-
-def add_alphahat2(df):
-    print("adding alphahat 2...")
-    alphahatn_column = []
-    times_column = []
-    for index, row in df.iterrows():
-        instance = Row(row)
-        begin_seconds = time.time()
-        new_value = instance.compute_alphahat2()
-        duration_seconds = time.time() - begin_seconds
-        alphahatn_column.append(new_value)
-        times_column.append(duration_seconds)
-        print("computed alphahat2 value ", new_value,
-              " in ", duration_seconds, " seconds.")
-    df['alpha_hat_2'] = alphahatn_column
-    df['alpha_hat_2_time'] = times_column
-    return df
-
-
-def add_alphahat_kappa(batch_exp_df, kappa=3):
-    print("adding alphahat ", kappa, "...")
-    alphahat_column = []
-    times_column = []
-    for index, row in batch_exp_df.iterrows():
-        instance = Row(row)
-        begin_seconds = time.time()
-        new_value = instance.compute_alphahat_kappa(kappa)
-        duration_seconds = time.time() - begin_seconds
-        alphahat_column.append(new_value)
-        times_column.append(duration_seconds)
-        print("computed alphahat", kappa, " value ",
-              new_value, " in ", duration_seconds, " seconds.")
-    column_name = "alpha_hat_" + str(kappa)
-    time_column_name = column_name + "_time"
-    batch_exp_df[column_name] = alphahat_column
-    batch_exp_df[time_column_name] = times_column
-    return batch_exp_df
-
 
 def compute_all_paths_total_costs(row, instance_directory, graph_file, instance_file):
     df = pd.read_csv(os.path.join(
@@ -428,50 +353,6 @@ def compute_all_paths_total_costs(row, instance_directory, graph_file, instance_
     print('done with paths for graph: ', graph_file)
 
     return all_paths_total_costs
-
-
-def compute_exact_alpha(row, all_paths_total_costs):
-    clusters = [[] for i in range(row['policies'])]
-    assignments = row['GREEDY_partition'].split('-')
-    follower = 0
-    alpha = sys.maxsize
-    for a in assignments:
-        clusters[int(a)].append(follower)
-        follower += 1
-    for c in clusters:
-        for i in range(len(c)):
-            for j in range(i+1, len(c)):
-                for path in all_paths_total_costs:
-                    val = min(path[i], path[j]) / max(path[i], path[j])
-                    if val < alpha:
-                        alpha = val
-    return alpha
-
-
-def add_exact_alpha(df, exp_name, batch_directory):
-    new_column = []
-    all_paths_total_costs_dict = {}
-    for index, row in df.iterrows():
-        instance_name = row['instance_name']
-        graph_file = instance_name.split(
-            '-')[0] + '-' + instance_name.split('-')[1] + ".txt"
-        instance_file = instance_name.split('-')[0] + '-' + instance_name.split(
-            '-')[1] + '-costs_' + instance_name.split('-')[2] + '.csv'
-        path_costs = all_paths_total_costs_dict.setdefault(
-            graph_file, compute_all_paths_total_costs(row, batch_directory, graph_file, instance_file))
-        new_value = compute_exact_alpha(row, path_costs)
-        new_column.append(new_value)
-
-    # Add the new column to the DataFrame
-    df['alpha'] = new_column
-    return df
-
-
-def compute_approximation_ratio(df, exact="MIP_objective"):
-    df['approximation_ratio'] = df['GREEDY_objective'] / df[exact]
-    print('done with approximation ratio')
-    return df
-
 
 def main():
     pass
