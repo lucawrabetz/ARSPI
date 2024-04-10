@@ -48,6 +48,7 @@ images/
 exp/figures/
 exp/instances/
 exp/raw
+exp/backups
 exp/*.csv
 exp/*.ipynb
 
