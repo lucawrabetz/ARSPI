@@ -49,6 +49,7 @@ images/
 exp/figures/
 exp/instances/
 exp/*.csv
+exp/*.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
