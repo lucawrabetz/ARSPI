@@ -380,9 +380,22 @@ def print_finished_row(row):
         )
     )
 
+def remove_samerun_duplicates(df):
+    """
+    Remove duplicates for the same exact run parameters and hyperparameters.
+    Keep the row with the highest objective, splitting ties by running time (minimum chosen).
+    Make changes to df in place.
+    """
+    mathing_colnames = [f.name for f in COLS["same_run_hyperparams"]]
+    df.sort_values(
+        by=["objective", "time"], ascending=[False, True], inplace=True
+    )
+    df.drop_duplicates(subset=mathing_colnames, keep="first", inplace=True)
+    print("Removed rows with same run parameters and hyperparameters.")
+
 
 # TODO: in common_cleanup, we should replace 0 objective (NOT_OPTIMAL) rows for the enumeration algorithm, to the uninterdicted shortest path value.
-def common_cleanup(df):
+def common_cleanup(df, dedup=True):
     """
     1. Add any missing columns using defaults to meet COLS["processed"].
     2. Add quick processing columns to meet COLS["finished"].
@@ -396,6 +409,7 @@ def common_cleanup(df):
     for col, val in add_cols.items():
         df[col] = val
     # to finished.
+    if dedup: remove_samerun_duplicates(df)
     add_seconds_columns(df)
 
 

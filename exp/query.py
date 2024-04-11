@@ -96,6 +96,11 @@ def main():
     parser.add_argument(
         "--verbose", action="store_true", help="Verbose column header output"
     )
+    parser.add_argument(
+        "--dedup",
+        action="store_true",
+        help="Deduplicate the dataframe based on the columns in the data model.",
+    )
 
     args = parser.parse_args()
     if args.solver:
@@ -138,7 +143,7 @@ def main():
         return
 
     # COMMON CLEANUP
-    common_cleanup(df)
+    common_cleanup(df, dedup=args.dedup)
 
     print("\n")
     if solver:
@@ -159,6 +164,8 @@ def main():
     else:
         colname_map = COLLOG["compressed"]
 
+    # Remove dedup from args
+    del args.dedup
     filtered_df = filter_dataframe(df, vars(args), solver)
 
     if filtered_df.empty:
