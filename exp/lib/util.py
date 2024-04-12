@@ -77,6 +77,7 @@ COLS = {
         feature("alpha_hat_one_time_s", -1),
         feature("alpha_hat_two", -1),
         feature("alpha_hat_two_time_s", -1),
+        feature("adaptive_increment", -1),
     ],
 }
 
@@ -204,6 +205,7 @@ COLLOG = {
         "alpha_hat_one_time_s": "Alpha Hat One Time (s)",
         "alpha_hat_two": "Alpha Hat Two",
         "alpha_hat_two_time_s": "Alpha Hat Two Time (s)",
+        "adaptive_increment": "Adaptive Increment",
     },
     "compressed": {
         "set_name": "Set",
@@ -242,6 +244,7 @@ COLLOG = {
         "alpha_hat_one_time_s": "a_hat1_T (s)",
         "alpha_hat_two": "a_hat2",
         "alpha_hat_two_time_s": "a_hat2_T (s)",
+        "adaptive_increment": "a_inc",
     },
 }
 
