@@ -14,6 +14,11 @@ from compute_alpha import (
     Row,
 )
 
+EXCLUDE_RATIO = {
+    "solver": "MIP",
+    "solver": "BENDERS",
+    "solver": "ENUMERATION",
+}
 EXCLUDE_EXACT = {
     "set_name": "layer",
     "solver": "MIP",
@@ -37,12 +42,47 @@ def get_max(df, col):
         return -1
 
 
+def skip_row(row, exclude):
+    for key, value in exclude.items():
+        if row[key] == value:
+            return True
+    return False
+
+
+def add_adaptive_increment(df):
+    """
+    Add new column for the following ratio:
+    for a row, the ratio = (objective) / (objective value of same instance with policies = 0)
+    """
+    shortest_path_objectives = {}
+    ratio_column = []
+    same_instance_cols = [f.name for f in COLS["same_instance"]]
+    for _, row in df.iterrows():
+        this_instance_cols = [row[f.name] for f in COLS["same_instance"]]
+        instance_key = tuple(this_instance_cols)
+        if row["policies"] == 0:
+            shortest_path_objectives[instance_key] = row["objective"]
+    for _, row in df.iterrows():
+        this_instance_cols = [row[f.name] for f in COLS["same_instance"]]
+        instance_key = tuple(this_instance_cols)
+        try:
+            ratio_column.append(row["objective"] / shortest_path_objectives[instance_key])
+        except KeyError:
+            print("KeyError (no uninterdicted shortest path objective): ", instance_key)
+            ratio_column.append(-1)
+    df["adaptive_increment"] = ratio_column
+
+
 def add_empirical_ratio(df):
     max_column = "objective"
     best_objective_values = []
     best_optimal_values = []
     same_run_cols = [c.name for c in COLS["same_run"]]
     for index, row in df.iterrows():
+        if skip_row(row, EXCLUDE_RATIO):
+            best_objective_values.append(-1)
+            best_optimal_values.append(-1)
+            continue
         objective_mask = df[same_run_cols].eq(row[same_run_cols]).all(axis=1)
         optimal_mask = df[same_run_cols].eq(row[same_run_cols]).all(axis=1) & (
             df["optimal"] == "OPTIMAL"
@@ -58,12 +98,6 @@ def add_empirical_ratio(df):
     df.loc[df["best_objective"] == -1, "empirical_suboptimal_ratio"] = -1
     df.loc[df["best_optimal"] == -1, "empirical_optimal_ratio"] = -1
     return df
-
-
-def skip_row(row, exclude):
-    for key, value in exclude.items():
-        if row[key] == value:
-            return True
 
 
 def add_exact_alpha(df):
@@ -160,8 +194,9 @@ def main():
     args = parser.parse_args()
     df = pd.read_csv(args.file_path)
     common_cleanup(df)
-    add_empirical_ratio(df)
-    add_alphas(df)
+    # add_empirical_ratio(df)
+    add_adaptive_increment(df)
+    # add_alphas(df)
     final_write(df, args.file_path)
 
 
