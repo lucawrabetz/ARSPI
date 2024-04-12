@@ -384,6 +384,7 @@ def print_finished_row(row):
         )
     )
 
+
 def remove_samerun_duplicates(df):
     """
     Remove duplicates for the same exact run parameters and hyperparameters.
@@ -415,7 +416,7 @@ def cleanup_to_processed(df):
 
 def cleanup_to_finished(df) -> Any:
     """
-    Add quick processing columns to meet COLS["finished"].
+    Remove same run dups, and add quick processing columns to meet COLS["finished"].
     Returns a new dataframe to use, so as not to make changes to raw df.
     """
     data_df = df.copy()

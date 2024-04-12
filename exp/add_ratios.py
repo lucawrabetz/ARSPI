@@ -67,6 +67,24 @@ def add_uninterdicted_shortest_path_column(df):
             uninterdicted_column.append(-1)
     df["uninterdicted_shortest_path"] = uninterdicted_column
     
+
+def replace_zero_with_usp(row):
+    if row["objective"] == 0 and row["solver"] == "ENUMERATION":
+        # TODO: (LW) logging
+        return row["uninterdicted_shortest_path"]
+    else:
+        return row["objective"]
+
+# TODO: (LW) replacing the enumeration zeros, a cleaning operation, is essentially
+# considered a "slow constant" by its inclusion in this script.
+# This is a bit of a code smell to me, as it doesn't add a specific column or constant, 
+# yet including it in cleanup_to_processed() also smells as it requires the
+# uninterdicted_shortest_path column to be added, which I prefer to consider a slow constant,
+# not to be computed in cleanups.
+def replace_enumeration_zeros(df):
+    df["objective"] = df.apply(replace_zero_with_usp, axis=1)
+
+
 def add_adaptive_increment(df):
     """
     Add new column for the following ratio:
@@ -200,6 +218,7 @@ def main():
     del df
     # add_empirical_ratio(data_df)
     add_uninterdicted_shortest_path_column(data_df)
+    replace_enumeration_zeros(data_df)
     add_adaptive_increment(data_df)
     # add_alphas(data_df)
     final_write(data_df, args.file_path)
