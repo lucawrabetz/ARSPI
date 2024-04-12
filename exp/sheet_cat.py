@@ -18,46 +18,21 @@ def check_columns(A, B):
         )
 
 
-def print_duplicate_group(group):
-    print("Duplicate rows found to inspect:")
-    first_row = True
-    for _, row in group.iterrows():
-        if first_row:
-            print_header(row)
-            first_row = False
-        print_finished_row(row)
-
-
-def duplicate_check(df, cols, drop=False):
-    # Will only modify df if drop=True, otherwise the user will
-    # get an option to exit the program.
+def duplicate_check(df, cols):
     duplicates = df[df.duplicated(subset=cols, keep=False)]
+    print("Full duplicates found: " + str(len(duplicates)) + "\n")
     if not duplicates.empty:
-        if drop:
-            print(
-                "Found " + str(len(duplicates)) + " strongly matching rows, dropping.\n"
-            )
-            df.drop_duplicates(subset=cols, keep="first", inplace=True)
-        else:
-            for _, group in duplicates.groupby(cols):
-                print_duplicate_group(group)
-                # TODO: consider expanding continue into keep or drop.
-                user_input = input(
-                    "Press 'c' to continue, 'a' to skip all and finish, 'e' to exit: "
-                )
-                if user_input.lower() == "a":
-                    break
-                if user_input.lower() == "e":
-                    raise KeyboardInterrupt("Exiting due to duplicates.")
+        print(
+            "Found " + str(len(duplicates)) + " strongly matching rows, dropping.\n"
+        )
+        df.drop_duplicates(subset=cols, keep="first", inplace=True)
 
 
 def concatenate_dataframes(A, B):
     check_columns(A, B)
     combined_df = pd.concat([A, B], ignore_index=True, sort=False)
     cols_names_outputs = [c.name for c in COLS["same_run_and_outputs"]]
-    cols_names_params = [c.name for c in COLS["same_run_params"]]
-    duplicate_check(combined_df, cols_names_outputs, drop=True)
-    duplicate_check(combined_df, cols_names_params)
+    duplicate_check(combined_df, cols_names_outputs)
     return combined_df
 
 
