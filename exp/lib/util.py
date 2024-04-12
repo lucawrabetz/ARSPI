@@ -398,30 +398,44 @@ def remove_samerun_duplicates(df):
     print("Removed rows with same run parameters and hyperparameters.")
 
 
-# TODO: in common_cleanup, we should replace 0 objective (NOT_OPTIMAL) rows for the enumeration algorithm, to the uninterdicted shortest path value.
-def common_cleanup(df, dedup=True):
+def cleanup_to_processed(df):
     """
-    1. Add any missing columns using defaults to meet COLS["processed"].
-    2. Add quick processing columns to meet COLS["finished"].
+    Add any missing columns using defaults to meet COLS["processed"].
     """
-    # to processed.
     add_cols = {
         key.name: key.default
         for key in COLS["processed"]
         if key.name not in set(df.columns)
     }
     for col, val in add_cols.items():
+        print("Adding column ", col, " with default ", val, ".")
         df[col] = val
-    # to finished.
-    if dedup: remove_samerun_duplicates(df)
-    add_seconds_columns(df)
+    pass
+
+
+def cleanup_to_finished(df) -> Any:
+    """
+    Add quick processing columns to meet COLS["finished"].
+    Returns a new dataframe to use, so as not to make changes to raw df.
+    """
+    data_df = df.copy()
+    remove_samerun_duplicates(df)
+    add_seconds_columns(data_df)
+    return data_df
+
+def cleanup_to_pretty(df) -> Any:
+    """
+    Rounding and stuff that only matters for printing / tables etc, but we don't want to do the raw data.
+    """
+    pretty_df = df.copy()
+    round(pretty_df)
+    return pretty_df
 
 
 def final_write(df, path):
     """
     Always starts with a df with "finished" columns, because common_clenup was called.
     """
-    round(df)
     df.to_csv(
         path, columns=[c.name for c in COLS["processed"]], header=True, index=False
     )

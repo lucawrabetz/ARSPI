@@ -100,11 +100,6 @@ def main():
     parser.add_argument(
         "--verbose", action="store_true", help="Verbose column header output"
     )
-    parser.add_argument(
-        "--dedup",
-        action="store_true",
-        help="Deduplicate the dataframe based on the columns in the data model.",
-    )
 
     args = parser.parse_args()
     if args.solver:
@@ -146,8 +141,11 @@ def main():
         print("Error: File not found.")
         return
 
-    # COMMON CLEANUP
-    common_cleanup(df, dedup=args.dedup)
+    cleanup_to_processed(df)
+    data_df = cleanup_to_finished(df)
+    pretty_df = cleanup_to_pretty(data_df)
+    del df
+    del data_df
 
     print("\n")
     if solver:
@@ -168,9 +166,7 @@ def main():
     else:
         colname_map = COLLOG["compressed"]
 
-    # Remove dedup from args
-    del args.dedup
-    filtered_df = filter_dataframe(df, vars(args), solver)
+    filtered_df = filter_dataframe(pretty_df, vars(args), solver)
 
     if filtered_df.empty:
         print("No matching rows found.")

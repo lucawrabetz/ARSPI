@@ -195,12 +195,14 @@ def main():
     parser.add_argument("file_path", help="Path to the CSV file")
     args = parser.parse_args()
     df = pd.read_csv(args.file_path)
-    common_cleanup(df)
-    # add_empirical_ratio(df)
-    add_uninterdicted_shortest_path_column(df)
-    add_adaptive_increment(df)
-    # add_alphas(df)
-    final_write(df, args.file_path)
+    cleanup_to_processed(df)
+    data_df = cleanup_to_finished(df)
+    del df
+    # add_empirical_ratio(data_df)
+    add_uninterdicted_shortest_path_column(data_df)
+    add_adaptive_increment(data_df)
+    # add_alphas(data_df)
+    final_write(data_df, args.file_path)
 
 
 if __name__ == "__main__":
