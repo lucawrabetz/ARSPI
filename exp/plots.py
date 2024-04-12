@@ -118,22 +118,29 @@ class CustomPlotSession:
 
 
 def main():
+    # UI/Parser takes arguments from user and holds on to them.
     parser = argparse.ArgumentParser(description="Filter CSV file based on criteria.")
     parser.add_argument("file_path", help="Path to the CSV file")
     parser.add_argument("--set_name", type=str, help="Filter by set name")
     args = parser.parse_args()
+    # Parser hands existing file path to Reader, reads and stores existing dataframe
     try:
         df = pd.read_csv(args.file_path)
     except FileNotFoundError:
         print("Error: File not found.")
         return
 
-    # COMMON CLEANUP
+    # Reader hands raw data to Cleaner (??)
     cleanup_to_processed(df)
+
+    # Cleaner hands clean data to Finisher (??)
     data_df = cleanup_to_finished(df)
     pretty_df = cleanup_to_finished(data_df)
     del df
     del data_df
+
+
+    # Finisher hands finished data to CustomPlotSession
     session1 = CustomPlotSession(
         pretty_df,
         args.set_name,

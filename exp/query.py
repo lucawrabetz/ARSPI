@@ -77,8 +77,6 @@ def filter_dataframe(df, args, solver):
 
 
 def main():
-    # TODO: (LW) this function should be refactored out, should always accept all columns from the data model.
-    # If a column is added to the data model, the parser for it should automatically accept it.
     parser = argparse.ArgumentParser(description="Filter CSV file based on criteria.")
     parser.add_argument("file_path", help="Path to the CSV file")
     parser.add_argument("--set_name", type=str, help="Filter by set name")
