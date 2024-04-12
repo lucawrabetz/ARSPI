@@ -4,14 +4,7 @@ import argparse
 import seaborn as sns
 import os
 from typing import Any, Dict, List, Tuple
-from lib.util import (
-    append_date,
-    check_make_dir,
-    common_cleanup,
-    get_solver_from_flag,
-    get_subsolver_from_flag,
-    COLLOG,
-)
+from lib.util import *
 
 
 class CustomPlotSession:
@@ -136,9 +129,13 @@ def main():
         return
 
     # COMMON CLEANUP
-    common_cleanup(df)
+    cleanup_to_processed(df)
+    data_df = cleanup_to_finished(df)
+    pretty_df = cleanup_to_finished(data_df)
+    del df
+    del data_df
     session1 = CustomPlotSession(
-        df,
+        pretty_df,
         args.set_name,
         "budget",
         "empirical_suboptimal_ratio",
@@ -162,7 +159,7 @@ def main():
     session1.save_plots()
     # Running time vs budget - GREEDY, a curve per n, a plot per k
     # session1 = CustomPlotSession(
-    #     df,
+    #     pretty_df,
     #     args.set_name,
     #     "budget",
     #     "time_s",
@@ -183,7 +180,7 @@ def main():
     # )
     # # Running time vs budget - GREEDY, a curve per k, a plot per n
     # session2 = CustomPlotSession(
-    #     df,
+    #     pretty_df,
     #     args.set_name,
     #     "budget",
     #     "time_s",

@@ -47,10 +47,10 @@ def main():
     backup_finalcsv()
     args = parser.parse_args()
     results_df = pd.read_csv(FINALCSVPATH)
-    common_cleanup(results_df)
+    cleanup_to_processed(results_df)
     for new_path in args.new:
         new_df = pd.read_csv(new_path)
-        common_cleanup(new_df)
+        cleanup_to_processed(new_df)
         results_df = concatenate_dataframes(results_df, new_df)
 
     final_write(results_df, FINALCSVPATH)
