@@ -13,7 +13,9 @@ OUTPUT_COLUMNS = [
     "m_sym",
     "g_sym",
     "gap",
+    "empirical_suboptimal_ratio",
     "exact_alpha",
+    "adaptive_increment",
 ]
 COMPRESSED_OUTPUT_COLUMNS = [
     "set_name",
@@ -28,7 +30,9 @@ COMPRESSED_OUTPUT_COLUMNS = [
     "m_sym",
     "g_sym",
     "gap",
+    "empirical_suboptimal_ratio",
     "exact_alpha",
+    "adaptive_increment",
 ]
 AVG_NOT_MATCH = [
     "time",
