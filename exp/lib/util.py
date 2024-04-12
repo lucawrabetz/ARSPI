@@ -77,6 +77,7 @@ COLS = {
         feature("alpha_hat_one_time_s", -1),
         feature("alpha_hat_two", -1),
         feature("alpha_hat_two_time_s", -1),
+        feature("uninterdicted_shortest_path", -1),
         feature("adaptive_increment", -1),
     ],
 }

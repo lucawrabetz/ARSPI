@@ -49,14 +49,9 @@ def skip_row(row, exclude):
     return False
 
 
-def add_adaptive_increment(df):
-    """
-    Add new column for the following ratio:
-    for a row, the ratio = (objective) / (objective value of same instance with policies = 0)
-    """
+def add_uninterdicted_shortest_path_column(df):
     shortest_path_objectives = {}
-    ratio_column = []
-    same_instance_cols = [f.name for f in COLS["same_instance"]]
+    uninterdicted_column = []
     for _, row in df.iterrows():
         this_instance_cols = [row[f.name] for f in COLS["same_instance"]]
         instance_key = tuple(this_instance_cols)
@@ -66,11 +61,18 @@ def add_adaptive_increment(df):
         this_instance_cols = [row[f.name] for f in COLS["same_instance"]]
         instance_key = tuple(this_instance_cols)
         try:
-            ratio_column.append(row["objective"] / shortest_path_objectives[instance_key])
+            uninterdicted_column.append(shortest_path_objectives[instance_key])
         except KeyError:
             print("KeyError (no uninterdicted shortest path objective): ", instance_key)
-            ratio_column.append(-1)
-    df["adaptive_increment"] = ratio_column
+            uninterdicted_column.append(-1)
+    df["uninterdicted_shortest_path"] = uninterdicted_column
+    
+def add_adaptive_increment(df):
+    """
+    Add new column for the following ratio:
+    for a row, the ratio = (objective) / (objective value of same instance with policies = 0)
+    """
+    df["adaptive_increment"] = df["objective"] / df["uninterdicted_shortest_path"]
 
 
 def add_empirical_ratio(df):
@@ -195,6 +197,7 @@ def main():
     df = pd.read_csv(args.file_path)
     common_cleanup(df)
     # add_empirical_ratio(df)
+    add_uninterdicted_shortest_path_column(df)
     add_adaptive_increment(df)
     # add_alphas(df)
     final_write(df, args.file_path)
