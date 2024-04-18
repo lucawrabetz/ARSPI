@@ -7,6 +7,7 @@ from datetime import date
 FINALCSVFILE = "final.csv"
 FINALCSVPATH = os.path.join("final.csv")
 BACKUPS = "backups"
+
 # GLOBAL COLUMN SET UP
 # BASE COLUMN SETS (SMALL BUILDING BLOCKS)
 # BASE / BUILDING BLOCKS, LISTS HARD-INITIALIZED
@@ -14,6 +15,19 @@ class feature:
     def __init__(self, name: str, default: Any):
         self.name = name
         self.default = default
+
+# TODO: subclasses for features:
+# class input_feature(feature):
+# class parameter_feature(feature):
+# class hyperparameter_feature(feature):
+# class output_feature(feature):
+
+# TODO: solver class?
+# subclass of a row?
+# class row
+# class BendersRow(row)
+# class MipRow(row)
+# ...
 
 
 COLS = {
