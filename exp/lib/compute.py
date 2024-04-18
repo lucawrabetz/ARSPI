@@ -14,7 +14,7 @@ RESULTS_DIR = 'results'
 
 class CompoundFeatureComputer:
     """
-    Object to  
+    Row object to hold instance name, cost file, graph file, and row
     Args:
         row (pd series, row of the experiment df)
     Attributes:
