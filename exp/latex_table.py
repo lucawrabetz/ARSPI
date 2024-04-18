@@ -1,6 +1,7 @@
 import os
 import argparse
 import pandas as pd
+from lib.util import *
 
 # Names of experiment instance sets.
 ALL_INSTANCES = 'experiment_allalgorithms'
