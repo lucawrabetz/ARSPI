@@ -83,81 +83,6 @@ class OutputStructure:
             self.output_columns.extend(GREEDY_OUT)
 
 
-def ms_to_s(df, col):
-    '''
-    Convert column col in df from ms to s.
-    '''
-    df[col] = df[col].div(1000)
-
-
-def round_int_columns(df, out):
-    '''
-    Round all integer columns.
-    '''
-    for col in out.int_columns:
-        df[col] = df[col].astype(int)
-
-
-def convert_all_times(df, out):
-    '''
-    Convert all time columns to s.
-    '''
-    for col in out.time_columns:
-        ms_to_s(df, col)
-
-
-def round_dp_columns(df, out):
-    '''
-    Round all decimal columns to DP decimal points.
-    '''
-    for col in out.rational_columns:
-        df[col] = df[col].astype(float)
-        df[col] = df[col].round(DP)
-
-
-def post_cleanup(df, out):
-    '''
-    Complete any final rounding, units conversions.
-    '''
-    round_int_columns(df, out)
-    convert_all_times(df, out)
-    round_dp_columns(df, out)
-
-
-def compute_approximation_ratio(df, out):
-    '''
-    Compute empirical approximation ratio using an exact solution.
-    '''
-    exact_columns = [solver + '_objective' for solver in out.exact_solvers]
-    max_exact_objective = df[exact_columns].max(axis=1)
-    df['approximation_ratio'] = df['GREEDY_objective'] / max_exact_objective
-
-
-def add_shortest_path_column(df, objective_col):
-    '''
-    Add a temporary column with the uninterdicted shortest path for every instance.
-    '''
-    # Find the MIP_objective value where policies = 0 for each instance_name (returning a DataFrame with columns 'instance_name' and 'MIP_objective').
-    shortest_paths = df.loc[df['policies'] ==
-                            0, ['instance_name', objective_col]]
-    # Create a dictionary mapping instance_name to its corresponding uninterdicted shortest path.
-    shortest_paths_dict = shortest_paths.set_index(
-        'instance_name')[objective_col].to_dict()
-    df['shortest_path'] = df['instance_name'].map(shortest_paths_dict)
-
-
-def compute_adaptive_increment(df, out):
-    '''
-    Compute the 'adaptive increment', that is, the ratio between the objective value of a solution and the uninterdicted shortest path for that instance.
-    Compute this for every solver's output as passed in the parameter solvers, and add it as a new column solver+'_adaptiveincrement' for each.
-    '''
-    add_shortest_path_column(df, out.sp_column)
-    for solver in out.solvers:
-        newcolumnname = solver + '_adaptiveincrement'
-        objectivecolumnname = solver + '_objective'
-        df[newcolumnname] = df[objectivecolumnname] / df['shortest_path']
-
-
 def compute_bendersenum_ratio(df):
     '''
     Compute new column 'BE_ratio' reflecting the ratio in objective values Benders / Enumeration.
@@ -167,7 +92,7 @@ def compute_bendersenum_ratio(df):
 
 def average_by_run(group):
     new_rows = []
-    run_groups = group.groupby(['instance_name', 'budget', 'policies', 'solver', 'subsolver', 'm_sym', 'g_sym'])
+    run_groups = group.groupby(['instance_name', 'budget', 'policies', 'subsolver', 'm_sym', 'g_sym'])
     for name, group in run_groups:
         policies = name[2]
         if policies == 0:
@@ -181,7 +106,7 @@ def group_by_instance_average_by_run(df):
     '''
     Group data frame by instance type ['set_name', 'nodes', 'k_zero', 'scenarios'].
                                         - also implies that ['arcs', 'density'] will match. (INSTANCE PARAMETERS -> INPUT -> FEATURE).
-    For each group, the data can differ in the input columns : ['instance_name', 'budget', 'policies', 'solver', 'subsolver', 'm_sym', 'g_sym']. (RUN PARAMETERS -> INPUT -> FEATURE).
+    For each group, the data can differ in the input columns : ['instance_name', 'budget', 'policies', 'subsolver', 'm_sym', 'g_sym']. (RUN PARAMETERS -> INPUT -> FEATURE).
     For each group, the outputs can all differ. (OUTPUT -> FEATURE).
     Average the outputs (10 runs) for each run group (average_by_run(group)).
     '''
@@ -201,12 +126,14 @@ def read_results_data():
     df = pd.read_csv(csv)
     return df
 
+
 def write_latex_table(args, df, out):
     latex_csv = append_date('final') + '.csv'
     latex_csv_path = os.path.join('latex', latex_csv)
     df.to_csv(path_or_buf=latex_csv_path, sep='&',
               columns=out.output_columns, index=False)
     return latex_csv_path
+
 
 def final_table_cleanup(path):
     output_path = path.split('.')[0] + '-clean.csv'
