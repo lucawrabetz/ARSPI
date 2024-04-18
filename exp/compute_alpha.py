@@ -9,7 +9,7 @@ from itertools import combinations
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
-INSTANCES = '/home/luw28/Dropbox/ARSPI/exp/instances/'
+INSTANCES = 'instances/'
 RESULTS_DIR = 'results'
 
 # def alphahat_for_two_followers(costs_df, f1, f2):

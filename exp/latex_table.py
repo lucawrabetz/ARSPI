@@ -1,6 +1,7 @@
 import os
 import argparse
 import pandas as pd
+from lib.util import *
 
 # Names of experiment instance sets.
 ALL_INSTANCES = 'experiment_allalgorithms'
@@ -164,44 +165,45 @@ def compute_bendersenum_ratio(df):
     df['BE_ratio'] = df['BENDERS_objective'] / df['ENUMERATION_objective']
 
 
-def k_meanrows(group):
-    '''
-    Return K rows averaging the 10 runs for each value of k in the DataFrame 'group'.
-    '''
+def average_by_run(group):
     new_rows = []
-    grouped_by_k = group.groupby('policies')
-    for k, df in grouped_by_k:
-        if k == 0:
+    run_groups = group.groupby(['instance_name', 'budget', 'policies', 'solver', 'subsolver', 'm_sym', 'g_sym'])
+    for name, group in run_groups:
+        policies = name[2]
+        if policies == 0:
             continue
-        mean_df = df.mean(numeric_only=True)
+        mean_df = group.mean(numeric_only=True)
         new_rows.append(mean_df)
     return new_rows
 
 
-def take_averages(df):
+def group_by_instance_average_by_run(df):
     '''
-    For every instance 'type' (matching nodes, k_zero, scenarios), average the 10 instance ids into K new rows,
-    where K is the number of different policies ran for each instance in the instance type set.
+    Group data frame by instance type ['set_name', 'nodes', 'k_zero', 'scenarios'].
+                                        - also implies that ['arcs', 'density'] will match. (INSTANCE PARAMETERS -> INPUT -> FEATURE).
+    For each group, the data can differ in the input columns : ['instance_name', 'budget', 'policies', 'solver', 'subsolver', 'm_sym', 'g_sym']. (RUN PARAMETERS -> INPUT -> FEATURE).
+    For each group, the outputs can all differ. (OUTPUT -> FEATURE).
+    Average the outputs (10 runs) for each run group (average_by_run(group)).
     '''
-    grouped = df.groupby(['nodes', 'k_zero', 'scenarios'])
+    instance_groups = df.groupby(['set_name', 'nodes', 'k_zero', 'scenarios'])
     avg_rows = []
-    for name, group in grouped:
+    for name, group in instance_groups:
+        # name is a tuple of the form (set_name, nodes, k_zero, scenarios)
         # max_k = grouped['policies'].max()
-        new_rows = k_meanrows(group)
+        new_rows = average_by_run(group)
         avg_rows.extend(new_rows)
     avg_df = pd.DataFrame(avg_rows)
     return avg_df
 
 
-def read_results_data(args):
-    csv = args.set_name[0] + '.csv'
-    csvpath = os.path.join('results', csv)
-    df = pd.read_csv(csvpath)
+def read_results_data():
+    csv = "final.csv"
+    df = pd.read_csv(csv)
     return df
 
 def write_latex_table(args, df, out):
-    latex_csv = args.set_name[0] + '-latex.csv'
-    latex_csv_path = os.path.join('results', latex_csv)
+    latex_csv = append_date('final') + '.csv'
+    latex_csv_path = os.path.join('latex', latex_csv)
     df.to_csv(path_or_buf=latex_csv_path, sep='&',
               columns=out.output_columns, index=False)
     return latex_csv_path
@@ -223,19 +225,14 @@ def main():
     parser = argparse.ArgumentParser(
         prog='AspiLatexTable',
         description='Create a latex table from a results csv for an Aspi computational experiment.')
-    parser.add_argument('set_name', metavar='S', type=str, nargs=1, default=ALL_INSTANCES,
-                        choices=[ALL_INSTANCES, BE_INSTANCES, MIPSYM_INSTANCES, LAYERRATIO_INSTANCES],
-                        help='name of experiment set - ' + ALL_INSTANCES + ' or ' + BE_INSTANCES + ' or ' + LAYERRATIO_INSTANCES + ' or '+ MIPSYM_INSTANCES)
     parser.add_argument('experiment_type', metavar='E', type=str, nargs=1, default=ALL_TYPENAME,
                         choices=[ALL_TYPENAME, BE_TYPENAME, MIPSYM_TYPENAME],
                         help='name of experiment type - ' + ALL_TYPENAME + ' or ' + BE_TYPENAME + ' or ' + MIPSYM_TYPENAME)
     args = parser.parse_args()
-    run_df = read_results_data(args)
+    run_df = read_results_data()
     out_structure = OutputStructure(args.experiment_type[0])
-    if out_structure.approximation_ratio: compute_approximation_ratio(run_df, out_structure)
-    compute_adaptive_increment(run_df, out_structure)
-    if out_structure.BE_ratio: compute_bendersenum_ratio(run_df)
-    avg_df = take_averages(run_df)
+    # if out_structure.BE_ratio: compute_bendersenum_ratio(run_df)
+    avg_df = group_by_instance_average_by_run(run_df)
     post_cleanup(avg_df, out_structure)
     latex_table_path = write_latex_table(args, avg_df, out_structure)
     final_table_cleanup(latex_table_path)

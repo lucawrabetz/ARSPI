@@ -14,6 +14,11 @@ from lib.compute import (
     Row,
 )
 
+EXCLUDE_RATIO = {
+    "solver": "MIP",
+    "solver": "BENDERS",
+    "solver": "ENUMERATION",
+}
 EXCLUDE_EXACT = {
     "set_name": "layer",
     "solver": "MIP",
@@ -37,12 +42,67 @@ def get_max(df, col):
         return -1
 
 
+def skip_row(row, exclude):
+    for key, value in exclude.items():
+        if row[key] == value:
+            return True
+    return False
+
+
+def add_uninterdicted_shortest_path_column(df):
+    shortest_path_objectives = {}
+    uninterdicted_column = []
+    for _, row in df.iterrows():
+        this_instance_cols = [row[f.name] for f in COLS["same_instance"]]
+        instance_key = tuple(this_instance_cols)
+        if row["policies"] == 0:
+            shortest_path_objectives[instance_key] = row["objective"]
+    for _, row in df.iterrows():
+        this_instance_cols = [row[f.name] for f in COLS["same_instance"]]
+        instance_key = tuple(this_instance_cols)
+        try:
+            uninterdicted_column.append(shortest_path_objectives[instance_key])
+        except KeyError:
+            print("KeyError (no uninterdicted shortest path objective): ", instance_key)
+            uninterdicted_column.append(-1)
+    df["uninterdicted_shortest_path"] = uninterdicted_column
+    
+
+def replace_zero_with_usp(row):
+    if row["objective"] == 0 and row["solver"] == "ENUMERATION":
+        # TODO: (LW) logging
+        return row["uninterdicted_shortest_path"]
+    else:
+        return row["objective"]
+
+# TODO: (LW) replacing the enumeration zeros, a cleaning operation, is essentially
+# considered a "slow constant" by its inclusion in this script.
+# This is a bit of a code smell to me, as it doesn't add a specific column or constant, 
+# yet including it in cleanup_to_processed() also smells as it requires the
+# uninterdicted_shortest_path column to be added, which I prefer to consider a slow constant,
+# not to be computed in cleanups.
+def replace_enumeration_zeros(df):
+    df["objective"] = df.apply(replace_zero_with_usp, axis=1)
+
+
+def add_adaptive_increment(df):
+    """
+    Add new column for the following ratio:
+    for a row, the ratio = (objective) / (objective value of same instance with policies = 0)
+    """
+    df["adaptive_increment"] = df["objective"] / df["uninterdicted_shortest_path"]
+
+
 def add_empirical_ratio(df):
     max_column = "objective"
     best_objective_values = []
     best_optimal_values = []
     same_run_cols = [c.name for c in COLS["same_run"]]
     for index, row in df.iterrows():
+        if skip_row(row, EXCLUDE_RATIO):
+            best_objective_values.append(-1)
+            best_optimal_values.append(-1)
+            continue
         objective_mask = df[same_run_cols].eq(row[same_run_cols]).all(axis=1)
         optimal_mask = df[same_run_cols].eq(row[same_run_cols]).all(axis=1) & (
             df["optimal"] == "OPTIMAL"
@@ -58,12 +118,6 @@ def add_empirical_ratio(df):
     df.loc[df["best_objective"] == -1, "empirical_suboptimal_ratio"] = -1
     df.loc[df["best_optimal"] == -1, "empirical_optimal_ratio"] = -1
     return df
-
-
-def skip_row(row, exclude):
-    for key, value in exclude.items():
-        if row[key] == value:
-            return True
 
 
 def add_exact_alpha(df):
@@ -159,10 +213,15 @@ def main():
     parser.add_argument("file_path", help="Path to the CSV file")
     args = parser.parse_args()
     df = pd.read_csv(args.file_path)
-    common_cleanup(df)
-    add_empirical_ratio(df)
-    add_alphas(df)
-    final_write(df, args.file_path)
+    cleanup_to_processed(df)
+    data_df = cleanup_to_finished(df)
+    del df
+    # add_empirical_ratio(data_df)
+    add_uninterdicted_shortest_path_column(data_df)
+    replace_enumeration_zeros(data_df)
+    add_adaptive_increment(data_df)
+    # add_alphas(data_df)
+    final_write(data_df, args.file_path)
 
 
 if __name__ == "__main__":

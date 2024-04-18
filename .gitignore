@@ -43,11 +43,12 @@ makefile
 
 # ASPI instance, raw experiment outputs, results, image plots (stored in Dropbox)
 instances/
-raw/
 results/
 images/
 exp/figures/
 exp/instances/
+exp/raw
+exp/backups
 exp/*.csv
 exp/*.ipynb
 

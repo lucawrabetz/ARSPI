@@ -13,7 +13,9 @@ OUTPUT_COLUMNS = [
     "m_sym",
     "g_sym",
     "gap",
+    "empirical_suboptimal_ratio",
     "exact_alpha",
+    "adaptive_increment",
 ]
 COMPRESSED_OUTPUT_COLUMNS = [
     "set_name",
@@ -28,7 +30,9 @@ COMPRESSED_OUTPUT_COLUMNS = [
     "m_sym",
     "g_sym",
     "gap",
+    "empirical_suboptimal_ratio",
     "exact_alpha",
+    "adaptive_increment",
 ]
 AVG_NOT_MATCH = [
     "time",
@@ -73,8 +77,6 @@ def filter_dataframe(df, args, solver):
 
 
 def main():
-    # TODO: (LW) this function should be refactored out, should always accept all columns from the data model.
-    # If a column is added to the data model, the parser for it should automatically accept it.
     parser = argparse.ArgumentParser(description="Filter CSV file based on criteria.")
     parser.add_argument("file_path", help="Path to the CSV file")
     parser.add_argument("--set_name", type=str, help="Filter by set name")
@@ -137,8 +139,11 @@ def main():
         print("Error: File not found.")
         return
 
-    # COMMON CLEANUP
-    common_cleanup(df)
+    cleanup_to_processed(df)
+    data_df = cleanup_to_finished(df)
+    pretty_df = cleanup_to_pretty(data_df)
+    del df
+    del data_df
 
     print("\n")
     if solver:
@@ -159,7 +164,7 @@ def main():
     else:
         colname_map = COLLOG["compressed"]
 
-    filtered_df = filter_dataframe(df, vars(args), solver)
+    filtered_df = filter_dataframe(pretty_df, vars(args), solver)
 
     if filtered_df.empty:
         print("No matching rows found.")

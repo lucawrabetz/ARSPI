@@ -4,6 +4,9 @@ from typing import Dict, Any
 import pandas as pd
 from datetime import date
 
+FINALCSVFILE = "final.csv"
+FINALCSVPATH = os.path.join("final.csv")
+BACKUPS = "backups"
 
 # GLOBAL COLUMN SET UP
 # BASE COLUMN SETS (SMALL BUILDING BLOCKS)
@@ -12,6 +15,19 @@ class feature:
     def __init__(self, name: str, default: Any):
         self.name = name
         self.default = default
+
+# TODO: subclasses for features:
+# class input_feature(feature):
+# class parameter_feature(feature):
+# class hyperparameter_feature(feature):
+# class output_feature(feature):
+
+# TODO: solver class?
+# subclass of a row?
+# class row
+# class BendersRow(row)
+# class MipRow(row)
+# ...
 
 
 COLS = {
@@ -75,6 +91,8 @@ COLS = {
         feature("alpha_hat_one_time_s", -1),
         feature("alpha_hat_two", -1),
         feature("alpha_hat_two_time_s", -1),
+        feature("uninterdicted_shortest_path", -1),
+        feature("adaptive_increment", -1),
     ],
 }
 
@@ -202,6 +220,7 @@ COLLOG = {
         "alpha_hat_one_time_s": "Alpha Hat One Time (s)",
         "alpha_hat_two": "Alpha Hat Two",
         "alpha_hat_two_time_s": "Alpha Hat Two Time (s)",
+        "adaptive_increment": "Adaptive Increment",
     },
     "compressed": {
         "set_name": "Set",
@@ -240,6 +259,7 @@ COLLOG = {
         "alpha_hat_one_time_s": "a_hat1_T (s)",
         "alpha_hat_two": "a_hat2",
         "alpha_hat_two_time_s": "a_hat2_T (s)",
+        "adaptive_increment": "a_inc",
     },
 }
 
@@ -279,7 +299,7 @@ def append_date(exp_name: str):
     return name
 
 
-def check_make_dir(path: str, i: int):
+def check_make_dir(path: str, i: int, makedir: bool = True):
     """
     Recursively check if an experiment directory exists, or create one with the highest number
         - example - if "path" string is "/dat/experiments/test-01_29_22", and there already exist:
@@ -297,7 +317,8 @@ def check_make_dir(path: str, i: int):
 
     # base case - create directory for given i (and return final path)
     else:
-        os.mkdir(path + "-" + str(i))
+        if makedir:
+            os.mkdir(path + "-" + str(i))
         return path + "-" + str(i)
 
 
@@ -378,29 +399,58 @@ def print_finished_row(row):
     )
 
 
-# TODO: in common_cleanup, we should replace 0 objective (NOT_OPTIMAL) rows for the enumeration algorithm, to the uninterdicted shortest path value.
-def common_cleanup(df):
+def remove_samerun_duplicates(df):
     """
-    1. Add any missing columns using defaults to meet COLS["processed"].
-    2. Add quick processing columns to meet COLS["finished"].
+    Remove duplicates for the same exact run parameters and hyperparameters.
+    Keep the row with the highest objective, splitting ties by running time (minimum chosen).
+    Make changes to df in place.
     """
-    # to processed.
+    mathing_colnames = [f.name for f in COLS["same_run_hyperparams"]]
+    df.sort_values(
+        by=["objective", "time"], ascending=[False, True], inplace=True
+    )
+    df.drop_duplicates(subset=mathing_colnames, keep="first", inplace=True)
+    print("Removed rows with same run parameters and hyperparameters.")
+
+
+def cleanup_to_processed(df):
+    """
+    Add any missing columns using defaults to meet COLS["processed"].
+    """
     add_cols = {
         key.name: key.default
         for key in COLS["processed"]
         if key.name not in set(df.columns)
     }
     for col, val in add_cols.items():
+        print("Adding column ", col, " with default ", val, ".")
         df[col] = val
-    # to finished.
-    add_seconds_columns(df)
+    pass
+
+
+def cleanup_to_finished(df) -> Any:
+    """
+    Remove same run dups, and add quick processing columns to meet COLS["finished"].
+    Returns a new dataframe to use, so as not to make changes to raw df.
+    """
+    data_df = df.copy()
+    remove_samerun_duplicates(df)
+    add_seconds_columns(data_df)
+    return data_df
+
+def cleanup_to_pretty(df) -> Any:
+    """
+    Rounding and stuff that only matters for printing / tables etc, but we don't want to do the raw data.
+    """
+    pretty_df = df.copy()
+    round(pretty_df)
+    return pretty_df
 
 
 def final_write(df, path):
     """
     Always starts with a df with "finished" columns, because common_clenup was called.
     """
-    round(df)
     df.to_csv(
         path, columns=[c.name for c in COLS["processed"]], header=True, index=False
     )
