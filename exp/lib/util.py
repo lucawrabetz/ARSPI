@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import Dict, Any
+from typing import Dict, Any, List
 import pandas as pd
 from datetime import date
 
@@ -16,6 +16,13 @@ class feature:
         self.name = name
         self.default = default
 
+class solver:
+    def __init__(self, name: str, parameters: List[feature], latex_output_features: List[feature]):
+        self.name = name
+        self.parameters = parameters
+        self.latex_output_features = latex_output_features
+
+
 # TODO: subclasses for features:
 # class input_feature(feature):
 # class parameter_feature(feature):
@@ -29,70 +36,110 @@ class feature:
 # class MipRow(row)
 # ...
 
+SET_NAME = feature("set_name", "layer")
+INSTANCE_NAME = feature("instance_name", "layer_123")
+NODES = feature("nodes", 123)
+ARCS = feature("arcs", 1231)
+K_ZERO = feature("k_zero", 5)
+DENSITY = feature("density", 1231 / (123 * 122))
+SCENARIOS = feature("scenarios", 5)
+BUDGET = feature("budget", 5)
+POLICIES = feature("policies", 2)
+SOLVER = feature("solver", "MIP")
+M_SYM = feature("m_sym", -1)
+G_SYM = feature("g_sym", -1)
+SUBSOLVER = feature("subsolver", "NONE")
+OBJECTIVE = feature("objective", 0.0)
+UNBOUNDED = feature("unbounded", "NOT_UNBOUNDED"),
+OPTIMAL = feature("optimal", "OPTIMAL"),
+PARTITION = feature("partition", "0-1-1-0-0"),
+CUTS_ROUNDS = feature("cuts_rounds", 0)
+CUTS_ADDED = feature("cuts_added", 0)
+GAP = feature("gap", 0.0),
+AVG_CBTIME = feature("avg_cbtime", 0.0),
+AVG_SPTIME = feature("avg_sptime", 0.0), 
+TIME = feature("time", 0.0),
+EMPIRICAL_OPTIMAL_RATIO = feature("empirical_optimal_ratio", -1),
+EMPIRICAL_SUBOPTIMAL_RATIO = feature("empirical_suboptimal_ratio", -1),
+BEST_OPTIMAL = feature("best_optimal", -1),
+BEST_OBJECTIVE = feature("best_objective", -1),
+EXACT_ALPHA = feature("exact_alpha", -1),
+EXACT_ALPHA_TIME_S = feature("exact_alpha_time_s", -1),
+ALPHA_HAT_ONE = feature("alpha_hat_one", -1),
+ALPHA_HAT_ONE_TIME_S = feature("alpha_hat_one_time_s", -1),
+ALPHA_HAT_TWO = feature("alpha_hat_two", -1),
+ALPHA_HAT_TWO_TIME_S = feature("alpha_hat_two_time_s", -1),
+UNINTERDICTED_SHORTEST_PATH = feature("uninterdicted_shortest_path", -1),
+ADAPTIVE_INCREMENT = feature("adaptive_increment", -1),
+
+MIP = solver("MIP", [M_SYM, G_SYM])
+BENDERS = solver("BENDERS", [M_SYM, G_SYM])
+ENUMERATION = solver("ENUMERATION", [M_SYM, G_SYM, SUBSOLVER])
+GREEDY = solver("GREEDY", [SUBSOLVER])
 
 COLS = {
     "name_inputs_str": [
-        feature("set_name", "layer"),
-        feature("instance_name", "layer_123"),
+        SET_NAME,
+        INSTANCE_NAME,
     ],
     "graph_inputs_int": [
-        feature("nodes", 123),
-        feature("arcs", 1231),
-        feature("k_zero", 5),
+        NODES,
+        ARCS,
+        K_ZERO,
     ],
     "graph_inputs_rat": [
-        feature("density", 1231 / (123 * 122)),
+        DENSITY,
     ],
     "cost_instance_inputs_int": [
-        feature("scenarios", 5),
+        SCENARIOS,
     ],
     "run_input_params_int": [
-        feature("budget", 5),
-        feature("policies", 2),
+        BUDGET,
+        POLICIES,
     ],
     "run_input_hyperparams_int": [
-        feature("m_sym", -1),
-        feature("g_sym", -1),
+        M_SYM,
+        G_SYM,
     ],
     "run_input_hyperparams_cat": [
-        feature("subsolver", "NONE"),
+        SUBSOLVER,
     ],
     "run_input_params_cat": [
-        feature("solver", "MIP"),
+        SOLVER,
     ],
     "solution_outputs_rat": [
-        feature("objective", 0.0),
+        OBJECTIVE,
     ],
     "solution_outputs_cat": [
-        feature("unbounded", "NOT_UNBOUNDED"),
-        feature("optimal", "OPTIMAL"),
-        feature("partition", "0-1-1-0-0"),
+        UNBOUNDED,
+        OPTIMAL,
+        PARTITION,
     ],
     "model_outputs_int": [
-        feature("cuts_rounds", 0),
-        feature("cuts_added", 0),
+        CUTS_ROUNDS,
+        CUTS_ADDED,
     ],
     "model_outputs_rat": [
-        feature("gap", 0.0),
+        GAP,
     ],
     "time_outputs_rat": [
-        feature("avg_cbtime", 0.0),
-        feature("avg_sptime", 0.0),
-        feature("time", 0.0),
+        AVG_CBTIME,
+        AVG_SPTIME,
+        TIME,
     ],
     "slow_constants": [
-        feature("empirical_optimal_ratio", -1),
-        feature("empirical_suboptimal_ratio", -1),
-        feature("best_optimal", -1),
-        feature("best_objective", -1),
-        feature("exact_alpha", -1),
-        feature("exact_alpha_time_s", -1),
-        feature("alpha_hat_one", -1),
-        feature("alpha_hat_one_time_s", -1),
-        feature("alpha_hat_two", -1),
-        feature("alpha_hat_two_time_s", -1),
-        feature("uninterdicted_shortest_path", -1),
-        feature("adaptive_increment", -1),
+        EMPIRICAL_OPTIMAL_RATIO,
+        EMPIRICAL_SUBOPTIMAL_RATIO,
+        BEST_OPTIMAL,
+        BEST_OBJECTIVE,
+        EXACT_ALPHA,
+        EXACT_ALPHA_TIME_S,
+        ALPHA_HAT_ONE,
+        ALPHA_HAT_ONE_TIME_S,
+        ALPHA_HAT_TWO,
+        ALPHA_HAT_TWO_TIME_S,
+        UNINTERDICTED_SHORTEST_PATH,
+        ADAPTIVE_INCREMENT,
     ],
 }
 
