@@ -72,10 +72,10 @@ ALPHA_HAT_TWO_TIME_S = feature("alpha_hat_two_time_s", -1),
 UNINTERDICTED_SHORTEST_PATH = feature("uninterdicted_shortest_path", -1),
 ADAPTIVE_INCREMENT = feature("adaptive_increment", -1),
 
-MIP = solver("MIP", [M_SYM, G_SYM])
-BENDERS = solver("BENDERS", [M_SYM, G_SYM])
-ENUMERATION = solver("ENUMERATION", [M_SYM, G_SYM, SUBSOLVER])
-GREEDY = solver("GREEDY", [SUBSOLVER])
+MIP = solver("MIP", [M_SYM, G_SYM], [])
+BENDERS = solver("BENDERS", [M_SYM, G_SYM], [])
+ENUMERATION = solver("ENUMERATION", [M_SYM, G_SYM, SUBSOLVER], [])
+GREEDY = solver("GREEDY", [SUBSOLVER], [])
 
 COLS = {
     "name_inputs_str": [
