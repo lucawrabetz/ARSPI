@@ -1,5 +1,4 @@
 import pandas as pd
-import argparse
 from lib.util import *
 
 OUTPUT_COLUMNS = [
@@ -77,27 +76,10 @@ def filter_dataframe(df, args, solver):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Filter CSV file based on criteria.")
-    parser.add_argument("file_path", help="Path to the CSV file")
-    parser.add_argument("--set_name", type=str, help="Filter by set name")
-    parser.add_argument("--nodes", type=int, help="Filter by number of nodes")
-    parser.add_argument("--arcs", type=int, help="Filter by number of arcs")
-    parser.add_argument("--k_zero", type=int, help="Filter by k zero")
-    parser.add_argument("--scenarios", type=int, help="Filter by number of scenarios")
-    parser.add_argument("--budget", type=int, help="Filter by budget")
-    parser.add_argument("--policies", type=int, help="Filter by number of policies")
-    parser.add_argument("--objective", type=float, help="Filter by number of policies")
-    parser.add_argument("--solver", type=str, help="Filter by solver")
-    parser.add_argument("--optimal", type=str, help="Filter by optimality")
-    parser.add_argument("--subsolver", type=str, help="Filter by solver")
-    parser.add_argument("--m_sym", type=int, help="Filter by manual symmetry")
-    parser.add_argument("--g_sym", type=int, help="Filter by gurobi symmetry")
-    parser.add_argument(
-        "--average", action="store_true", help="Flag to average the matching rows"
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Verbose column header output"
-    )
+    parser = FeatureFilteringArgParser("Query CSV file while filtering on features.")
+    parser.add_feature_args(COLS["processed"])
+    parser.add_custom_storetruearg("--verbose")
+    parser.add_custom_storetruearg("--average")
 
     args = parser.parse_args()
     if args.solver:
@@ -134,7 +116,7 @@ def main():
         COMPRESSED_OUTPUT_COLUMNS.append("avg_sptime")
 
     try:
-        df = pd.read_csv(args.file_path)
+        df = pd.read_csv(FINALCSVPATH)
     except FileNotFoundError:
         print("Error: File not found.")
         return

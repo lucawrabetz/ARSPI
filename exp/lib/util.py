@@ -1,4 +1,5 @@
 import os
+import argparse
 import warnings
 from typing import Dict, Any, List
 import pandas as pd
@@ -15,6 +16,7 @@ class feature:
     def __init__(self, name: str, default: Any):
         self.name = name
         self.default = default
+        self.type = type(default)
 
 class solver:
     def __init__(self, name: str, parameters: List[feature], latex_output_features: List[feature]):
@@ -50,27 +52,30 @@ M_SYM = feature("m_sym", -1)
 G_SYM = feature("g_sym", -1)
 SUBSOLVER = feature("subsolver", "NONE")
 OBJECTIVE = feature("objective", 0.0)
-UNBOUNDED = feature("unbounded", "NOT_UNBOUNDED"),
-OPTIMAL = feature("optimal", "OPTIMAL"),
-PARTITION = feature("partition", "0-1-1-0-0"),
+UNBOUNDED = feature("unbounded", "NOT_UNBOUNDED")
+OPTIMAL = feature("optimal", "OPTIMAL")
+PARTITION = feature("partition", "0-1-1-0-0")
 CUTS_ROUNDS = feature("cuts_rounds", 0)
 CUTS_ADDED = feature("cuts_added", 0)
-GAP = feature("gap", 0.0),
-AVG_CBTIME = feature("avg_cbtime", 0.0),
-AVG_SPTIME = feature("avg_sptime", 0.0), 
-TIME = feature("time", 0.0),
-EMPIRICAL_OPTIMAL_RATIO = feature("empirical_optimal_ratio", -1),
-EMPIRICAL_SUBOPTIMAL_RATIO = feature("empirical_suboptimal_ratio", -1),
-BEST_OPTIMAL = feature("best_optimal", -1),
-BEST_OBJECTIVE = feature("best_objective", -1),
-EXACT_ALPHA = feature("exact_alpha", -1),
-EXACT_ALPHA_TIME_S = feature("exact_alpha_time_s", -1),
-ALPHA_HAT_ONE = feature("alpha_hat_one", -1),
-ALPHA_HAT_ONE_TIME_S = feature("alpha_hat_one_time_s", -1),
-ALPHA_HAT_TWO = feature("alpha_hat_two", -1),
-ALPHA_HAT_TWO_TIME_S = feature("alpha_hat_two_time_s", -1),
-UNINTERDICTED_SHORTEST_PATH = feature("uninterdicted_shortest_path", -1),
-ADAPTIVE_INCREMENT = feature("adaptive_increment", -1),
+GAP = feature("gap", 0.0)
+AVG_CBTIME = feature("avg_cbtime", 0.0)
+AVG_SPTIME = feature("avg_sptime", 0.0)
+TIME = feature("time", 0.0)
+AVG_CBTIME_S = feature("avg_cbtime_s", 0.0)
+AVG_SPTIME_S = feature("avg_sptime_s", 0.0)
+TIME_S = feature("time_s", 0.0)
+EMPIRICAL_OPTIMAL_RATIO = feature("empirical_optimal_ratio", -1)
+EMPIRICAL_SUBOPTIMAL_RATIO = feature("empirical_suboptimal_ratio", -1)
+BEST_OPTIMAL = feature("best_optimal", -1)
+BEST_OBJECTIVE = feature("best_objective", -1)
+EXACT_ALPHA = feature("exact_alpha", -1)
+EXACT_ALPHA_TIME_S = feature("exact_alpha_time_s", -1)
+ALPHA_HAT_ONE = feature("alpha_hat_one", -1)
+ALPHA_HAT_ONE_TIME_S = feature("alpha_hat_one_time_s", -1)
+ALPHA_HAT_TWO = feature("alpha_hat_two", -1)
+ALPHA_HAT_TWO_TIME_S = feature("alpha_hat_two_time_s", -1)
+UNINTERDICTED_SHORTEST_PATH = feature("uninterdicted_shortest_path", -1)
+ADAPTIVE_INCREMENT = feature("adaptive_increment", -1)
 
 MIP = solver("MIP", [M_SYM, G_SYM], [])
 BENDERS = solver("BENDERS", [M_SYM, G_SYM], [])
@@ -127,6 +132,11 @@ COLS = {
         AVG_SPTIME,
         TIME,
     ],
+    "time_outputs_s_rat": [
+        AVG_CBTIME_S,
+        AVG_SPTIME_S,
+        TIME_S,
+    ],
     "slow_constants": [
         EMPIRICAL_OPTIMAL_RATIO,
         EMPIRICAL_SUBOPTIMAL_RATIO,
@@ -175,9 +185,6 @@ COLS["raw"] = COLS["inputs"] + COLS["outputs"]
 # "processed" by slow computations in add_ratios.py. (persistent / db)
 COLS["processed"] = COLS["raw"] + COLS["slow_constants"]
 # "finished" by fast clean up in common_cleanup() (local to callstack)
-COLS["time_outputs_s_rat"] = [
-    feature(i.name + "_s", 0.0) for i in COLS["time_outputs_rat"]
-]
 COLS["logging_run_header"] = COLS["name_inputs_str"] + COLS["run_inputs"]
 COLS["logging_outputs"] = COLS["solution_outputs"] + COLS["time_outputs_s_rat"]
 COLS["finished"] = COLS["processed"] + COLS["time_outputs_s_rat"]
@@ -228,6 +235,23 @@ all_columns = set([])
 for d in COLS.values():
     for key in d:
         all_columns.add(key)
+
+class FeatureFilteringArgParser:
+    def __init__(self, description: str = ""):
+        self.parser = argparse.ArgumentParser(description=description)
+
+    def add_feature_args(self, features: List[feature]):
+        for f in features:
+            argflag = "--" + f.name
+            helpmsg = "Filter by " + f.name + "."
+            self.parser.add_argument(argflag, type=f.type, help=helpmsg)
+
+    def add_custom_storetruearg(self, argflag: str, helpmsg: str = ""):
+        self.parser.add_argument(argflag, action="store_true", help=helpmsg)
+
+    def parse_args(self):
+        return self.parser.parse_args()
+
 
 COLLOG = {
     "pretty": {
