@@ -76,12 +76,12 @@ def filter_dataframe(df, args, solver):
 
 
 def main():
-    parser = FeatureFilteringArgParser("Query CSV file while filtering on features.")
+    parser = FeatureArgParser("Query CSV file while filtering on features.")
     parser.add_feature_args(COLS["processed"])
     parser.add_custom_storetruearg("--verbose")
     parser.add_custom_storetruearg("--average")
-
     args = parser.parse_args()
+
     if args.solver:
         solver = get_solver_from_flag(args.solver)
     else:
@@ -129,7 +129,7 @@ def main():
 
     print("\n")
     if solver:
-        print("Filtering on solver: " + solver)
+        print("Filtering on solver: " + solver.name)
     print("Arguments:\n")
     print(
         "".join(
@@ -146,7 +146,8 @@ def main():
     else:
         colname_map = COLLOG["compressed"]
 
-    filtered_df = filter_dataframe(pretty_df, vars(args), solver)
+    filterer = DataFilterer(args, solver)
+    filtered_df = filterer.filter(pretty_df)
 
     if filtered_df.empty:
         print("No matching rows found.")

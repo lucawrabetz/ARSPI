@@ -12,75 +12,84 @@ BACKUPS = "backups"
 # GLOBAL COLUMN SET UP
 # BASE COLUMN SETS (SMALL BUILDING BLOCKS)
 # BASE / BUILDING BLOCKS, LISTS HARD-INITIALIZED
-class feature:
+class Feature:
     def __init__(self, name: str, default: Any):
         self.name = name
         self.default = default
         self.type = type(default)
 
-class solver:
-    def __init__(self, name: str, parameters: List[feature], latex_output_features: List[feature]):
+class Solver:
+    def __init__(self, name: str, parameters: List[Feature], latex_output_features: List[Feature]):
         self.name = name
         self.parameters = parameters
         self.latex_output_features = latex_output_features
 
 
 # TODO: subclasses for features:
-# class input_feature(feature):
-# class parameter_feature(feature):
-# class hyperparameter_feature(feature):
-# class output_feature(feature):
+# class input_feature(Feature):
+# class parameter_feature(Feature):
+# class hyperparameter_feature(Feature):
+# class output_feature(Feature):
 
-# TODO: solver class?
+# TODO: Solver class?
 # subclass of a row?
 # class row
 # class BendersRow(row)
 # class MipRow(row)
 # ...
 
-SET_NAME = feature("set_name", "layer")
-INSTANCE_NAME = feature("instance_name", "layer_123")
-NODES = feature("nodes", 123)
-ARCS = feature("arcs", 1231)
-K_ZERO = feature("k_zero", 5)
-DENSITY = feature("density", 1231 / (123 * 122))
-SCENARIOS = feature("scenarios", 5)
-BUDGET = feature("budget", 5)
-POLICIES = feature("policies", 2)
-SOLVER = feature("solver", "MIP")
-M_SYM = feature("m_sym", -1)
-G_SYM = feature("g_sym", -1)
-SUBSOLVER = feature("subsolver", "NONE")
-OBJECTIVE = feature("objective", 0.0)
-UNBOUNDED = feature("unbounded", "NOT_UNBOUNDED")
-OPTIMAL = feature("optimal", "OPTIMAL")
-PARTITION = feature("partition", "0-1-1-0-0")
-CUTS_ROUNDS = feature("cuts_rounds", 0)
-CUTS_ADDED = feature("cuts_added", 0)
-GAP = feature("gap", 0.0)
-AVG_CBTIME = feature("avg_cbtime", 0.0)
-AVG_SPTIME = feature("avg_sptime", 0.0)
-TIME = feature("time", 0.0)
-AVG_CBTIME_S = feature("avg_cbtime_s", 0.0)
-AVG_SPTIME_S = feature("avg_sptime_s", 0.0)
-TIME_S = feature("time_s", 0.0)
-EMPIRICAL_OPTIMAL_RATIO = feature("empirical_optimal_ratio", -1)
-EMPIRICAL_SUBOPTIMAL_RATIO = feature("empirical_suboptimal_ratio", -1)
-BEST_OPTIMAL = feature("best_optimal", -1)
-BEST_OBJECTIVE = feature("best_objective", -1)
-EXACT_ALPHA = feature("exact_alpha", -1)
-EXACT_ALPHA_TIME_S = feature("exact_alpha_time_s", -1)
-ALPHA_HAT_ONE = feature("alpha_hat_one", -1)
-ALPHA_HAT_ONE_TIME_S = feature("alpha_hat_one_time_s", -1)
-ALPHA_HAT_TWO = feature("alpha_hat_two", -1)
-ALPHA_HAT_TWO_TIME_S = feature("alpha_hat_two_time_s", -1)
-UNINTERDICTED_SHORTEST_PATH = feature("uninterdicted_shortest_path", -1)
-ADAPTIVE_INCREMENT = feature("adaptive_increment", -1)
+SET_NAME = Feature("set_name", "layer")
+INSTANCE_NAME = Feature("instance_name", "layer_123")
+NODES = Feature("nodes", 123)
+ARCS = Feature("arcs", 1231)
+K_ZERO = Feature("k_zero", 5)
+DENSITY = Feature("density", 1231 / (123 * 122))
+SCENARIOS = Feature("scenarios", 5)
+BUDGET = Feature("budget", 5)
+POLICIES = Feature("policies", 2)
+SOLVER = Feature("solver", "MIP")
+M_SYM = Feature("m_sym", -1)
+G_SYM = Feature("g_sym", -1)
+SUBSOLVER = Feature("subsolver", "NONE")
+OBJECTIVE = Feature("objective", 0.0)
+UNBOUNDED = Feature("unbounded", "NOT_UNBOUNDED")
+OPTIMAL = Feature("optimal", "OPTIMAL")
+PARTITION = Feature("partition", "0-1-1-0-0")
+CUTS_ROUNDS = Feature("cuts_rounds", 0)
+CUTS_ADDED = Feature("cuts_added", 0)
+GAP = Feature("gap", 0.0)
+AVG_CBTIME = Feature("avg_cbtime", 0.0)
+AVG_SPTIME = Feature("avg_sptime", 0.0)
+TIME = Feature("time", 0.0)
+AVG_CBTIME_S = Feature("avg_cbtime_s", 0.0)
+AVG_SPTIME_S = Feature("avg_sptime_s", 0.0)
+TIME_S = Feature("time_s", 0.0)
+EMPIRICAL_OPTIMAL_RATIO = Feature("empirical_optimal_ratio", -1)
+EMPIRICAL_SUBOPTIMAL_RATIO = Feature("empirical_suboptimal_ratio", -1)
+BEST_OPTIMAL = Feature("best_optimal", -1)
+BEST_OBJECTIVE = Feature("best_objective", -1)
+EXACT_ALPHA = Feature("exact_alpha", -1)
+EXACT_ALPHA_TIME_S = Feature("exact_alpha_time_s", -1)
+ALPHA_HAT_ONE = Feature("alpha_hat_one", -1)
+ALPHA_HAT_ONE_TIME_S = Feature("alpha_hat_one_time_s", -1)
+ALPHA_HAT_TWO = Feature("alpha_hat_two", -1)
+ALPHA_HAT_TWO_TIME_S = Feature("alpha_hat_two_time_s", -1)
+UNINTERDICTED_SHORTEST_PATH = Feature("uninterdicted_shortest_path", -1)
+ADAPTIVE_INCREMENT = Feature("adaptive_increment", -1)
 
-MIP = solver("MIP", [M_SYM, G_SYM], [])
-BENDERS = solver("BENDERS", [M_SYM, G_SYM], [])
-ENUMERATION = solver("ENUMERATION", [M_SYM, G_SYM, SUBSOLVER], [])
-GREEDY = solver("GREEDY", [SUBSOLVER], [])
+MIP = Solver("MIP", [M_SYM, G_SYM], [])
+BENDERS = Solver("BENDERS", [M_SYM, G_SYM], [])
+ENUMERATION = Solver("ENUMERATION", [M_SYM, G_SYM, SUBSOLVER], [])
+GREEDY = Solver("GREEDY", [SUBSOLVER], [])
+NONE = Solver("NONE", [], [])
+
+SOLVER_FLAGS = {
+    MIP: set({"m", "mip", "sp"}),
+    BENDERS: set({"b", "benders"}),
+    ENUMERATION: set({"e", "enum", "enumeration"}),
+    GREEDY: set({"g", "greedy"}),
+    NONE: set({"n", "none", "na"}),
+}
 
 COLS = {
     "name_inputs_str": [
@@ -218,39 +227,59 @@ COLS["rational"] = (
 
 DP = {key.name: 2 for key in COLS["rational"]}
 
-SOLVER_FLAGS = {
-    "MIP": set({"m", "mip", "sp"}),
-    "BENDERS": set({"b", "benders"}),
-    "ENUMERATION": set({"e", "enum", "enumeration"}),
-    "GREEDY": set({"g", "greedy"}),
-}
-
-SUBSOLVER_FLAGS = {
-    "MIP": set({"m", "mip", "sp"}),
-    "BENDERS": set({"b", "benders"}),
-    "NONE": set({"n", "none", "na"}),
-}
 
 all_columns = set([])
 for d in COLS.values():
     for key in d:
         all_columns.add(key)
 
-class FeatureFilteringArgParser:
-    def __init__(self, description: str = ""):
+class FeatureArgParser:
+    '''
+    Class to handle argument parsing where arguments are Feature - value pairs.
+    '''
+    def __init__(self, description: str = "") -> None:
         self.parser = argparse.ArgumentParser(description=description)
 
-    def add_feature_args(self, features: List[feature]):
+    def add_feature_args(self, features: List[Feature]) -> None:
         for f in features:
             argflag = "--" + f.name
             helpmsg = "Filter by " + f.name + "."
             self.parser.add_argument(argflag, type=f.type, help=helpmsg)
 
-    def add_custom_storetruearg(self, argflag: str, helpmsg: str = ""):
+    def add_custom_storetruearg(self, argflag: str, helpmsg: str = "") -> None:
         self.parser.add_argument(argflag, action="store_true", help=helpmsg)
 
-    def parse_args(self):
+    def parse_args(self) -> argparse.Namespace:
         return self.parser.parse_args()
+
+
+class DataFilterer:
+    '''
+    Class to handle filtering of main dataframe based on the Feature - value pairs held in a FeatureArgParser object.
+    '''
+    def __init__(self, args: argparse.Namespace, solver: Solver) -> None:
+        self.args = vars(args)
+        self.solver = solver
+
+    def filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        '''
+        Filter dataframe based on provided kwargs.
+        '''
+        mask = pd.Series(True, index=df.index)
+        for key, value in self.args.items():
+            if (
+                key != "file_path"
+                and key != "average"
+                and key != "solver"
+                and key != "verbose"
+                and value is not None
+            ):
+                mask = mask & (df[key] == value)
+        if self.solver:
+            mask = mask & (df["solver"] == self.solver.name)
+        return df[mask]
+
+
 
 
 COLLOG = {
