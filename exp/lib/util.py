@@ -1,23 +1,37 @@
 import os
 import argparse
 import warnings
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Type, TypeVar
 import pandas as pd
 from datetime import date
 
 FINALCSVFILE = "final.csv"
 FINALCSVPATH = os.path.join("final.csv")
 BACKUPS = "backups"
+FEATURE_TYPE = TypeVar('FEATURE_TYPE')
 
-# GLOBAL COLUMN SET UP
-# BASE COLUMN SETS (SMALL BUILDING BLOCKS)
-# BASE / BUILDING BLOCKS, LISTS HARD-INITIALIZED
+# TODO: substitute the generic TypeVar FEATURE_TYPE with a list of allowed types for features.
+# Consider doing this while also adding subclasses for some types of features.
+# Check conversation "explicit type hinting:..." in my chat gpt channel.
 class Feature:
-    def __init__(self, name: str, default: Any):
+    def __init__(self, name: str, feature_type: Type[FEATURE_TYPE], default: FEATURE_TYPE = None) -> None:
         self.name = name
         self.default = default
-        self.type = type(default)
+        self.type = feature_type
+        
+        if type(default) != feature_type:
+            warnings.warn(f"The type of default value '{default}' does not match the specified feature type '{feature_type}'.", Warning)
 
+
+# TODO:
+# we will always have:
+#   - we will declare all of our allowed solvers:
+#      - MIP = Solver("MIP", [M_SYM, G_SYM], [])
+#      - BENDERS = Solver("BENDERS", [M_SYM, G_SYM], []).... etc.
+#   - we will declare a solver = Feature("solver", MIP) - this is the solver COLUMN.
+#   - we will declare a subsolver = Feature("subsolver", NONE) - this is the subsolver COLUMN.
+#   - the Feature class is typed, so both solver and subsolver will be typed to Solver.
+#   - the only question is whether to add something to the variable solver to indicate that it is the column for the solver, and not the type Solver or a Solver object?
 class Solver:
     def __init__(self, name: str, parameters: List[Feature], latex_output_features: List[Feature]):
         self.name = name
@@ -233,7 +247,7 @@ for d in COLS.values():
     for key in d:
         all_columns.add(key)
 
-class FeatureArgParser:
+class RawFeatureArgParser:
     '''
     Class to handle argument parsing where arguments are Feature - value pairs.
     '''
@@ -252,6 +266,8 @@ class FeatureArgParser:
     def parse_args(self) -> argparse.Namespace:
         return self.parser.parse_args()
 
+class TypedFeatureArgParser:
+    pass
 
 class DataFilterer:
     '''
