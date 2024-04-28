@@ -1,7 +1,7 @@
 import os
 import argparse
 import warnings
-from typing import Dict, Any, List, Type, TypeVar
+from typing import Dict, Any, List, Set, Type, TypeVar
 import pandas as pd
 from datetime import date
 
@@ -14,13 +14,17 @@ FEATURE_TYPE = TypeVar('FEATURE_TYPE')
 # Consider doing this while also adding subclasses for some types of features.
 # Check conversation "explicit type hinting:..." in my chat gpt channel.
 class Feature:
-    def __init__(self, name: str, feature_type: Type[FEATURE_TYPE], default: FEATURE_TYPE = None) -> None:
+    def __init__(self, name: str, feature_type: Type[FEATURE_TYPE], default: FEATURE_TYPE = None, pretty_output_name: str = None, compressed_output_name: str = None) -> None:
         self.name = name
         self.default = default
         self.type = feature_type
+        if pretty_output_name: self.pretty_output_name = pretty_output_name
+        else: self.pretty_output_name = name
+        if compressed_output_name: self.compressed_output_name = compressed_output_name
+        else: self.compressed_output_name = name
         
         if type(default) != feature_type:
-            warnings.warn(f"The type of default value '{default}' does not match the specified feature type '{feature_type}'.", Warning)
+            warnings.warn("Feature " + name + " - The type of default value " + str(default) + " does not match the specified feature type " + str(feature_type) + ".", Warning)
 
 
 # TODO:
@@ -33,11 +37,33 @@ class Feature:
 #   - the Feature class is typed, so both solver and subsolver will be typed to Solver.
 #   - the only question is whether to add something to the variable solver to indicate that it is the column for the solver, and not the type Solver or a Solver object?
 class Solver:
-    def __init__(self, name: str, parameters: List[Feature], latex_output_features: List[Feature]):
+    def __init__(self, name: str):
         self.name = name
-        self.parameters = parameters
-        self.latex_output_features = latex_output_features
+        self.parameters: List[Feature] = []
+        self.latex_output_features: List[Feature] = []
+        self.commandline_flags: Set[str] = set()
 
+    def add_parameters(self, parameters: List[Feature]):
+        self.parameters.extend(parameters)
+
+    def add_latex_output_features(self, latex_output_features: List[Feature]):
+        self.latex_output_features.extend(latex_output_features)
+
+    def add_commandline_flags(self, commandline_flags: Set[str]):
+        self.commandline_flags.update(commandline_flags)
+
+MIP = Solver("MIP")
+MIP.add_commandline_flags({"m", "mip", "sp"})
+BENDERS = Solver("BENDERS")
+BENDERS.add_commandline_flags({"b", "benders"})
+ENUMERATION = Solver("ENUMERATION")
+ENUMERATION.add_commandline_flags({"e", "enum", "enumeration"})
+GREEDY = Solver("GREEDY")
+GREEDY.add_commandline_flags({"g", "greedy"})
+NONE = Solver("NONE")
+NONE.add_commandline_flags({"n", "none", "na"})
+
+SOLVERS = [MIP, BENDERS, ENUMERATION, GREEDY, NONE]
 
 # TODO: subclasses for features:
 # class input_feature(Feature):
@@ -45,68 +71,57 @@ class Solver:
 # class hyperparameter_feature(Feature):
 # class output_feature(Feature):
 
-# TODO: Solver class?
-# subclass of a row?
-# class row
-# class BendersRow(row)
-# class MipRow(row)
-# ...
 
-SET_NAME = Feature("set_name", str, "layer")
-INSTANCE_NAME = Feature("instance_name", str, "layer_123")
-NODES = Feature("nodes", int, 123)
-ARCS = Feature("arcs", int, 1231)
-K_ZERO = Feature("k_zero", int, 5)
-DENSITY = Feature("density", float, 1231 / (123 * 122))
-SCENARIOS = Feature("scenarios", int, 5)
-BUDGET = Feature("budget", int, 5)
-POLICIES = Feature("policies", int, 2)
-# TODO: SOLVER and SUBSOLVER should be typed to Solver.
-SOLVER = Feature("solver", str, "MIP")
-M_SYM = Feature("m_sym", int, -1)
-G_SYM = Feature("g_sym", int, -1)
-SUBSOLVER = Feature("subsolver", str, "NONE")
-OBJECTIVE = Feature("objective", float, 0.0)
-# TODO: could be an enum type (works for both UNBOUNDED and OPTIMAL)
-UNBOUNDED = Feature("unbounded", str, "NOT_UNBOUNDED")
-OPTIMAL = Feature("optimal", str, "OPTIMAL")
-PARTITION = Feature("partition", str, "0-1-1-0-0")
-CUTS_ROUNDS = Feature("cuts_rounds", int, 0)
-CUTS_ADDED = Feature("cuts_added", int, 0)
-GAP = Feature("gap", float, 0.0)
-AVG_CBTIME = Feature("avg_cbtime", float, 0.0)
-AVG_SPTIME = Feature("avg_sptime", float, 0.0)
-TIME = Feature("time", float, 0.0)
-AVG_CBTIME_S = Feature("avg_cbtime_s", float, 0.0)
-AVG_SPTIME_S = Feature("avg_sptime_s", float, 0.0)
-TIME_S = Feature("time_s", float, 0.0)
+SET_NAME = Feature("set_name", str, "layer", "Set Name", "Set")
+INSTANCE_NAME = Feature("instance_name", str, "layer_123", "Instance Name", "Instance")
+NODES = Feature("nodes", int, 123, "Nodes", "N")
+ARCS = Feature("arcs", int, 1231, "Arcs", "M")
+K_ZERO = Feature("k_zero", int, 5, "Groups", "k0")
+DENSITY = Feature("density", float, 1231 / (123 * 122), "Density", "D")
+SCENARIOS = Feature("scenarios", int, 5, "Followers", "P")
+BUDGET = Feature("budget", int, 5, "Budget", "r0")
+POLICIES = Feature("policies", int, 2, "Policies", "K")
+SOLVER = Feature("solver", Solver, MIP, "Solver", "Sol")
+M_SYM = Feature("m_sym", int, -1, "Manual Symmetry", "Msym")
+G_SYM = Feature("g_sym", int, -1, "Gurobi Symmetry", "Gsym")
+SUBSOLVER = Feature("subsolver", Solver, NONE, "Sub Solver", "Sub")
+OBJECTIVE = Feature("objective", float, 0.0, "Objective", "Obj")
+# TODO: could be an enum type (works for both UNBOUNDED and OPTIMAL).
+UNBOUNDED = Feature("unbounded", str, "NOT_UNBOUNDED", "Unbounded", "Unb")
+OPTIMAL = Feature("optimal", str, "OPTIMAL", "Optimal", "Opt")
+PARTITION = Feature("partition", str, "0-1-1-0-0", "Partition", "Part")
+CUTS_ROUNDS = Feature("cuts_rounds", int, 0, "Callbacks", "Cb")
+CUTS_ADDED = Feature("cuts_added", int, 0, "Cuts Added", "Cuts")
+GAP = Feature("gap", float, 0.0, "Gap (%)", "Gap (%)")
+# TODO: could be a special time type.
+AVG_CBTIME = Feature("avg_cbtime", float, 0.0, "Average Callback Time (ms)", "CbT (ms)")
+AVG_SPTIME = Feature("avg_sptime", float, 0.0, "Average Cut Separation Time (ms)", "CutT (ms)")
+TIME = Feature("time", float, 0.0, "Running Time (ms)", "T (ms)")
+AVG_CBTIME_S = Feature("avg_cbtime_s", float, 0.0, "Average Callback Time (s)", "CbT (s)")
+AVG_SPTIME_S = Feature("avg_sptime_s", float, 0.0, "Average Cut Separation Time (s)", "CutT (s)")
+TIME_S = Feature("time_s", float, 0.0, "Running Time (s)", "T (s)")
 # TODO: a special feature that has a default value of -1, but is a float.
-EMPIRICAL_OPTIMAL_RATIO = Feature("empirical_optimal_ratio", float, -1)
-EMPIRICAL_SUBOPTIMAL_RATIO = Feature("empirical_suboptimal_ratio", float, -1)
-BEST_OPTIMAL = Feature("best_optimal", float, -1)
-BEST_OBJECTIVE = Feature("best_objective", float, -1)
-EXACT_ALPHA = Feature("exact_alpha", float, -1)
-EXACT_ALPHA_TIME_S = Feature("exact_alpha_time_s", float, -1)
-ALPHA_HAT_ONE = Feature("alpha_hat_one", float, -1)
-ALPHA_HAT_ONE_TIME_S = Feature("alpha_hat_one_time_s", float, -1)
-ALPHA_HAT_TWO = Feature("alpha_hat_two", float, -1)
-ALPHA_HAT_TWO_TIME_S = Feature("alpha_hat_two_time_s", float, -1)
-UNINTERDICTED_SHORTEST_PATH = Feature("uninterdicted_shortest_path", float, -1)
-ADAPTIVE_INCREMENT = Feature("adaptive_increment", float, -1)
+EMPIRICAL_OPTIMAL_RATIO = Feature("empirical_optimal_ratio", float, -1.0, "Empirical Optimal Ratio", "rOpt")
+EMPIRICAL_SUBOPTIMAL_RATIO = Feature("empirical_suboptimal_ratio", float, -1.0, "Empirical Suboptimal Ratio", "rObj")
+BEST_OPTIMAL = Feature("best_optimal", float, -1.0, "Best Optimal Objective", "MaxOpt")
+BEST_OBJECTIVE = Feature("best_objective", float, -1.0, "Best Objective", "MaxObj")
+EXACT_ALPHA = Feature("exact_alpha", float, -1.0, "Exact Alpha", "a_exact")
+EXACT_ALPHA_TIME_S = Feature("exact_alpha_time_s", float, -1.0, "Exact Alpha Time (s)", "a_e_T (s)")
+ALPHA_HAT_ONE = Feature("alpha_hat_one", float, -1.0, "Alpha Hat One", "a_hat1")
+ALPHA_HAT_ONE_TIME_S = Feature("alpha_hat_one_time_s", float, -1.0, "Alpha Hat One Time (s)", "a_hat1_T (s)")
+ALPHA_HAT_TWO = Feature("alpha_hat_two", float, -1.0, "Alpha Hat Two", "a_hat2")
+ALPHA_HAT_TWO_TIME_S = Feature("alpha_hat_two_time_s", float, -1.0, "Alpha Hat Two Time (s)", "a_hat2_T (s)")
+UNINTERDICTED_SHORTEST_PATH = Feature("uninterdicted_shortest_path", float, -1.0, "Uninterdicted Shortest Path", "USP")
+ADAPTIVE_INCREMENT = Feature("adaptive_increment", float, -1.0, "Adaptive Increment", "a_inc")
 
-MIP = Solver("MIP", [M_SYM, G_SYM], [])
-BENDERS = Solver("BENDERS", [M_SYM, G_SYM], [])
-ENUMERATION = Solver("ENUMERATION", [M_SYM, G_SYM, SUBSOLVER], [])
-GREEDY = Solver("GREEDY", [SUBSOLVER], [])
-NONE = Solver("NONE", [], [])
-
-SOLVER_FLAGS = {
-    MIP: set({"m", "mip", "sp"}),
-    BENDERS: set({"b", "benders"}),
-    ENUMERATION: set({"e", "enum", "enumeration"}),
-    GREEDY: set({"g", "greedy"}),
-    NONE: set({"n", "none", "na"}),
-}
+MIP.add_parameters([M_SYM, G_SYM])
+MIP.add_latex_output_features([])
+BENDERS.add_parameters([M_SYM, G_SYM])
+BENDERS.add_latex_output_features([])
+ENUMERATION.add_parameters([SUBSOLVER])
+ENUMERATION.add_latex_output_features([])
+GREEDY.add_parameters([SUBSOLVER])
+GREEDY.add_latex_output_features([])
 
 COLS = {
     "name_inputs_str": [
@@ -276,15 +291,16 @@ class DataFilterer:
     '''
     Class to handle filtering of main dataframe based on the Feature - value pairs held in a FeatureArgParser object.
     '''
-    def __init__(self, args: argparse.Namespace, solver: Solver) -> None:
-        self.args = vars(args)
-        self.solver = solver
+    def __init__(self, args: argparse.Namespace) -> None:
+        self.solver: Solver = args.solver
+        self.args: Dict[Any] = vars(args)
 
     def filter(self, df: pd.DataFrame) -> pd.DataFrame:
         '''
         Filter dataframe based on provided kwargs.
         '''
         mask = pd.Series(True, index=df.index)
+        # TODO: review this function now that we have a Solver class.
         for key, value in self.args.items():
             if (
                 key != "file_path"
@@ -388,25 +404,6 @@ for x in all_columns:
             d[x] = x
 
 
-def get_solver_from_flag(flag: str):
-    for solver, flag_set in SOLVER_FLAGS.items():
-        if flag.lower() in flag_set:
-            return solver
-    return None
-
-
-def get_subsolver_from_flag(flag: str):
-    """
-    If the subsolver is "NONE", it will return the string
-    "NONE", not a None value, which would indicate that
-    an invalid argument was passed.
-    """
-    for solver, flag_set in SUBSOLVER_FLAGS.items():
-        if flag.lower() in flag_set:
-            return solver
-    return None
-
-
 def append_date(exp_name: str):
     """
     Append today's date to experiment name
@@ -492,18 +489,6 @@ def print_dict(d: Dict[Any, Any]):
     for k, v in d.items():
         print(k + ": " + v + ",")
     print("}")
-
-
-def print_header(row):
-    print(
-        ", ".join(
-            [
-                COLLOG["pretty"][c.name] + ": " + str(row[c.name])
-                for c in COLS["logging_run_header"]
-            ]
-        )
-        + "."
-    )
 
 
 def print_finished_row(row):
