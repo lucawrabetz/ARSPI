@@ -14,7 +14,7 @@ FEATURE_TYPE = TypeVar('FEATURE_TYPE')
 # Consider doing this while also adding subclasses for some types of features.
 # Check conversation "explicit type hinting:..." in my chat gpt channel.
 class Feature:
-    def __init__(self, name: str, feature_type: Type[FEATURE_TYPE], default: FEATURE_TYPE = None, pretty_output_name: str = None, compressed_output_name: str = None) -> None:
+    def __init__(self, name: str, feature_type: Type[FEATURE_TYPE], default: FEATURE_TYPE = None, pretty_output_name: str = None, compressed_output_name: str = None, allowed_values: List[FEATURE_TYPE] = None) -> None:
         self.name = name
         self.default = default
         self.type = feature_type
@@ -22,6 +22,8 @@ class Feature:
         else: self.pretty_output_name = name
         if compressed_output_name: self.compressed_output_name = compressed_output_name
         else: self.compressed_output_name = name
+        if allowed_values: self.allowed_values = allowed_values
+        else: self.allowed_values = []
         
         if type(default) != feature_type:
             warnings.warn("Feature " + name + " - The type of default value " + str(default) + " does not match the specified feature type " + str(feature_type) + ".", Warning)
@@ -38,6 +40,7 @@ class Feature:
 #   - the only question is whether to add something to the variable solver to indicate that it is the column for the solver, and not the type Solver or a Solver object?
 class Solver:
     def __init__(self, name: str):
+        print("Creating solver: ", name)
         self.name = name
         self.parameters: List[Feature] = []
         self.latex_output_features: List[Feature] = []
@@ -51,6 +54,69 @@ class Solver:
 
     def add_commandline_flags(self, commandline_flags: Set[str]):
         self.commandline_flags.update(commandline_flags)
+
+class FeatureArgParser:
+    '''
+    Class to handle argument parsing where arguments are Feature - value pairs.
+    '''
+    def __init__(self, description: str = "") -> None:
+        self.parser = argparse.ArgumentParser(description=description)
+
+    def add_solver_arg(self, solver_features: List[Feature]) -> None:
+        for f in solver_features:
+            if f.type != Solver:
+                warnings.warn("Solver features should be of type Solver.")
+                continue
+            argflag = "--" + f.name
+            helpmsg = "Filter by " + f.name + "."
+            # TODO type function, and choices for this.
+            self.parser.add_argument(argflag, type=flag_to_solver(), choices=[], help=helpmsg)
+            print("Added argument: ", argflag, " with type ", f.type, ".")
+
+    def add_feature_args(self, features: List[Feature]) -> None:
+        for f in features:
+            if f.type == Solver:
+                # Solvers are handled in a separate way.
+                warnings.warn("Solver features are handled separately.")
+                continue
+            argflag = "--" + f.name
+            helpmsg = "Filter by " + f.name + "."
+            self.parser.add_argument(argflag, type=f.type, help=helpmsg)
+            print("Added argument: ", argflag, " with type ", f.type, ".")
+
+    def add_custom_storetruearg(self, argflag: str, helpmsg: str = "") -> None:
+        self.parser.add_argument(argflag, action="store_true", help=helpmsg)
+
+    def parse_args(self) -> argparse.Namespace:
+        import pdb; pdb.set_trace()
+        return self.parser.parse_args()
+
+class DataFilterer:
+    '''
+    Class to handle filtering of main dataframe based on the Feature - value pairs held in a FeatureArgParser object.
+    '''
+    def __init__(self, args: argparse.Namespace) -> None:
+        self.solver: Solver = args.solver
+        self.args: Dict[Any] = vars(args)
+
+    def filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        '''
+        Filter dataframe based on provided kwargs.
+        '''
+        mask = pd.Series(True, index=df.index)
+        # TODO: review this function now that we have a Solver class.
+        for key, value in self.args.items():
+            if (
+                key != "file_path"
+                and key != "average"
+                and key != "solver"
+                and key != "verbose"
+                and value is not None
+            ):
+                mask = mask & (df[key] == value)
+        if self.solver:
+            mask = mask & (df["solver"] == self.solver.name)
+        return df[mask]
 
 MIP = Solver("MIP")
 MIP.add_commandline_flags({"m", "mip", "sp"})
@@ -81,15 +147,16 @@ DENSITY = Feature("density", float, 1231 / (123 * 122), "Density", "D")
 SCENARIOS = Feature("scenarios", int, 5, "Followers", "P")
 BUDGET = Feature("budget", int, 5, "Budget", "r0")
 POLICIES = Feature("policies", int, 2, "Policies", "K")
-SOLVER = Feature("solver", Solver, MIP, "Solver", "Sol")
 M_SYM = Feature("m_sym", int, -1, "Manual Symmetry", "Msym")
 G_SYM = Feature("g_sym", int, -1, "Gurobi Symmetry", "Gsym")
-SUBSOLVER = Feature("subsolver", Solver, NONE, "Sub Solver", "Sub")
 OBJECTIVE = Feature("objective", float, 0.0, "Objective", "Obj")
-# TODO: could be an enum type (works for both UNBOUNDED and OPTIMAL).
+
+SOLVER = Feature("solver", Solver, MIP, "Solver", "Sol", SOLVERS)
+SUBSOLVER = Feature("subsolver", Solver, NONE, "Sub Solver", "Sub", SOLVERS)
 UNBOUNDED = Feature("unbounded", str, "NOT_UNBOUNDED", "Unbounded", "Unb")
 OPTIMAL = Feature("optimal", str, "OPTIMAL", "Optimal", "Opt")
 PARTITION = Feature("partition", str, "0-1-1-0-0", "Partition", "Part")
+
 CUTS_ROUNDS = Feature("cuts_rounds", int, 0, "Callbacks", "Cb")
 CUTS_ADDED = Feature("cuts_added", int, 0, "Cuts Added", "Cuts")
 GAP = Feature("gap", float, 0.0, "Gap (%)", "Gap (%)")
@@ -122,6 +189,10 @@ ENUMERATION.add_parameters([SUBSOLVER])
 ENUMERATION.add_latex_output_features([])
 GREEDY.add_parameters([SUBSOLVER])
 GREEDY.add_latex_output_features([])
+
+
+################
+##### TODO: STARTING HERE, STILL NEEDS TO BE REFACTORED
 
 COLS = {
     "name_inputs_str": [
@@ -265,143 +336,12 @@ for d in COLS.values():
     for key in d:
         all_columns.add(key)
 
-class RawFeatureArgParser:
-    '''
-    Class to handle argument parsing where arguments are Feature - value pairs.
-    '''
-    def __init__(self, description: str = "") -> None:
-        self.parser = argparse.ArgumentParser(description=description)
-
-    def add_feature_args(self, features: List[Feature]) -> None:
-        for f in features:
-            argflag = "--" + f.name
-            helpmsg = "Filter by " + f.name + "."
-            self.parser.add_argument(argflag, type=f.type, help=helpmsg)
-
-    def add_custom_storetruearg(self, argflag: str, helpmsg: str = "") -> None:
-        self.parser.add_argument(argflag, action="store_true", help=helpmsg)
-
-    def parse_args(self) -> argparse.Namespace:
-        return self.parser.parse_args()
-
-class TypedFeatureArgParser:
-    pass
-
-class DataFilterer:
-    '''
-    Class to handle filtering of main dataframe based on the Feature - value pairs held in a FeatureArgParser object.
-    '''
-    def __init__(self, args: argparse.Namespace) -> None:
-        self.solver: Solver = args.solver
-        self.args: Dict[Any] = vars(args)
-
-    def filter(self, df: pd.DataFrame) -> pd.DataFrame:
-        '''
-        Filter dataframe based on provided kwargs.
-        '''
-        mask = pd.Series(True, index=df.index)
-        # TODO: review this function now that we have a Solver class.
-        for key, value in self.args.items():
-            if (
-                key != "file_path"
-                and key != "average"
-                and key != "solver"
-                and key != "verbose"
-                and value is not None
-            ):
-                mask = mask & (df[key] == value)
-        if self.solver:
-            mask = mask & (df["solver"] == self.solver.name)
-        return df[mask]
-
-
-
-
-COLLOG = {
-    "pretty": {
-        "set_name": "Set Name",
-        "instance_name": "Instance Name",
-        "nodes": "Nodes",
-        "arcs": "Arcs",
-        "k_zero": "Groups",
-        "density": "Density",
-        "scenarios": "Followers",
-        "budget": "Budget",
-        "policies": "Policies",
-        "subsolver": "Sub Solver",
-        "solver": "Solver",
-        "unbounded": "Unbounded",
-        "optimal": "Optimal",
-        "objective": "Objective",
-        "gap": "Gap",
-        "time": "Running Time (ms)",
-        "cuts_rounds": "Callbacks",
-        "cuts_added": "Cuts Added",
-        "avg_cbtime": "Average Callback Time (ms)",
-        "avg_sptime": "Average Cut Separation Time (ms)",
-        "partition": "Partition",
-        "m_sym": "Manual Symmetry",
-        "g_sym": "Gurobi Symmetry",
-        "time_s": "Running Time (s)",
-        "avg_cbtime_s": "Average Callback Time (s)",
-        "avg_sptime_s": "Average Cut Separation Time (s)",
-        "best_objective": "Best Objective",
-        "best_optimal": "Best Optimal Objective",
-        "empirical_suboptimal_ratio": "Empirical Suboptimal Ratio",
-        "empirical_optimal_ratio": "Empirical Optimal Ratio",
-        "exact_alpha": "Exact Alpha",
-        "exact_alpha_time_s": "Exact Alpha Time (s)",
-        "alpha_hat_one": "Alpha Hat One",
-        "alpha_hat_one_time_s": "Alpha Hat One Time (s)",
-        "alpha_hat_two": "Alpha Hat Two",
-        "alpha_hat_two_time_s": "Alpha Hat Two Time (s)",
-        "adaptive_increment": "Adaptive Increment",
-    },
-    "compressed": {
-        "set_name": "Set",
-        "instance_name": "Instance",
-        "nodes": "N",
-        "arcs": "M",
-        "k_zero": "k0",
-        "density": "D",
-        "scenarios": "P",
-        "budget": "r0",
-        "policies": "K",
-        "solver": "Sol",
-        "subsolver": "Sub",
-        "unbounded": "Unb",
-        "optimal": "Opt",
-        "objective": "Obj",
-        "gap": "Gap (%)",
-        "time": "T (ms)",
-        "cuts_rounds": "Cb",
-        "cuts_added": "Cuts",
-        "avg_cbtime": "CbT (ms)",
-        "avg_sptime": "CutT (ms)",
-        "partition": "Part",
-        "m_sym": "Msym",
-        "g_sym": "Gsym",
-        "time_s": "T (s)",
-        "avg_cbtime_s": "CbT (s)",
-        "avg_sptime_s": "CutT (s)",
-        "best_objective": "MaxObj",
-        "best_optimal": "MaxOpt",
-        "empirical_suboptimal_ratio": "rObj",
-        "empirical_optimal_ratio": "rOpt",
-        "exact_alpha": "a_exact",
-        "exact_alpha_time_s": "a_e_T (s)",
-        "alpha_hat_one": "a_hat1",
-        "alpha_hat_one_time_s": "a_hat1_T (s)",
-        "alpha_hat_two": "a_hat2",
-        "alpha_hat_two_time_s": "a_hat2_T (s)",
-        "adaptive_increment": "a_inc",
-    },
-}
-
 for x in all_columns:
     for names, d in COLLOG.items():
         if x not in d.keys():
             d[x] = x
+
+#########
 
 
 def append_date(exp_name: str):
