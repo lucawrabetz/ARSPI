@@ -1,5 +1,7 @@
 import pandas as pd
+from lib.feature import *
 from lib.util import *
+from lib.paths import FINALCSVPATH
 
 # TODO: add the capability to save the query and reload it by name or id or something.
 
@@ -108,6 +110,7 @@ def main():
         COMPRESSED_OUTPUT_COLUMNS.append("avg_sptime")
 
     try:
+        # TODO: there should be a class that reads data
         df = pd.read_csv(FINALCSVPATH)
     except FileNotFoundError:
         print("Error: File not found.")

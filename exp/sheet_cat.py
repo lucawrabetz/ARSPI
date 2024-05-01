@@ -4,6 +4,7 @@ import shutil
 import argparse
 
 from lib.util import *
+from lib.paths import FINALCSVPATH, BACKUPS
 
 def backup_finalcsv():
     filename = check_make_dir(append_date(FINALCSVFILE.split(".")[0]), 0, False)
