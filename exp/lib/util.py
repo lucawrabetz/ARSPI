@@ -1,7 +1,7 @@
 import os
 import argparse
 import warnings
-from typing import Dict, Any, List, Set, Type, TypeVar
+from typing import Dict, Any, List, Tuple, Set, Type, TypeVar
 import pandas as pd
 from datetime import date
 
@@ -9,6 +9,23 @@ FINALCSVFILE = "final.csv"
 FINALCSVPATH = os.path.join("final.csv")
 BACKUPS = "backups"
 FEATURE_TYPE = TypeVar('FEATURE_TYPE')
+
+
+# TODO: should this debugger class be a subclass of something bigger, or related to another logging class? See TODO in query.py asking for a logging class.
+# Small debugger class that holds a debugger flag, and prints messages that are commonly used for debugging.
+class Debugger:
+    def __init__(self, debug: bool = False) -> None:
+        self.debug = debug
+
+    def log(self, message: str) -> None:
+        if self.debug:
+            print(message)
+
+    def warn(self, message: str) -> None:
+        if self.debug:
+            warnings.warn(message)
+
+DEBUG = Debugger(False)
 
 # TODO: substitute the generic TypeVar FEATURE_TYPE with a list of allowed types for features.
 # Consider doing this while also adding subclasses for some types of features.
@@ -26,21 +43,11 @@ class Feature:
         else: self.allowed_values = []
         
         if type(default) != feature_type:
-            warnings.warn("Feature " + name + " - The type of default value " + str(default) + " does not match the specified feature type " + str(feature_type) + ".", Warning)
+            DEBUG.warn("Feature " + name + " - The type of default value " + str(default) + " does not match the specified feature type " + str(feature_type) + ".")
 
-
-# TODO:
-# we will always have:
-#   - we will declare all of our allowed solvers:
-#      - MIP = Solver("MIP", [M_SYM, G_SYM], [])
-#      - BENDERS = Solver("BENDERS", [M_SYM, G_SYM], []).... etc.
-#   - we will declare a solver = Feature("solver", MIP) - this is the solver COLUMN.
-#   - we will declare a subsolver = Feature("subsolver", NONE) - this is the subsolver COLUMN.
-#   - the Feature class is typed, so both solver and subsolver will be typed to Solver.
-#   - the only question is whether to add something to the variable solver to indicate that it is the column for the solver, and not the type Solver or a Solver object?
 class Solver:
     def __init__(self, name: str):
-        print("Creating solver: ", name)
+        DEBUG.log("Creating solver: " + name)
         self.name = name
         self.parameters: List[Feature] = []
         self.latex_output_features: List[Feature] = []
@@ -55,40 +62,49 @@ class Solver:
     def add_commandline_flags(self, commandline_flags: Set[str]):
         self.commandline_flags.update(commandline_flags)
 
+# TODO: should this function be a method of the Solver class? or of the FeatureArgParser class? Every way I spin it, it feels like a codesmell...
+def flag_to_solver(flag: str) -> Solver:
+    for solver in SOLVERS:
+        if flag.lower() in solver.commandline_flags:
+            return solver
+    DEBUG.warn("Solver not found for flag: " + flag + ".")
+    return NONE
+
 class FeatureArgParser:
     '''
-    Class to handle argument parsing where arguments are Feature - value pairs.
+    Class to handle argument parsing where arguments are Feature - Value pairs.
     '''
     def __init__(self, description: str = "") -> None:
         self.parser = argparse.ArgumentParser(description=description)
 
-    def add_solver_arg(self, solver_features: List[Feature]) -> None:
-        for f in solver_features:
-            if f.type != Solver:
-                warnings.warn("Solver features should be of type Solver.")
-                continue
-            argflag = "--" + f.name
-            helpmsg = "Filter by " + f.name + "."
-            # TODO type function, and choices for this.
-            self.parser.add_argument(argflag, type=flag_to_solver(), choices=[], help=helpmsg)
-            print("Added argument: ", argflag, " with type ", f.type, ".")
+    def construct_flag_strings(self, feature: Feature) -> Tuple[str, str, str]:
+        arg_flag = "--" + feature.name
+        help_msg = "Filter by " + feature.name + "."
+        success_msg = "Added argument: " + arg_flag, " with type ", feature.type, "."
+        return (arg_flag, help_msg, success_msg)
+
+    def add_solverfeature_arg(self, feature: Feature) -> str:
+        (arg_flag, help_msg, success_msg) = self.construct_flag_strings(feature)
+        self.parser.add_argument(arg_flag, type=flag_to_solver, choices=SOLVERS, help=help_msg)
+        return success_msg
+
+    def add_feature_arg(self, feature: Feature) -> str:
+        (arg_flag, help_msg, success_msg) = self.construct_flag_strings(feature)
+        self.parser.add_argument(arg_flag, type=feature.type, help=help_msg)
+        return success_msg
+
+    def add_storetruearg(self, arg_flag: str, help_msg: str = "") -> None:
+        self.parser.add_argument(arg_flag, action="store_true", help=help_msg)
 
     def add_feature_args(self, features: List[Feature]) -> None:
         for f in features:
             if f.type == Solver:
-                # Solvers are handled in a separate way.
-                warnings.warn("Solver features are handled separately.")
-                continue
-            argflag = "--" + f.name
-            helpmsg = "Filter by " + f.name + "."
-            self.parser.add_argument(argflag, type=f.type, help=helpmsg)
-            print("Added argument: ", argflag, " with type ", f.type, ".")
-
-    def add_custom_storetruearg(self, argflag: str, helpmsg: str = "") -> None:
-        self.parser.add_argument(argflag, action="store_true", help=helpmsg)
+                success_msg = self.add_solverfeature_arg(f)
+            else:
+                success_msg = self.add_feature_arg(f)
+            DEBUG.log(success_msg)
 
     def parse_args(self) -> argparse.Namespace:
-        import pdb; pdb.set_trace()
         return self.parser.parse_args()
 
 class DataFilterer:
@@ -131,13 +147,23 @@ NONE.add_commandline_flags({"n", "none", "na"})
 
 SOLVERS = [MIP, BENDERS, ENUMERATION, GREEDY, NONE]
 
-# TODO: subclasses for features:
-# class input_feature(Feature):
-# class parameter_feature(Feature):
-# class hyperparameter_feature(Feature):
-# class output_feature(Feature):
+# TODO: whether any of these "groups" need to be subclasses of features, or if they could be noted by some member flags. If that gets figured out, quite a few functions that take a list of features could iterate over all the features, and check their group belonging to decide whether to consider them, or how to treat them. Then we can remove all the lists and stuff.
+# For the final interface:
+# Each of the groups that follow have a single feature that is UNIQUE for every combination of the group.
+# We call this feature the GROUP_ID, and it is always (IMPLEMENTATION) REQUIRED.
+# There may be other required features in the group.
+# We can always generate the GROUP_ID from the other features.
+# As follows, group_name -> group_id
+# INSTANCE FEATURES -> INSTANCE_NAME
+# SOLVER -> SOLVER (This is a special group that should be a singleton) (TODO: not sure about this statement yet).
+# SOLVER PARAMETERS -> PARAMETERS_ID
+# TODO: for now only instance features have an ID (INSTANCE_NAME).
+# TODO: all id_features should only be added as necessary, and they should be "finished" feature (they can be computed quickly), not stored in the database. This also means we should remove, e.g. INSTANCE_NAME from the "processed" columns and the database. Same goes for density, even though it is not an id_feature.
+# TODO: id_generator -> instance_name(set_name, <all_other_inputs) -> instance_name.
 
-
+# Instance Features - they define the INSTANCE OF THE PROBLEM.
+# ID: INSTANCE_NAME
+# REQUIRED: SET_NAME
 SET_NAME = Feature("set_name", str, "layer", "Set Name", "Set")
 INSTANCE_NAME = Feature("instance_name", str, "layer_123", "Instance Name", "Instance")
 NODES = Feature("nodes", int, 123, "Nodes", "N")
@@ -147,16 +173,22 @@ DENSITY = Feature("density", float, 1231 / (123 * 122), "Density", "D")
 SCENARIOS = Feature("scenarios", int, 5, "Followers", "P")
 BUDGET = Feature("budget", int, 5, "Budget", "r0")
 POLICIES = Feature("policies", int, 2, "Policies", "K")
+
+# SOLVER is REQUIRED.
+SOLVER = Feature("solver", Solver, MIP, "Solver", "Sol", SOLVERS)
+# Solver Parameter Features - they define the PARAMETERS OF THE SOLVER (we can repeat identical runs, with different solver parameters).
+# None of these are required.
+SUBSOLVER = Feature("subsolver", Solver, NONE, "Sub Solver", "Sub", SOLVERS)
 M_SYM = Feature("m_sym", int, -1, "Manual Symmetry", "Msym")
 G_SYM = Feature("g_sym", int, -1, "Gurobi Symmetry", "Gsym")
-OBJECTIVE = Feature("objective", float, 0.0, "Objective", "Obj")
+# Instance Features + Solver + Solver Parameters = a Run.
 
-SOLVER = Feature("solver", Solver, MIP, "Solver", "Sol", SOLVERS)
-SUBSOLVER = Feature("subsolver", Solver, NONE, "Sub Solver", "Sub", SOLVERS)
+
+# Output Features - they define the OUTPUT OF THE RUN.
+OBJECTIVE = Feature("objective", float, 0.0, "Objective", "Obj")
 UNBOUNDED = Feature("unbounded", str, "NOT_UNBOUNDED", "Unbounded", "Unb")
 OPTIMAL = Feature("optimal", str, "OPTIMAL", "Optimal", "Opt")
 PARTITION = Feature("partition", str, "0-1-1-0-0", "Partition", "Part")
-
 CUTS_ROUNDS = Feature("cuts_rounds", int, 0, "Callbacks", "Cb")
 CUTS_ADDED = Feature("cuts_added", int, 0, "Cuts Added", "Cuts")
 GAP = Feature("gap", float, 0.0, "Gap (%)", "Gap (%)")
@@ -180,6 +212,8 @@ ALPHA_HAT_TWO = Feature("alpha_hat_two", float, -1.0, "Alpha Hat Two", "a_hat2")
 ALPHA_HAT_TWO_TIME_S = Feature("alpha_hat_two_time_s", float, -1.0, "Alpha Hat Two Time (s)", "a_hat2_T (s)")
 UNINTERDICTED_SHORTEST_PATH = Feature("uninterdicted_shortest_path", float, -1.0, "Uninterdicted Shortest Path", "USP")
 ADAPTIVE_INCREMENT = Feature("adaptive_increment", float, -1.0, "Adaptive Increment", "a_inc")
+# Run + Outputs = Row.
+
 
 MIP.add_parameters([M_SYM, G_SYM])
 MIP.add_latex_output_features([])
@@ -265,6 +299,11 @@ COLS = {
     ],
 }
 
+FEATURES = []
+for group in COLS.values():
+    for f in group:
+        FEATURES.append(f)
+
 COLS["name_inputs"] = COLS["name_inputs_str"]
 COLS["graph_inputs"] = COLS["graph_inputs_int"] + COLS["graph_inputs_rat"]
 COLS["cost_instance_inputs"] = COLS["cost_instance_inputs_int"]
@@ -329,18 +368,6 @@ COLS["rational"] = (
 )
 
 DP = {key.name: 2 for key in COLS["rational"]}
-
-
-all_columns = set([])
-for d in COLS.values():
-    for key in d:
-        all_columns.add(key)
-
-for x in all_columns:
-    for names, d in COLLOG.items():
-        if x not in d.keys():
-            d[x] = x
-
 #########
 
 
@@ -353,7 +380,6 @@ def append_date(exp_name: str):
 
     name = exp_name + "-" + date_str
     return name
-
 
 def check_make_dir(path: str, i: int, makedir: bool = True):
     """
@@ -377,19 +403,15 @@ def check_make_dir(path: str, i: int, makedir: bool = True):
             os.mkdir(path + "-" + str(i))
         return path + "-" + str(i)
 
-
 def ms_to_s(df: pd.DataFrame, col: str):
     """
     Convert column col in df from ms to s.
     """
     new_col = col + "_s"
     if df[col] is None:
-        warnings.warn(
-            "Input time ms col {} is None, conversion to seconds aborted.".format(col)
-        )
+        DEBUG.warn("Input time ms col {} is None, conversion to seconds aborted.".format(col))
         return
     df[new_col] = df[col].div(1000)
-
 
 def add_seconds_columns(df: pd.DataFrame):
     """
@@ -398,7 +420,6 @@ def add_seconds_columns(df: pd.DataFrame):
     for col in COLS["time_outputs_rat"]:
         ms_to_s(df, col.name)
 
-
 def round_int_columns(df: pd.DataFrame):
     """
     Round all integer columns.
@@ -406,7 +427,6 @@ def round_int_columns(df: pd.DataFrame):
     for col in COLS["integer"]:
         if col in df.columns:
             df[col] = df[col].astype(int)
-
 
 def round_dp_columns(df: pd.DataFrame):
     """
@@ -418,18 +438,15 @@ def round_dp_columns(df: pd.DataFrame):
             df[col] = df[col].astype(float)
             df[col] = df[col].round(DP[col])
 
-
 def round(df: pd.DataFrame):
     round_int_columns(df)
     round_dp_columns(df)
-
 
 def print_dict(d: Dict[Any, Any]):
     print("{")
     for k, v in d.items():
         print(k + ": " + v + ",")
     print("}")
-
 
 def print_finished_row(row):
     print(
@@ -442,20 +459,18 @@ def print_finished_row(row):
         )
     )
 
-
 def remove_samerun_duplicates(df):
     """
     Remove duplicates for the same exact run parameters and hyperparameters.
     Keep the row with the highest objective, splitting ties by running time (minimum chosen).
     Make changes to df in place.
     """
-    mathing_colnames = [f.name for f in COLS["same_run_hyperparams"]]
+    matching_colnames = [f.name for f in COLS["same_run_hyperparams"]]
     df.sort_values(
         by=["objective", "time"], ascending=[False, True], inplace=True
     )
-    df.drop_duplicates(subset=mathing_colnames, keep="first", inplace=True)
-    print("Removed rows with same run parameters and hyperparameters.")
-
+    df.drop_duplicates(subset=matching_colnames, keep="first", inplace=True)
+    DEBUG.log("Removed duplicates for the same run.")
 
 def cleanup_to_processed(df):
     """
@@ -470,7 +485,6 @@ def cleanup_to_processed(df):
         print("Adding column ", col, " with default ", val, ".")
         df[col] = val
     pass
-
 
 def cleanup_to_finished(df) -> Any:
     """
@@ -489,7 +503,6 @@ def cleanup_to_pretty(df) -> Any:
     pretty_df = df.copy()
     round(pretty_df)
     return pretty_df
-
 
 def final_write(df, path):
     """

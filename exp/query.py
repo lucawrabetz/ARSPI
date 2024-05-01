@@ -1,6 +1,8 @@
 import pandas as pd
 from lib.util import *
 
+# TODO: add the capability to save the query and reload it by name or id or something.
+
 OUTPUT_COLUMNS = [
     "instance_name",
     "policies",
@@ -55,48 +57,38 @@ AVG_NOT_MATCH = [
 ]
 X = 20
 
-
-def filter_dataframe(df, args, solver):
-    """
-    Filter dataframe based on provided kwargs.
-    """
-    mask = pd.Series(True, index=df.index)
-    for key, value in args.items():
-        if (
-            key != "file_path"
-            and key != "average"
-            and key != "solver"
-            and key != "verbose"
-            and value is not None
-        ):
-            mask = mask & (df[key] == value)
-    if solver:
-        mask = mask & (df["solver"] == solver)
-    return df[mask]
+# TODO: Define a class who's single job it is to receive filtered_df, the args solver and verbose, construct the temporary information about how to format printing (such as what columns to print based on what solvers etc), and then have a driver function to log the query.
 
 
 def main():
     parser = FeatureArgParser("Query CSV file while filtering on features.")
     parser.add_feature_args(COLS["processed"])
-    parser.add_custom_storetruearg("--verbose")
-    parser.add_custom_storetruearg("--average")
+    parser.add_storetruearg("--verbose")
+    parser.add_storetruearg("--average")
     args = parser.parse_args()
 
+    # print a summary of the arguments
+    print("\n")
     if args.solver:
-        solver = get_solver_from_flag(args.solver)
-    else:
-        solver = None
-    if args.subsolver:
-        subsolver = get_subsolver_from_flag(args.subsolver)
-    else:
-        subsolver = None
+        print("Filtering on solver: " + args.solver.name)
+    print("Arguments:\n")
+    print(
+        "".join(
+            [
+                f"    {arg}: {value}\n"
+                for arg, value in vars(args).items()
+                if value and arg != "average" and arg != "solver"
+            ]
+        )
+    )
 
-    if solver in ["MIP", "BENDERS"]:
+
+    if args.solver in ["MIP", "BENDERS"]:
         OUTPUT_COLUMNS.append("m_sym")
         OUTPUT_COLUMNS.append("g_sym")
         COMPRESSED_OUTPUT_COLUMNS.append("m_sym")
         COMPRESSED_OUTPUT_COLUMNS.append("g_sym")
-    if solver == "GREEDY":
+    if args.solver == "GREEDY":
         OUTPUT_COLUMNS.append("empirical_suboptimal_ratio")
         OUTPUT_COLUMNS.append("empirical_optimal_ratio")
         COMPRESSED_OUTPUT_COLUMNS.append("empirical_suboptimal_ratio")
@@ -105,7 +97,7 @@ def main():
             OUTPUT_COLUMNS.append("subsolver")
             COMPRESSED_OUTPUT_COLUMNS.append("subsolver")
 
-    if solver == "BENDERS":
+    if args.solver == "BENDERS":
         OUTPUT_COLUMNS.append("cuts_rounds")
         OUTPUT_COLUMNS.append("cuts_added")
         OUTPUT_COLUMNS.append("avg_cbtime")
@@ -127,28 +119,17 @@ def main():
     del df
     del data_df
 
-    print("\n")
-    if solver:
-        print("Filtering on solver: " + solver.name)
-    print("Arguments:\n")
-    print(
-        "".join(
-            [
-                f"    {arg}: {value}\n"
-                for arg, value in vars(args).items()
-                if value and arg != "average" and arg != "solver"
-            ]
-        )
-    )
+    colname_map = dict()
+    # TODO: is this dict a codesmell?
+    # Construct a dictionary [Feature: string] for how they need to be printed
+    for f in FEATURES:
+        if args.verbose: colname_map[f.name] = f.pretty_output_name
+        else: colname_map[f.name] = f.compressed_output_name
 
-    if args.verbose:
-        colname_map = COLLOG["pretty"]
-    else:
-        colname_map = COLLOG["compressed"]
-
-    filterer = DataFilterer(args, solver)
+    filterer = DataFilterer(args)
     filtered_df = filterer.filter(pretty_df)
 
+    # Printing the data:
     if filtered_df.empty:
         print("No matching rows found.")
     else:
