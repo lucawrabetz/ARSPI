@@ -1,4 +1,5 @@
 import warnings
+
 # TODO: should this debugger class be a subclass of something bigger, or related to another logging class? See TODO in query.py asking for a logging class.
 # Small debugger class that holds a debugger flag, and prints messages that are commonly used for debugging.
 class Debugger:
