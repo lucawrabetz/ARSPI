@@ -61,9 +61,11 @@ def read_results_data():
     return df
 
 
-def write_latex_table(args, df, out):
+def write_latex_table(df):
     latex_csv = append_date('final') + '.csv'
     latex_csv_path = os.path.join('latex', latex_csv)
+    # TODO: replace out.output_columns with every solver's 
+    # output columns.
     df.to_csv(path_or_buf=latex_csv_path, sep='&',
               columns=out.output_columns, index=False)
     return latex_csv_path
@@ -83,18 +85,11 @@ def final_table_cleanup(path):
             output_file.write(modified_line + '\n')
 
 def main():
-    parser = argparse.ArgumentParser(
-        prog='AspiLatexTable',
-        description='Create a latex table from a results csv for an Aspi computational experiment.')
-    parser.add_argument('experiment_type', metavar='E', type=str, nargs=1, default=ALL_TYPENAME,
-                        choices=[ALL_TYPENAME, BE_TYPENAME, MIPSYM_TYPENAME],
-                        help='name of experiment type - ' + ALL_TYPENAME + ' or ' + BE_TYPENAME + ' or ' + MIPSYM_TYPENAME)
-    args = parser.parse_args()
+    parser = FeatureArgParser("Generate Latex Source for table from filtered data.")
+    parser.add_feature_args(COLS["processed"])
     run_df = read_results_data()
-    out_structure = OutputStructure(args.experiment_type[0])
-    # if out_structure.BE_ratio: compute_bendersenum_ratio(run_df)
+    # filtering
     avg_df = group_by_instance_average_by_run(run_df)
-    post_cleanup(avg_df, out_structure)
     latex_table_path = write_latex_table(args, avg_df, out_structure)
     final_table_cleanup(latex_table_path)
 
