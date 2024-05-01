@@ -1,9 +1,9 @@
-from numpy import append
 import pandas as pd
 import shutil
 import argparse
 
 from lib.util import *
+from lib.paths import FINALCSVPATH, BACKUPS
 
 def backup_finalcsv():
     filename = check_make_dir(append_date(FINALCSVFILE.split(".")[0]), 0, False)
@@ -37,15 +37,8 @@ def concatenate_dataframes(A, B):
 
 
 def main():
-    # The entities to be defined:
-    # UI/Parser
-    # DataFrameReader
-    # DataFrameCleaner
-    # DataFrameAppender
-    # DataFrameWriter
-    # CustomPlotSession (exists)
+    # TODO: another place where we can refactor dataframe reader, and cleaner.
 
-    # UI/Parser takes arguments from user and holds on to them.
     parser = argparse.ArgumentParser(
         description="Concatenate new raw run dataframe to main experiment dataframe."
     )

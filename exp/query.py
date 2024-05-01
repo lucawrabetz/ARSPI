@@ -1,6 +1,9 @@
 import pandas as pd
-import argparse
+from lib.feature import *
 from lib.util import *
+from lib.paths import FINALCSVPATH
+
+# TODO: add the capability to save the query and reload it by name or id or something.
 
 OUTPUT_COLUMNS = [
     "instance_name",
@@ -56,98 +59,20 @@ AVG_NOT_MATCH = [
 ]
 X = 20
 
-
-def filter_dataframe(df, args, solver):
-    """
-    Filter dataframe based on provided kwargs.
-    """
-    mask = pd.Series(True, index=df.index)
-    for key, value in args.items():
-        if (
-            key != "file_path"
-            and key != "average"
-            and key != "solver"
-            and key != "verbose"
-            and value is not None
-        ):
-            mask = mask & (df[key] == value)
-    if solver:
-        mask = mask & (df["solver"] == solver)
-    return df[mask]
+# TODO: Define a class who's single job it is to receive filtered_df, the args solver and verbose, construct the temporary information about how to format printing (such as what columns to print based on what solvers etc), and then have a driver function to log the query.
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Filter CSV file based on criteria.")
-    parser.add_argument("file_path", help="Path to the CSV file")
-    parser.add_argument("--set_name", type=str, help="Filter by set name")
-    parser.add_argument("--nodes", type=int, help="Filter by number of nodes")
-    parser.add_argument("--arcs", type=int, help="Filter by number of arcs")
-    parser.add_argument("--k_zero", type=int, help="Filter by k zero")
-    parser.add_argument("--scenarios", type=int, help="Filter by number of scenarios")
-    parser.add_argument("--budget", type=int, help="Filter by budget")
-    parser.add_argument("--policies", type=int, help="Filter by number of policies")
-    parser.add_argument("--objective", type=float, help="Filter by number of policies")
-    parser.add_argument("--solver", type=str, help="Filter by solver")
-    parser.add_argument("--optimal", type=str, help="Filter by optimality")
-    parser.add_argument("--subsolver", type=str, help="Filter by solver")
-    parser.add_argument("--m_sym", type=int, help="Filter by manual symmetry")
-    parser.add_argument("--g_sym", type=int, help="Filter by gurobi symmetry")
-    parser.add_argument(
-        "--average", action="store_true", help="Flag to average the matching rows"
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Verbose column header output"
-    )
-
+    parser = FeatureArgParser("Query CSV file while filtering on features.")
+    parser.add_feature_args(COLS["processed"])
+    parser.add_storetruearg("--verbose")
+    parser.add_storetruearg("--average")
     args = parser.parse_args()
-    if args.solver:
-        solver = get_solver_from_flag(args.solver)
-    else:
-        solver = None
-    if args.subsolver:
-        subsolver = get_subsolver_from_flag(args.subsolver)
-    else:
-        subsolver = None
 
-    if solver in ["MIP", "BENDERS"]:
-        OUTPUT_COLUMNS.append("m_sym")
-        OUTPUT_COLUMNS.append("g_sym")
-        COMPRESSED_OUTPUT_COLUMNS.append("m_sym")
-        COMPRESSED_OUTPUT_COLUMNS.append("g_sym")
-    if solver == "GREEDY":
-        OUTPUT_COLUMNS.append("empirical_suboptimal_ratio")
-        OUTPUT_COLUMNS.append("empirical_optimal_ratio")
-        COMPRESSED_OUTPUT_COLUMNS.append("empirical_suboptimal_ratio")
-        COMPRESSED_OUTPUT_COLUMNS.append("empirical_optimal_ratio")
-        if subsolver in ["MIP", "BENDERS"]:
-            OUTPUT_COLUMNS.append("subsolver")
-            COMPRESSED_OUTPUT_COLUMNS.append("subsolver")
-
-    if solver == "BENDERS":
-        OUTPUT_COLUMNS.append("cuts_rounds")
-        OUTPUT_COLUMNS.append("cuts_added")
-        OUTPUT_COLUMNS.append("avg_cbtime")
-        OUTPUT_COLUMNS.append("avg_sptime")
-        COMPRESSED_OUTPUT_COLUMNS.append("cuts_rounds")
-        COMPRESSED_OUTPUT_COLUMNS.append("cuts_added")
-        COMPRESSED_OUTPUT_COLUMNS.append("avg_cbtime")
-        COMPRESSED_OUTPUT_COLUMNS.append("avg_sptime")
-
-    try:
-        df = pd.read_csv(args.file_path)
-    except FileNotFoundError:
-        print("Error: File not found.")
-        return
-
-    cleanup_to_processed(df)
-    data_df = cleanup_to_finished(df)
-    pretty_df = cleanup_to_pretty(data_df)
-    del df
-    del data_df
-
+    # print a summary of the arguments
     print("\n")
-    if solver:
-        print("Filtering on solver: " + solver)
+    if args.solver:
+        print("Filtering on solver: " + args.solver.name)
     print("Arguments:\n")
     print(
         "".join(
@@ -159,13 +84,55 @@ def main():
         )
     )
 
-    if args.verbose:
-        colname_map = COLLOG["pretty"]
-    else:
-        colname_map = COLLOG["compressed"]
 
-    filtered_df = filter_dataframe(pretty_df, vars(args), solver)
+    if args.solver in ["MIP", "BENDERS"]:
+        OUTPUT_COLUMNS.append("m_sym")
+        OUTPUT_COLUMNS.append("g_sym")
+        COMPRESSED_OUTPUT_COLUMNS.append("m_sym")
+        COMPRESSED_OUTPUT_COLUMNS.append("g_sym")
+    if args.solver == "GREEDY":
+        OUTPUT_COLUMNS.append("empirical_suboptimal_ratio")
+        OUTPUT_COLUMNS.append("empirical_optimal_ratio")
+        COMPRESSED_OUTPUT_COLUMNS.append("empirical_suboptimal_ratio")
+        COMPRESSED_OUTPUT_COLUMNS.append("empirical_optimal_ratio")
+        if subsolver in ["MIP", "BENDERS"]:
+            OUTPUT_COLUMNS.append("subsolver")
+            COMPRESSED_OUTPUT_COLUMNS.append("subsolver")
 
+    if args.solver == "BENDERS":
+        OUTPUT_COLUMNS.append("cuts_rounds")
+        OUTPUT_COLUMNS.append("cuts_added")
+        OUTPUT_COLUMNS.append("avg_cbtime")
+        OUTPUT_COLUMNS.append("avg_sptime")
+        COMPRESSED_OUTPUT_COLUMNS.append("cuts_rounds")
+        COMPRESSED_OUTPUT_COLUMNS.append("cuts_added")
+        COMPRESSED_OUTPUT_COLUMNS.append("avg_cbtime")
+        COMPRESSED_OUTPUT_COLUMNS.append("avg_sptime")
+
+    try:
+        # TODO: there should be a class that reads data
+        df = pd.read_csv(FINALCSVPATH)
+    except FileNotFoundError:
+        print("Error: File not found.")
+        return
+
+    cleanup_to_processed(df)
+    data_df = cleanup_to_finished(df)
+    pretty_df = cleanup_to_pretty(data_df)
+    del df
+    del data_df
+
+    colname_map = dict()
+    # TODO: is this dict a codesmell?
+    # Construct a dictionary [Feature: string] for how they need to be printed
+    for f in FEATURES:
+        if args.verbose: colname_map[f.name] = f.pretty_output_name
+        else: colname_map[f.name] = f.compressed_output_name
+
+    filterer = DataFilterer(args)
+    filtered_df = filterer.filter(pretty_df)
+
+    # Printing the data:
     if filtered_df.empty:
         print("No matching rows found.")
     else:
