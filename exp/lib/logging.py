@@ -13,5 +13,3 @@ class Debugger:
     def warn(self, message: str) -> None:
         if self.debug:
             warnings.warn(message)
-
-DEBUG = Debugger(False)

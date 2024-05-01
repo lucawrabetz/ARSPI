@@ -1,7 +1,9 @@
 import argparse
 import pandas as pd
 from typing import Dict, Any, List, Tuple, Set, Type, TypeVar
-from lib.logging import DEBUG
+from lib.logging import Debugger
+
+DEBUG = Debugger(False)
 
 FEATURE_TYPE = TypeVar('FEATURE_TYPE')
 # TODO: substitute the generic TypeVar FEATURE_TYPE with a list of allowed types for features.
