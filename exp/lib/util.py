@@ -1,18 +1,10 @@
 import os
-from typing import Dict, Any, List, Tuple, Set, Type, TypeVar
 import pandas as pd
-from lib.feature import *
-from datetime import date
+import logging
+from typing import Dict, Any
+from lib.feature import COLS
 
-def append_date(exp_name: str):
-    """
-    Append today's date to experiment name
-    """
-    today = date.today()
-    date_str = today.strftime("%m_%d_%y")
-
-    name = exp_name + "-" + date_str
-    return name
+DP = 2
 
 def check_make_dir(path: str, i: int, makedir: bool = True):
     """
@@ -42,7 +34,7 @@ def ms_to_s(df: pd.DataFrame, col: str):
     """
     new_col = col + "_s"
     if df[col] is None:
-        DEBUG.warn("Input time ms col {} is None, conversion to seconds aborted.".format(col))
+        logging.warning(f"Input time ms col {col} is None, conversion to seconds aborted.")
         return
     df[new_col] = df[col].div(1000)
 
@@ -69,7 +61,7 @@ def round_dp_columns(df: pd.DataFrame):
         col = column.name
         if col in df.columns:
             df[col] = df[col].astype(float)
-            df[col] = df[col].round(DP[col])
+            df[col] = df[col].round(DP)
 
 def round(df: pd.DataFrame):
     round_int_columns(df)
@@ -103,7 +95,7 @@ def remove_samerun_duplicates(df):
         by=["objective", "time"], ascending=[False, True], inplace=True
     )
     df.drop_duplicates(subset=matching_colnames, keep="first", inplace=True)
-    DEBUG.log("Removed duplicates for the same run.")
+    logging.info("Removed duplicates for the same run.")
 
 def cleanup_to_processed(df):
     """
