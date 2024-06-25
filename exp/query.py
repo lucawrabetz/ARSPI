@@ -1,7 +1,11 @@
 import pandas as pd
-from lib.feature import *
-from lib.util import *
 from lib.paths import FINALCSVPATH
+from lib.feature import FeatureArgParser, DataFilterer, COLS, FEATURES
+from lib.util import cleanup_to_finished, cleanup_to_pretty, cleanup_to_processed
+from lib.log_config import setup_logging
+
+setup_logging()
+import logging
 
 # TODO: add the capability to save the query and reload it by name or id or something.
 
@@ -70,11 +74,11 @@ def main():
     args = parser.parse_args()
 
     # print a summary of the arguments
-    print("\n")
+    logging.info("\n")
     if args.solver:
-        print("Filtering on solver: " + args.solver.name)
-    print("Arguments:\n")
-    print(
+        logging.info("Filtering on solver: " + args.solver.name)
+    logging.info("Arguments:\n")
+    logging.info(
         "".join(
             [
                 f"    {arg}: {value}\n"
@@ -95,7 +99,7 @@ def main():
         OUTPUT_COLUMNS.append("empirical_optimal_ratio")
         COMPRESSED_OUTPUT_COLUMNS.append("empirical_suboptimal_ratio")
         COMPRESSED_OUTPUT_COLUMNS.append("empirical_optimal_ratio")
-        if subsolver in ["MIP", "BENDERS"]:
+        if args.subsolver in ["MIP", "BENDERS"]:
             OUTPUT_COLUMNS.append("subsolver")
             COMPRESSED_OUTPUT_COLUMNS.append("subsolver")
 
@@ -113,7 +117,7 @@ def main():
         # TODO: there should be a class that reads data
         df = pd.read_csv(FINALCSVPATH)
     except FileNotFoundError:
-        print("Error: File not found.")
+        logging.info("Error: File not found.")
         return
 
     cleanup_to_processed(df)
@@ -134,10 +138,10 @@ def main():
 
     # Printing the data:
     if filtered_df.empty:
-        print("No matching rows found.")
+        logging.info("No matching rows found.")
     else:
         if len(filtered_df) > X:
-            print(f"The filtered DataFrame has more than {X} rows.")
+            logging.info(f"The filtered DataFrame has more than {X} rows.")
             choice = (
                 input(
                     "Do you want to see all rows (type 'all'), just the first "
@@ -147,25 +151,25 @@ def main():
                 .strip()
                 .lower()
             )
-            print("\n")
+            logging.info("\n")
             if choice == "all":
-                print(filtered_df[OUTPUT_COLUMNS].rename(columns=colname_map))
+                logging.info(filtered_df[OUTPUT_COLUMNS].rename(columns=colname_map))
             elif choice == "first":
-                print(filtered_df.head(X)[OUTPUT_COLUMNS].rename(columns=colname_map))
+                logging.info(filtered_df.head(X)[OUTPUT_COLUMNS].rename(columns=colname_map))
             else:
-                print("Skipping printing.")
+                logging.info("Skipping printing.")
         else:
-            print("\n")
-            print(filtered_df[OUTPUT_COLUMNS].rename(columns=colname_map))
+            logging.info("\n")
+            logging.info(filtered_df[OUTPUT_COLUMNS].rename(columns=colname_map))
 
         if args.average:
             group_cols = [
                 col for col in filtered_df.columns if col not in AVG_NOT_MATCH
             ]
             compressed_df = filtered_df.groupby(group_cols).mean().reset_index()
-            print("\n")
-            print("Averaged: ")
-            print(compressed_df[COMPRESSED_OUTPUT_COLUMNS].rename(columns=colname_map))
+            logging.info("\n")
+            logging.info("Averaged: ")
+            logging.info(compressed_df[COMPRESSED_OUTPUT_COLUMNS].rename(columns=colname_map))
 
 
 if __name__ == "__main__":

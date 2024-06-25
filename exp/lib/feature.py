@@ -1,16 +1,14 @@
 import argparse
 import pandas as pd
-from typing import Dict, Any, List, Tuple, Set, Type, TypeVar
-from lib.logging import Debugger
-
-DEBUG = Debugger(False)
+import logging
+from typing import Dict, Any, List, Tuple, Set, Type, TypeVar, Callable
 
 FEATURE_TYPE = TypeVar('FEATURE_TYPE')
 # TODO: substitute the generic TypeVar FEATURE_TYPE with a list of allowed types for features.
 # Consider doing this while also adding subclasses for some types of features.
 # Check conversation "explicit type hinting:..." in my chat gpt channel.
 class Feature:
-    def __init__(self, name: str, feature_type: Type[FEATURE_TYPE], default: FEATURE_TYPE = None, pretty_output_name: str = None, compressed_output_name: str = None, allowed_values: List[FEATURE_TYPE] = None) -> None:
+    def __init__(self, name: str, feature_type: Type[FEATURE_TYPE], default: FEATURE_TYPE = None, pretty_output_name: str = None, compressed_output_name: str = None, allowed_values: List[FEATURE_TYPE] = []) -> None:
         self.name = name
         self.default = default
         self.type = feature_type
@@ -22,11 +20,11 @@ class Feature:
         else: self.allowed_values = []
         
         if type(default) != feature_type:
-            DEBUG.warn("Feature " + name + " - The type of default value " + str(default) + " does not match the specified feature type " + str(feature_type) + ".")
+            logging.warning("Feature " + name + " - The type of default value " + str(default) + " does not match the specified feature type " + str(feature_type) + ".")
 
 class Solver:
     def __init__(self, name: str):
-        DEBUG.log("Creating solver: " + name)
+        logging.info("Creating solver: " + name)
         self.name = name
         self.parameters: List[Feature] = []
         self.latex_output_features: List[Feature] = []
@@ -46,8 +44,96 @@ def flag_to_solver(flag: str) -> Solver:
     for solver in SOLVERS:
         if flag.lower() in solver.commandline_flags:
             return solver
-    DEBUG.warn("Solver not found for flag: " + flag + ".")
+    logging.warning("Solver not found for flag: " + flag + ".")
     return NONE
+
+# TODO: split up this file into two files, one for the user to declare their solvers and features.
+MIP = Solver("MIP")
+MIP.add_commandline_flags({"m", "mip", "sp"})
+BENDERS = Solver("BENDERS")
+BENDERS.add_commandline_flags({"b", "benders"})
+ENUMERATION = Solver("ENUMERATION")
+ENUMERATION.add_commandline_flags({"e", "enum", "enumeration"})
+GREEDY = Solver("GREEDY")
+GREEDY.add_commandline_flags({"g", "greedy"})
+NONE = Solver("NONE")
+NONE.add_commandline_flags({"n", "none", "na"})
+
+SOLVERS = [MIP, BENDERS, ENUMERATION, GREEDY, NONE]
+
+class TypeMapper:
+    """
+    Class to map allowed types in the data model to string representations and vice versa.
+    """
+    def __init__(self):
+        self.type_to_string: Dict[Type[Any], str] = {
+            int: 'int',
+            float: 'float',
+            str: 'str',
+            bool: 'bool',
+            Solver: 'Solver',
+        }
+        self.string_to_type: Dict[str, Type[Any]] = {
+            'int': int,
+            'float': float,
+            'str': str,
+            'bool': bool,
+            'Solver': Solver,
+        }
+        self.type_to_conversion = {
+            int: int,
+            float: float,
+            str: lambda x: x,
+            bool: self.convert_bool,
+            Solver: self.convert_solver_type,
+        }
+
+    def convert_bool(self, default: str) -> bool:
+        if default.lower() == 'true':
+            return True
+        elif default.lower() == 'false':
+            return False
+        else:
+            raise ValueError(f"Default value {default} is not a valid boolean")
+
+    def convert_solver_type(self, default: str) -> Solver:
+        for s in SOLVERS:
+            if default == s.name:
+                return s
+        logging.warning(f"No solver matches string value {default}.")
+        return NONE
+
+    def convert_default(self, default: str, data_type: Type[Any]) -> Any:
+        """
+        Convert the string default value to the same value of the correct matching type.
+        """
+        return self.type_to_conversion[data_type](default)
+
+    def str_allowed(self, data_type: str) -> bool:
+        """
+        Check if a string is a valid data type.
+        """
+        return data_type in self.string_to_type.keys()
+
+    def type_allowed(self, data_type: Type[Any]) -> bool:
+        """
+        Check if a type is a valid data type.
+        """
+        return data_type in self.type_to_string.keys()
+
+    def type_to_str(self, data_type: Type[Any]) -> str:
+        """
+        Convert a type to its string representation.
+        """
+        return self.type_to_string[data_type]
+
+    def str_to_type(self, data_type: str) -> Type[Any]:
+        """
+        Convert a string to its type representation.
+        """
+        return self.string_to_type[data_type]
+
+ALLOWED_TYPES = TypeMapper()
 
 class FeatureArgParser:
     '''
@@ -59,7 +145,7 @@ class FeatureArgParser:
     def construct_flag_strings(self, feature: Feature) -> Tuple[str, str, str]:
         arg_flag = "--" + feature.name
         help_msg = "Filter by " + feature.name + "."
-        success_msg = "Added argument: " + arg_flag, " with type ", feature.type, "."
+        success_msg = "Added argument: " + arg_flag + " with type " + ALLOWED_TYPES.type_to_str(feature.type) + "."
         return (arg_flag, help_msg, success_msg)
 
     def add_solverfeature_arg(self, feature: Feature) -> str:
@@ -81,7 +167,7 @@ class FeatureArgParser:
                 success_msg = self.add_solverfeature_arg(f)
             else:
                 success_msg = self.add_feature_arg(f)
-            DEBUG.log(success_msg)
+            logging.info(success_msg)
 
     def parse_args(self) -> argparse.Namespace:
         return self.parser.parse_args()
@@ -92,7 +178,7 @@ class DataFilterer:
     '''
     def __init__(self, args: argparse.Namespace) -> None:
         self.solver: Solver = args.solver
-        self.args: Dict[Any] = vars(args)
+        self.args: Dict[Any, Any] = vars(args)
 
     def filter(self, df: pd.DataFrame) -> pd.DataFrame:
         '''
@@ -113,19 +199,6 @@ class DataFilterer:
             mask = mask & (df["solver"] == self.solver.name)
         return df[mask]
 
-# TODO: split up this file into two files, one for the user to declare their solvers and features.
-MIP = Solver("MIP")
-MIP.add_commandline_flags({"m", "mip", "sp"})
-BENDERS = Solver("BENDERS")
-BENDERS.add_commandline_flags({"b", "benders"})
-ENUMERATION = Solver("ENUMERATION")
-ENUMERATION.add_commandline_flags({"e", "enum", "enumeration"})
-GREEDY = Solver("GREEDY")
-GREEDY.add_commandline_flags({"g", "greedy"})
-NONE = Solver("NONE")
-NONE.add_commandline_flags({"n", "none", "na"})
-
-SOLVERS = [MIP, BENDERS, ENUMERATION, GREEDY, NONE]
 
 # TODO: whether any of these "groups" need to be subclasses of features, or if they could be noted by some member flags. If that gets figured out, quite a few functions that take a list of features could iterate over all the features, and check their group belonging to decide whether to consider them, or how to treat them. Then we can remove all the lists and stuff.
 # For the final interface:
