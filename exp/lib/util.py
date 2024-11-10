@@ -6,7 +6,8 @@ from lib.feature import COLS
 
 DP = 2
 
-def check_make_dir(path: str, i: int, makedir: bool = True):
+
+def check_make_dir(path: str, i: int, makedir: bool = True, delim: str = "-"):
     """
     Recursively check if an experiment directory exists, or create one with the highest number
         - example - if "path" string is "/dat/experiments/test-01_29_22", and there already exist:
@@ -15,18 +16,18 @@ def check_make_dir(path: str, i: int, makedir: bool = True):
             - "/dat/experiments/test-01_29_22-2"
         we have to create the dir "/dat/experiments/test-01_29_22-3"
     """
-
-    isdir = os.path.isdir(path + "-" + str(i))
+    isdir = os.path.isdir(path + delim + str(i))
 
     # if the directory exists, call on the next i
     if isdir:
-        return check_make_dir(path, i + 1)
+        return check_make_dir(path, i + 1, delim=delim)
 
     # base case - create directory for given i (and return final path)
     else:
         if makedir:
-            os.mkdir(path + "-" + str(i))
-        return path + "-" + str(i)
+            os.mkdir(path + delim + str(i))
+        return path + delim + str(i)
+
 
 def ms_to_s(df: pd.DataFrame, col: str):
     """
@@ -34,9 +35,12 @@ def ms_to_s(df: pd.DataFrame, col: str):
     """
     new_col = col + "_s"
     if df[col] is None:
-        logging.warning(f"Input time ms col {col} is None, conversion to seconds aborted.")
+        logging.warning(
+            f"Input time ms col {col} is None, conversion to seconds aborted."
+        )
         return
     df[new_col] = df[col].div(1000)
+
 
 def add_seconds_columns(df: pd.DataFrame):
     """
@@ -45,6 +49,7 @@ def add_seconds_columns(df: pd.DataFrame):
     for col in COLS["time_outputs_rat"]:
         ms_to_s(df, col.name)
 
+
 def round_int_columns(df: pd.DataFrame):
     """
     Round all integer columns.
@@ -52,6 +57,7 @@ def round_int_columns(df: pd.DataFrame):
     for col in COLS["integer"]:
         if col in df.columns:
             df[col] = df[col].astype(int)
+
 
 def round_dp_columns(df: pd.DataFrame):
     """
@@ -63,15 +69,18 @@ def round_dp_columns(df: pd.DataFrame):
             df[col] = df[col].astype(float)
             df[col] = df[col].round(DP)
 
+
 def round(df: pd.DataFrame):
     round_int_columns(df)
     round_dp_columns(df)
+
 
 def print_dict(d: Dict[Any, Any]):
     print("{")
     for k, v in d.items():
         print(k + ": " + v + ",")
     print("}")
+
 
 def print_finished_row(row):
     print(
@@ -84,6 +93,7 @@ def print_finished_row(row):
         )
     )
 
+
 def remove_samerun_duplicates(df):
     """
     Remove duplicates for the same exact run parameters and hyperparameters.
@@ -91,11 +101,10 @@ def remove_samerun_duplicates(df):
     Make changes to df in place.
     """
     matching_colnames = [f.name for f in COLS["same_run_hyperparams"]]
-    df.sort_values(
-        by=["objective", "time"], ascending=[False, True], inplace=True
-    )
+    df.sort_values(by=["objective", "time"], ascending=[False, True], inplace=True)
     df.drop_duplicates(subset=matching_colnames, keep="first", inplace=True)
     logging.info("Removed duplicates for the same run.")
+
 
 def cleanup_to_processed(df):
     """
@@ -111,6 +120,7 @@ def cleanup_to_processed(df):
         df[col] = val
     pass
 
+
 def cleanup_to_finished(df) -> Any:
     """
     Remove same run dups, and add quick processing columns to meet COLS["finished"].
@@ -121,6 +131,7 @@ def cleanup_to_finished(df) -> Any:
     add_seconds_columns(data_df)
     return data_df
 
+
 def cleanup_to_pretty(df) -> Any:
     """
     Rounding and stuff that only matters for printing / tables etc, but we don't want to do the raw data.
@@ -128,6 +139,7 @@ def cleanup_to_pretty(df) -> Any:
     pretty_df = df.copy()
     round(pretty_df)
     return pretty_df
+
 
 def final_write(df, path):
     """
