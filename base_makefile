@@ -1,0 +1,26 @@
+# Makefile for ARSPI.
+# Paths/Environmental Variables.
+# Project Folder Directories.
+BIN = ./bin/
+DAT = ./dat/
+
+# Gurobi/Libraries.
+GRBPATH = <your_path_to>/gurobi<xxx>/<your_platform> # for example: ~/gurobi1001/linux64
+GRBINC = $(GRBPATH)/include
+CPPLIB = -L$(GRBPATH)/lib/ -lgurobi_c++ -lgurobi<xxx> $(CPPSTDLIB) -lpthread -lm # for example: -lgurobi100
+
+# *****************************************************
+# Compiler/Flags.
+# CXX = clang++ # Choose Your Preferred compiler, and tweak flags.
+# CXX = g++
+CXXFLAGS = -m64 -std=c++11 -g -Wall -Wextra -pedantic
+# ****************************************************
+
+format:
+	clang-format -i *.cpp *.h
+
+solve:
+	$(CXX) $(CXXFLAGS) solvers.cpp -o $(BIN)solve solve.cpp -I$(GRBINC) $(CPPLIB)
+
+clean:
+	rm -rf *.lp *.o $(BIN)*.dSYM $(BIN)main $(BIN)test
